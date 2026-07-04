@@ -1,7 +1,6 @@
 package secrets
 
 import (
-	"strings"
 	"testing"
 
 	"podman-essaim-compartment-manager/internal/host"
@@ -9,25 +8,33 @@ import (
 
 func TestDecryptParsesJSON(t *testing.T) {
 	f := &host.Fake{Responses: map[string]host.Result{
-		"user:1234:env SOPS_AGE_KEY_FILE=/id.txt sops -d --output-type json /c/secrets.sops.yaml": {
+		"user:1234:env SOPS_AGE_KEY_FILE=/id.txt sops -d --input-type yaml --output-type json /dev/stdin": {
 			Stdout: `{"db_password":"s3cr3t","ghcr_token":"tok"}`,
 		},
 	}}
-	got, err := Decrypt(f, "pecm-web", 1234, "/id.txt", "/c/secrets.sops.yaml")
+	got, err := Decrypt(f, "pecm-web", 1234, "/id.txt", []byte("ciphertext-bytes"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got["db_password"] != "s3cr3t" || got["ghcr_token"] != "tok" {
 		t.Fatalf("decoded = %v", got)
 	}
-	// identity must be passed via SOPS_AGE_KEY_FILE env, not argv beyond the file
-	found := false
+	// ciphertext must be piped on stdin and the identity passed via SOPS_AGE_KEY_FILE env
+	stdinOK, envOK := false, false
 	for _, c := range f.Calls {
-		if strings.Contains(strings.Join(c.Argv, " "), "SOPS_AGE_KEY_FILE=/id.txt") {
-			found = true
+		if string(c.Stdin) == "ciphertext-bytes" {
+			stdinOK = true
+		}
+		for _, tok := range c.Argv {
+			if tok == "SOPS_AGE_KEY_FILE=/id.txt" {
+				envOK = true
+			}
 		}
 	}
-	if !found {
+	if !stdinOK {
+		t.Fatal("ciphertext not passed via stdin")
+	}
+	if !envOK {
 		t.Fatal("SOPS_AGE_KEY_FILE not set")
 	}
 }

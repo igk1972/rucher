@@ -9,18 +9,19 @@ import (
 	"podman-essaim-compartment-manager/internal/host"
 )
 
-func Decrypt(r host.Runner, user string, uid int, identityPath, sopsPath string) (map[string]string, error) {
-	// Pass the age identity via env; sops reads it, plaintext returns on stdout only.
+func Decrypt(r host.Runner, user string, uid int, identityPath string, ciphertext []byte) (map[string]string, error) {
+	// Ciphertext is fed on stdin so the compartment user never needs read access
+	// to the (root-owned) source directory; only its own age identity decrypts it.
 	argv := []string{
 		"env", "SOPS_AGE_KEY_FILE=" + identityPath,
-		"sops", "-d", "--output-type", "json", sopsPath,
+		"sops", "-d", "--input-type", "yaml", "--output-type", "json", "/dev/stdin",
 	}
-	res, err := r.User(user, uid, argv, nil)
+	res, err := r.User(user, uid, argv, ciphertext)
 	if err != nil {
 		return nil, fmt.Errorf("sops decrypt: %w", err)
 	}
 	if res.Code != 0 {
-		return nil, fmt.Errorf("sops decrypt %s exited %d: %s", sopsPath, res.Code, res.Stderr)
+		return nil, fmt.Errorf("sops decrypt exited %d: %s", res.Code, res.Stderr)
 	}
 	var m map[string]string
 	if err := json.Unmarshal([]byte(res.Stdout), &m); err != nil {
