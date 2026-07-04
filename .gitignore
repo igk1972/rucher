@@ -1,0 +1,4 @@
+# Built binary from `go build ./cmd/...`
+/podman-essaim-compartment-manager
+# Go test binaries
+*.test
