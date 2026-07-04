@@ -58,7 +58,12 @@ func Apply(r host.Runner, c compartment.Compartment) (plan.Plan, error) {
 			return p, err
 		}
 	}
-	// 2. write/remove files (as the compartment user, into the systemd dir)
+	// 2. stop removed units first, while their generated .service still resolves
+	//    (once the .container file is deleted below, systemctl can no longer map it)
+	for _, u := range p.StopUnits {
+		o.Stop(u)
+	}
+	// 3. write/remove files (as the compartment user, into the systemd dir)
 	dir := systemdDir(c.Name)
 	r.User(o.User, uid, []string{"mkdir", "-p", dir}, nil)
 	for _, f := range p.WriteFiles {
@@ -69,7 +74,7 @@ func Apply(r host.Runner, c compartment.Compartment) (plan.Plan, error) {
 	for _, name := range p.RemoveFiles {
 		r.User(o.User, uid, []string{"rm", "-f", filepath.Join(dir, name)}, nil)
 	}
-	// 3. secrets
+	// 4. secrets
 	for _, key := range p.CreateSecrets {
 		if err := o.SecretCreate(key, []byte(secretValues[key])); err != nil {
 			return p, err
@@ -78,7 +83,7 @@ func Apply(r host.Runner, c compartment.Compartment) (plan.Plan, error) {
 	for _, key := range p.RemoveSecrets {
 		o.SecretRemove(key)
 	}
-	// 4. registry logins
+	// 5. registry logins
 	for _, l := range c.Manifest.Registries.Login {
 		if pw, ok := secretValues[l.PasswordKey]; ok {
 			if err := o.Login(l.Registry, l.Username, []byte(pw), l.Insecure); err != nil {
@@ -86,14 +91,11 @@ func Apply(r host.Runner, c compartment.Compartment) (plan.Plan, error) {
 			}
 		}
 	}
-	// 5. daemon-reload + unit lifecycle
+	// 6. daemon-reload + unit start/restart (stops already happened above)
 	if p.DaemonReload {
 		if err := o.DaemonReload(); err != nil {
 			return p, err
 		}
-	}
-	for _, u := range p.StopUnits {
-		o.Stop(u)
 	}
 	for _, u := range p.StartUnits {
 		if err := o.Start(u); err != nil {
@@ -106,7 +108,7 @@ func Apply(r host.Runner, c compartment.Compartment) (plan.Plan, error) {
 		}
 	}
 
-	// 6. persist new state
+	// 7. persist new state
 	next := nextState(c, uid, secretHashes)
 	if err := state.Save(statePath(c.Name), next); err != nil {
 		return p, err
