@@ -21,9 +21,9 @@ func (o Ops) sc(args ...string) error {
 }
 
 func (o Ops) DaemonReload() error    { return o.sc("daemon-reload") }
-func (o Ops) Start(u string) error   { return o.sc("enable", "--now", unitService(u)) }
+func (o Ops) Start(u string) error   { return o.sc("start", unitService(u)) }
 func (o Ops) Restart(u string) error { return o.sc("restart", unitService(u)) }
-func (o Ops) Stop(u string) error    { return o.sc("disable", "--now", unitService(u)) }
+func (o Ops) Stop(u string) error    { return o.sc("stop", unitService(u)) }
 
 func (o Ops) SecretRemove(name string) error {
 	// ignore "no such secret"; treat only real failures as errors
