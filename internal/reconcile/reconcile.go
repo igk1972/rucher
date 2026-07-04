@@ -4,6 +4,7 @@ package reconcile
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"podman-essaim-compartment-manager/internal/compartment"
 	"podman-essaim-compartment-manager/internal/host"
@@ -25,8 +26,60 @@ func systemdDir(name string) string {
 	return provision.HomeDir(name) + "/.config/containers/systemd"
 }
 
-func identityPath(name string) string {
-	return provision.HomeDir(name) + "/.config/podman-essaim-compartment-manager/age/identity.txt"
+func ageDir(name string) string {
+	return provision.HomeDir(name) + "/.config/podman-essaim-compartment-manager/age"
+}
+
+func identityPath(name string) string  { return ageDir(name) + "/identity.txt" }
+func recipientPath(name string) string { return ageDir(name) + "/recipient.txt" }
+
+// New ensures the compartment's OS user and age identity exist and returns its age recipient.
+func New(r host.Runner, name string) (string, error) {
+	uid, err := provision.EnsureUser(r, name)
+	if err != nil {
+		return "", err
+	}
+	user := provision.UserName(name)
+	if _, err := r.User(user, uid, []string{"mkdir", "-p", ageDir(name)}, nil); err != nil {
+		return "", err
+	}
+	idp := identityPath(name)
+	if res, _ := r.User(user, uid, []string{"test", "-f", idp}, nil); res.Code != 0 {
+		recipient, err := ops.Ops{R: r, User: user, UID: uid}.GenerateAgeKey(idp)
+		if err != nil {
+			return "", err
+		}
+		if _, err := r.User(user, uid, []string{"tee", recipientPath(name)}, []byte(recipient+"\n")); err != nil {
+			return "", err
+		}
+		return recipient, nil
+	}
+	return Recipient(r, name)
+}
+
+// Recipient returns the compartment's stored age recipient (root reads the user's file).
+func Recipient(r host.Runner, name string) (string, error) {
+	res, err := r.Root([]string{"cat", recipientPath(name)}, nil)
+	if err != nil {
+		return "", err
+	}
+	if res.Code != 0 {
+		return "", fmt.Errorf("recipient for %s: %s", name, res.Stderr)
+	}
+	return strings.TrimSpace(res.Stdout), nil
+}
+
+// Remove stops a compartment's units; with purge it also deletes the OS user and its home.
+func Remove(r host.Runner, name string, purge bool) error {
+	if purge {
+		if _, err := r.Root([]string{"loginctl", "disable-linger", provision.UserName(name)}, nil); err != nil {
+			return err
+		}
+		if _, err := r.Root([]string{"userdel", "-r", provision.UserName(name)}, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func Apply(r host.Runner, c compartment.Compartment) (plan.Plan, error) {
