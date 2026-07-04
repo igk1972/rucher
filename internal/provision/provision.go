@@ -12,8 +12,46 @@ import (
 
 const BaseDir = "/var/lib/podman-essaim-compartment-manager"
 
+const (
+	subidCount = 65536
+	subidBase  = 100000
+)
+
 func UserName(name string) string { return "pecm-" + name }
 func HomeDir(name string) string  { return BaseDir + "/" + name }
+
+// nextSubidStart returns the next free subid start, scanning both /etc/subuid and
+// /etc/subgid contents so the allocated block overlaps neither map.
+func nextSubidStart(subuid, subgid string) int {
+	max := subidBase
+	for _, content := range []string{subuid, subgid} {
+		for _, line := range strings.Split(content, "\n") {
+			f := strings.Split(strings.TrimSpace(line), ":")
+			if len(f) != 3 {
+				continue
+			}
+			start, err1 := strconv.Atoi(f[1])
+			count, err2 := strconv.Atoi(f[2])
+			if err1 != nil || err2 != nil {
+				continue
+			}
+			if end := start + count; end > max {
+				max = end
+			}
+		}
+	}
+	return max
+}
+
+// hasSubid reports whether user already owns a subuid range (idempotency guard).
+func hasSubid(subuid, user string) bool {
+	for _, line := range strings.Split(subuid, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), user+":") {
+			return true
+		}
+	}
+	return false
+}
 
 func EnsureUser(r host.Runner, name string) (int, error) {
 	user := UserName(name)
@@ -30,9 +68,19 @@ func EnsureUser(r host.Runner, name string) (int, error) {
 	if _, err := r.Root([]string{"loginctl", "enable-linger", user}, nil); err != nil {
 		return 0, err
 	}
-	// subuid/subgid are idempotent via usermod's add-subuids/add-subgids.
-	for _, sub := range []string{"--add-subuids", "--add-subgids"} {
-		if _, err := r.Root([]string{"usermod", sub, "100000-165535", user}, nil); err != nil {
+	// Allocate a unique, non-overlapping subuid/subgid block per compartment user.
+	subuidRes, err := r.Root([]string{"cat", "/etc/subuid"}, nil)
+	if err != nil {
+		return 0, err
+	}
+	if !hasSubid(subuidRes.Stdout, user) {
+		subgidRes, err := r.Root([]string{"cat", "/etc/subgid"}, nil)
+		if err != nil {
+			return 0, err
+		}
+		start := nextSubidStart(subuidRes.Stdout, subgidRes.Stdout)
+		rng := fmt.Sprintf("%d-%d", start, start+subidCount-1)
+		if _, err := r.Root([]string{"usermod", "--add-subuids", rng, "--add-subgids", rng, user}, nil); err != nil {
 			return 0, err
 		}
 	}

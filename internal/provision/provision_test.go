@@ -38,6 +38,69 @@ func TestEnsureUserCreatesWhenMissing(t *testing.T) {
 	}
 }
 
+func TestNextSubidStart(t *testing.T) {
+	if got := nextSubidStart("", ""); got != 100000 {
+		t.Fatalf("empty inputs = %d, want 100000", got)
+	}
+	if got := nextSubidStart("a:100000:65536\n", ""); got != 165536 {
+		t.Fatalf("single subuid line = %d, want 165536", got)
+	}
+	if got := nextSubidStart("a:100000:65536", "b:200000:65536"); got != 265536 {
+		t.Fatalf("subgid dominates = %d, want 265536", got)
+	}
+}
+
+func TestHasSubid(t *testing.T) {
+	if !hasSubid("pecm-web:100000:65536\n", "pecm-web") {
+		t.Fatal("expected hasSubid to find pecm-web")
+	}
+	if hasSubid("pecm-web:100000:65536\n", "pecm-api") {
+		t.Fatal("expected hasSubid to not find pecm-api")
+	}
+}
+
+func TestEnsureUserAllocatesFreeBlock(t *testing.T) {
+	f := &host.Fake{Responses: map[string]host.Result{
+		"root:id -u pecm-web":  {Stdout: "1500"},
+		"root:cat /etc/subuid": {Stdout: "existing:100000:65536\n"},
+		"root:cat /etc/subgid": {Stdout: "existing:100000:65536\n"},
+	}}
+	uid, err := EnsureUser(f, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uid != 1500 {
+		t.Fatalf("uid = %d, want 1500", uid)
+	}
+	want := []string{"usermod", "--add-subuids", "165536-231071", "--add-subgids", "165536-231071", "pecm-web"}
+	found := false
+	for _, c := range f.Calls {
+		if strings.Join(c.Argv, " ") == strings.Join(want, " ") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected usermod call %v in calls %v", want, f.Calls)
+	}
+}
+
+func TestEnsureUserSkipsSubidWhenPresent(t *testing.T) {
+	f := &host.Fake{Responses: map[string]host.Result{
+		"root:id -u pecm-web":  {Stdout: "1500"},
+		"root:cat /etc/subuid": {Stdout: "pecm-web:300000:65536\n"},
+	}}
+	if _, err := EnsureUser(f, "web"); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range f.Calls {
+		for _, a := range c.Argv {
+			if a == "--add-subuids" {
+				t.Fatalf("did not expect --add-subuids, got calls %v", f.Calls)
+			}
+		}
+	}
+}
+
 func TestApplyResourcesWritesDropInAndReloads(t *testing.T) {
 	f := &host.Fake{Responses: map[string]host.Result{}}
 	if err := ApplyResources(f, 1234, manifest.Resources{MemoryMax: "512M", CPUQuota: "50%"}); err != nil {
