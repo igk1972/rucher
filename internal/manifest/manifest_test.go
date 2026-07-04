@@ -31,6 +31,17 @@ resources:
 	}
 }
 
+func TestLoadRejectsUnknownKey(t *testing.T) {
+	data := []byte(`
+name: web
+resources:
+  memmoryMax: 512M
+`)
+	if _, err := Load(data); err == nil {
+		t.Fatal("expected error for unknown key memmoryMax")
+	}
+}
+
 func TestValidateRejectsEmptyName(t *testing.T) {
 	m := Manifest{}
 	if err := m.Validate(); err == nil {

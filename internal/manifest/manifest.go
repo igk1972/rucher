@@ -2,6 +2,7 @@
 package manifest
 
 import (
+	"bytes"
 	"fmt"
 
 	"gopkg.in/yaml.v3"
@@ -39,7 +40,11 @@ const defaultSecretsFile = "secrets.sops.yaml"
 
 func Load(data []byte) (Manifest, error) {
 	var m Manifest
-	if err := yaml.Unmarshal(data, &m); err != nil {
+	// strict decode: reject unknown keys so a typo'd field (e.g. memmoryMax) is a
+	// hard error rather than being silently dropped.
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&m); err != nil {
 		return Manifest{}, fmt.Errorf("parse compartment.yml: %w", err)
 	}
 	if m.Secrets.From == "" {
