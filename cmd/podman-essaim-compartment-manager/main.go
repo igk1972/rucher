@@ -17,7 +17,19 @@ func run(args []string, stdout io.Writer) int {
 		fmt.Fprint(stdout, usage())
 		return 2
 	}
-	return 0
+	switch args[0] {
+	case "plan":
+		dir := "./compartments"
+		rest := args[1:]
+		if len(rest) >= 2 && rest[0] == "--dir" {
+			dir = rest[1]
+			rest = rest[2:]
+		}
+		return cmdPlan(dir, rest, stdout)
+	default:
+		fmt.Fprintf(stdout, "unknown or not-yet-implemented command: %s\n\n%s", args[0], usage())
+		return 2
+	}
 }
 
 func main() {
