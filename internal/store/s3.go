@@ -65,8 +65,15 @@ func (s S3) Sync(ctx context.Context) (string, string, error) {
 		return "", "", fmt.Errorf("s3 client: %w", err)
 	}
 
+	// Normalize the prefix to a directory boundary so a bare "foo" prefix does not
+	// match "foobar/…" and mis-strip; the same value is used for listing and TrimPrefix.
+	prefix := s.Prefix
+	if prefix != "" && !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+
 	var objects []objInfo
-	for obj := range client.ListObjects(ctx, s.Bucket, minio.ListObjectsOptions{Prefix: s.Prefix, Recursive: true}) {
+	for obj := range client.ListObjects(ctx, s.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
 		if obj.Err != nil {
 			return "", "", fmt.Errorf("s3 list: %w", obj.Err)
 		}
@@ -77,8 +84,13 @@ func (s S3) Sync(ctx context.Context) (string, string, error) {
 	if err := os.RemoveAll(s.CachePath); err != nil {
 		return "", "", fmt.Errorf("s3 clear cache: %w", err)
 	}
+	// Ensure the checkout dir exists even when the bucket/prefix is empty; downstream
+	// code expects it to be present.
+	if err := os.MkdirAll(s.CachePath, 0o755); err != nil {
+		return "", "", err
+	}
 	for _, obj := range objects {
-		rel := strings.TrimPrefix(obj.Key, s.Prefix)
+		rel := strings.TrimPrefix(obj.Key, prefix)
 		dest, err := resolveDest(s.CachePath, rel)
 		if err != nil {
 			return "", "", err
