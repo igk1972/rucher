@@ -57,3 +57,69 @@ func TestLoadRejectsNameMismatch(t *testing.T) {
 		t.Fatal("expected name/dir mismatch error")
 	}
 }
+
+// writeCompartment lays down a minimal valid compartment plus the given extra
+// files, letting a test override or add unit/support files.
+func writeCompartment(t *testing.T, extra map[string]string) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "web")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"compartment.yml":   "name: web\nsecrets:\n  from: secrets.sops.yaml\n",
+		"secrets.sops.yaml": "db_password: ENC[...]\n",
+	}
+	for name, body := range extra {
+		files[name] = body
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func TestLoadRejectsMissingEnvironmentFile(t *testing.T) {
+	dir := writeCompartment(t, map[string]string{
+		"web.container": "[Container]\nImage=nginx\nEnvironmentFile=%h/.config/containers/systemd/app.env\n",
+	})
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected missing EnvironmentFile error")
+	}
+}
+
+func TestLoadAcceptsPresentEnvironmentFile(t *testing.T) {
+	dir := writeCompartment(t, map[string]string{
+		"web.container": "[Container]\nImage=nginx\nEnvironmentFile=%h/.config/containers/systemd/app.env\n",
+		"app.env":       "A=1\n",
+	})
+	if _, err := Load(dir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadRejectsEmptyUnit(t *testing.T) {
+	dir := writeCompartment(t, map[string]string{"web.container": ""})
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected error for empty unit file")
+	}
+}
+
+func TestLoadRejectsUnitWithoutSection(t *testing.T) {
+	dir := writeCompartment(t, map[string]string{"web.container": "Image=nginx\n"})
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected error for unit without a [Section] header")
+	}
+}
+
+func TestLoadIgnoresVolumeReference(t *testing.T) {
+	// A named volume is not a compartment-local file and must not be validated.
+	dir := writeCompartment(t, map[string]string{
+		"web.container": "[Container]\nImage=nginx\nVolume=data:/v\n",
+	})
+	if _, err := Load(dir); err != nil {
+		t.Fatalf("Volume references must not be validated: %v", err)
+	}
+}

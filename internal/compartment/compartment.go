@@ -2,9 +2,12 @@
 package compartment
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"podman-essaim-compartment-manager/internal/fileset"
 	"podman-essaim-compartment-manager/internal/manifest"
@@ -70,5 +73,75 @@ func Load(dir string) (Compartment, error) {
 			IsUnit:  fileset.IsUnitFile(e.Name()),
 		})
 	}
+	if err := c.Validate(); err != nil {
+		return Compartment{}, err
+	}
 	return c, nil
+}
+
+// systemdUnitDir is the per-user Quadlet drop-in directory that a compartment's
+// support files are materialized into; an EnvironmentFile value under this
+// prefix must resolve to a file the compartment ships.
+const systemdUnitDir = "%h/.config/containers/systemd/"
+
+// Validate rejects only the subset of problems that cannot false-positive:
+// a broken unit file, or an EnvironmentFile referencing a compartment-local
+// file that is not present. It deliberately does not check secret keys (need
+// decrypted secrets) or resource-limit formats (systemd accepts many forms).
+func (c Compartment) Validate() error {
+	have := map[string]bool{}
+	for _, f := range c.Files {
+		have[f.Name] = true
+	}
+	for _, f := range c.Files {
+		if !f.IsUnit {
+			continue
+		}
+		if err := validateUnit(f, have); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateUnit(f File, have map[string]bool) error {
+	hasSection := false
+	sc := bufio.NewScanner(bytes.NewReader(f.Content))
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if strings.HasPrefix(line, "[") {
+			hasSection = true
+		}
+		key, val, ok := strings.Cut(line, "=")
+		if !ok || strings.TrimSpace(key) != "EnvironmentFile" {
+			continue
+		}
+		name, ok := localEnvFile(strings.TrimSpace(val))
+		if !ok {
+			continue
+		}
+		if !have[name] {
+			return fmt.Errorf("unit %s references missing EnvironmentFile %s", f.Name, name)
+		}
+	}
+	if !hasSection {
+		return fmt.Errorf("unit %s is empty or has no [Section] header", f.Name)
+	}
+	return nil
+}
+
+// localEnvFile resolves an EnvironmentFile value to a compartment-local
+// basename. It reports false when the value cannot be validated: an optional
+// ("-"-prefixed) reference, or a path outside the compartment's unit dir.
+func localEnvFile(val string) (string, bool) {
+	if val == "" || strings.HasPrefix(val, "-") {
+		return "", false
+	}
+	if rest, ok := strings.CutPrefix(val, systemdUnitDir); ok {
+		return filepath.Base(rest), true
+	}
+	if !strings.Contains(val, "/") {
+		return val, true // bare relative filename lands in the unit dir
+	}
+	return "", false // absolute or other path: can't validate
 }
