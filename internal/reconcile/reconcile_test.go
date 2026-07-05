@@ -204,6 +204,82 @@ func TestRemovePurgeDeletesUser(t *testing.T) {
 	}
 }
 
+func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
+	oldBase := baseDirForState
+	baseDirForState = t.TempDir()
+	defer func() { baseDirForState = oldBase }()
+
+	sopsPath := "/etc/pecm/web/secrets.sops.yaml"
+	idp := identityPath("web")
+	decrypted := `{"db_password":"pw1","ghcr_token":"tok"}`
+	f := &host.Fake{Responses: map[string]host.Result{
+		"root:id -u pecm-web": {Stdout: "1234", Code: 0},
+		"root:env SOPS_AGE_KEY_FILE=" + idp + " sops -d --output-type json " + sopsPath: {Stdout: decrypted},
+	}}
+
+	c := compartment.Compartment{
+		Name:     "web",
+		SopsPath: sopsPath,
+		Manifest: manifest.Manifest{
+			Name:    "web",
+			Secrets: manifest.Secrets{Create: []string{"db_password"}},
+		},
+	}
+
+	if _, err := Apply(f, c); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawDBCreate, sawGhcrCreate bool
+	for _, call := range f.Calls {
+		switch strings.Join(call.Argv, " ") {
+		case "podman secret create db_password -":
+			sawDBCreate = true
+		case "podman secret create ghcr_token -":
+			sawGhcrCreate = true
+		}
+	}
+	if !sawDBCreate {
+		t.Errorf("expected a `podman secret create db_password -` user call")
+	}
+	if sawGhcrCreate {
+		t.Errorf("ghcr_token must not become a podman secret (not in secrets.create)")
+	}
+}
+
+func TestApplyErrorsOnMissingLoginPasswordKey(t *testing.T) {
+	oldBase := baseDirForState
+	baseDirForState = t.TempDir()
+	defer func() { baseDirForState = oldBase }()
+
+	sopsPath := "/etc/pecm/web/secrets.sops.yaml"
+	idp := identityPath("web")
+	decrypted := `{"db_password":"pw1"}`
+	f := &host.Fake{Responses: map[string]host.Result{
+		"root:id -u pecm-web": {Stdout: "1234", Code: 0},
+		"root:env SOPS_AGE_KEY_FILE=" + idp + " sops -d --output-type json " + sopsPath: {Stdout: decrypted},
+	}}
+
+	c := compartment.Compartment{
+		Name:     "web",
+		SopsPath: sopsPath,
+		Manifest: manifest.Manifest{
+			Name: "web",
+			Registries: manifest.Registries{Login: []manifest.Login{
+				{Registry: "ghcr.io", Username: "u", PasswordKey: "ghcr_token"},
+			}},
+		},
+	}
+
+	_, err := Apply(f, c)
+	if err == nil {
+		t.Fatal("expected error for missing login passwordKey")
+	}
+	if !strings.Contains(err.Error(), "ghcr_token") {
+		t.Fatalf("error = %v, want mention of ghcr_token", err)
+	}
+}
+
 func TestRecipientReadsFile(t *testing.T) {
 	recp := provision.HomeDir("web") + "/.config/podman-essaim-compartment-manager/age/recipient.txt"
 	f := &host.Fake{Responses: map[string]host.Result{

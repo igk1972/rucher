@@ -181,7 +181,19 @@ func Apply(r host.Runner, c compartment.Compartment) (plan.Plan, error) {
 		if err != nil {
 			return plan.Plan{}, fmt.Errorf("compartment %s: %w", c.Name, err)
 		}
-		secretHashes = secrets.Hashes(secretValues)
+		// Which decrypted keys become podman secrets: all of them, or exactly the allowlist.
+		forCreate := secretValues
+		if create := c.Manifest.Secrets.Create; len(create) > 0 {
+			forCreate = map[string]string{}
+			for _, k := range create {
+				v, ok := secretValues[k]
+				if !ok {
+					return plan.Plan{}, fmt.Errorf("compartment %s: secrets.create lists %q, absent from %s", c.Name, k, c.SopsPath)
+				}
+				forCreate[k] = v
+			}
+		}
+		secretHashes = secrets.Hashes(forCreate)
 	}
 
 	prior, err := state.Load(statePath(c.Name))
@@ -223,10 +235,12 @@ func Apply(r host.Runner, c compartment.Compartment) (plan.Plan, error) {
 	}
 	// 5. registry logins
 	for _, l := range c.Manifest.Registries.Login {
-		if pw, ok := secretValues[l.PasswordKey]; ok {
-			if err := o.Login(l.Registry, l.Username, []byte(pw), l.Insecure); err != nil {
-				return p, err
-			}
+		pw, ok := secretValues[l.PasswordKey]
+		if !ok {
+			return p, fmt.Errorf("compartment %s: registry %s: passwordKey %q not in secrets", c.Name, l.Registry, l.PasswordKey)
+		}
+		if err := o.Login(l.Registry, l.Username, []byte(pw), l.Insecure); err != nil {
+			return p, err
 		}
 	}
 	// 6. daemon-reload + unit start/restart (stops already happened above)
