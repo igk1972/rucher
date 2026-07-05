@@ -41,6 +41,23 @@ func cmdHostsStatus(hostsDir string, names []string, live bool, out io.Writer) i
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%d\t%s\n", r.Host, r.Address, reach, r.Revision, r.Applied, r.Removed, errs)
 	}
 	tw.Flush()
+	// The ERRORS column is only a count; print the actual messages below the
+	// table so failures are legible without re-running a lower-level command.
+	hasErrors := false
+	for _, r := range rows {
+		if len(r.Errors) > 0 {
+			hasErrors = true
+			break
+		}
+	}
+	if hasErrors {
+		fmt.Fprintln(out, "errors:")
+		for _, r := range rows {
+			for _, e := range r.Errors {
+				fmt.Fprintf(out, "  %s: %s\n", r.Host, e)
+			}
+		}
+	}
 	if live {
 		for _, r := range rows {
 			if r.Live != "" {

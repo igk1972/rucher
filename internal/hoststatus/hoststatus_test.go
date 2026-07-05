@@ -1,8 +1,10 @@
 package hoststatus
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"podman-essaim-compartment-manager/internal/host"
@@ -41,10 +43,41 @@ func TestCollectAggregatesAndIsolates(t *testing.T) {
 			b = r
 		}
 	}
-	if !a.Reachable || a.Revision != "rev9" || a.Applied != 2 || a.Removed != 1 || len(a.Errors) != 1 {
+	if !a.Reachable || a.Revision != "rev9" || a.Applied != 2 || a.Removed != 1 {
 		t.Fatalf("a = %+v", a)
+	}
+	// The failed "db" apply must surface as an exact "<name>: <error>" string.
+	if !slices.Contains(a.Errors, "db: boom") {
+		t.Fatalf("a.Errors = %v, want to contain %q", a.Errors, "db: boom")
 	}
 	if b.Reachable {
 		t.Fatalf("b should be unreachable: %+v", b)
+	}
+	// An unreachable host must capture the ssh stderr so the operator can tell
+	// "host down" from "config broken".
+	if !slices.Contains(b.Errors, "conn refused") {
+		t.Fatalf("b.Errors = %v, want to contain %q", b.Errors, "conn refused")
+	}
+}
+
+func TestCollectCapturesTransportError(t *testing.T) {
+	hosts := t.TempDir()
+	writeHost(t, hosts, "c", "network: {driver: ssh, address: 3.3.3.3}\n")
+
+	// A transport failure makes Root return a non-nil error rather than a Result.
+	f := &host.Fake{Err: errors.New("ssh spawn failed")}
+	rows, err := Collect(f, hosts, "/nonexistent", nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d", len(rows))
+	}
+	c := rows[0]
+	if c.Reachable {
+		t.Fatalf("c should be unreachable: %+v", c)
+	}
+	if !slices.Contains(c.Errors, "ssh spawn failed") {
+		t.Fatalf("c.Errors = %v, want to contain %q", c.Errors, "ssh spawn failed")
 	}
 }

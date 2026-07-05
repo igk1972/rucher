@@ -3,6 +3,8 @@ package hoststatus
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"podman-essaim-compartment-manager/internal/agent"
 	"podman-essaim-compartment-manager/internal/host"
@@ -49,6 +51,18 @@ func Collect(r host.Runner, hostsDir, limaDir string, names []string, live bool)
 		}
 		res, err := r.Root(append(argv, "cat", statusPath), nil)
 		if err != nil || res.Code != 0 {
+			// Record why the host is unreachable so the operator can tell a
+			// transport/config failure from a plain "host down".
+			switch {
+			case err != nil:
+				row.Errors = append(row.Errors, err.Error())
+			default:
+				if first := strings.TrimSpace(strings.SplitN(res.Stderr, "\n", 2)[0]); first != "" {
+					row.Errors = append(row.Errors, first)
+				} else {
+					row.Errors = append(row.Errors, fmt.Sprintf("ssh exited %d", res.Code))
+				}
+			}
 			rows = append(rows, row) // Reachable stays false
 			continue
 		}
