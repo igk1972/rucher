@@ -2,6 +2,7 @@
 package placement
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 
@@ -31,7 +32,11 @@ type file struct {
 
 func Assigned(data []byte, nodeID string) ([]string, error) {
 	var f file
-	if err := yaml.Unmarshal(data, &f); err != nil {
+	// Strict decode: a typo like `placement:` (singular) must error rather than silently
+	// parse to zero placements and unmanage every compartment on the node.
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&f); err != nil {
 		return nil, fmt.Errorf("parse placement.yml: %w", err)
 	}
 	var out []string
