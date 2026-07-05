@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -13,5 +14,13 @@ func TestFakeReturnsConfigured(t *testing.T) {
 	}
 	if co != "/tmp/co" || rev != "abc123" {
 		t.Fatalf("got %q %q", co, rev)
+	}
+}
+
+func TestFakeReturnsError(t *testing.T) {
+	f := &Fake{Err: errors.New("boom")}
+	_, _, err := f.Sync(context.Background())
+	if err == nil {
+		t.Fatal("Sync returned nil error, want the configured Err")
 	}
 }
