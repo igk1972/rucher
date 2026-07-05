@@ -1,0 +1,118 @@
+# podman-essaim-compartment-manager
+
+Single-host manager for **podman Quadlet** workloads. It reconciles a directory of
+*compartments* into running rootless-podman services under per-user systemd. Each
+compartment is an isolated environment backed by a dedicated Linux system user, its own
+podman secret and registry-credential store, its own age identity, and (optionally) a
+systemd resource slice.
+
+This is **sub-project A** of a larger orchestrator (multi-node placement + Tailscale
+networking come in later sub-projects). A is standalone and does everything on one host.
+
+## What it does
+
+- You author Quadlet units (`.container`/`.volume`/`.network`/`.pod`/…) plus any support
+  files (env files, configs) in a compartment directory. The tool does **not** generate
+  units — you write them.
+- `apply` lays the units + support files into the compartment user's
+  `~/.config/containers/systemd/`, creates podman secrets, runs `systemctl --user
+  daemon-reload`, and starts the services. It is **idempotent** and reconciles drift:
+  changing one support file restarts only the units that use it.
+- Secrets live **encrypted at rest** (SOPS + age) inside the compartment directory, safe
+  to commit to a store. Plaintext is decrypted in memory and fed to podman over stdin —
+  never written to disk, never passed on argv.
+
+Native systemd gives dependencies (`After=`/`Requires=`), lifecycle hooks
+(`ExecStartPre=`/…), and timers (`.timer`) for free within a compartment.
+
+## Build
+
+```bash
+GOOS=linux GOARCH=arm64 go build -o pecm ./cmd/podman-essaim-compartment-manager
+```
+
+Runs as **root** on the target host (it creates users, manages linger/subuids, and drives
+each user's systemd). Requires Go ≥ 1.23 to build; the only dependency is
+`gopkg.in/yaml.v3`.
+
+## Host prerequisites
+
+Debian (arm64/amd64) with: `podman` (rootless-capable), `age`/`age-keygen`, `sops`,
+`uidmap` (`newuidmap`/`newgidmap`), and systemd with `loginctl`/`runuser`. Run as root (or
+via passwordless sudo).
+
+## Compartment layout
+
+```
+compartments/<name>/
+  compartment.yml          # manifest
+  secrets.sops.yaml        # SOPS+age, encrypted to THIS compartment's recipient (optional)
+  web.container            # your Quadlet units
+  nginx.conf  app.env      # support files referenced by the units
+```
+
+```yaml
+# compartment.yml
+name: web                  # must equal the directory name
+secrets:
+  from: secrets.sops.yaml  # keys in this file become podman secrets
+registries:
+  login:
+    - registry: ghcr.io
+      username: deploy
+      passwordKey: ghcr_token   # value taken from the sops file
+resources:                 # optional -> systemd slice on the compartment user
+  memoryMax: 512M
+  cpuQuota: "50%"
+```
+
+Units reference support files by their in-place path, e.g.
+`EnvironmentFile=%h/.config/containers/systemd/app.env`.
+
+## Commands
+
+```
+pecm new <name>                     # create the user + age identity; print the recipient
+pecm age recipient <name>           # print a compartment's age recipient
+pecm plan [--dir DIR] [name...]     # dry-run: show what apply would change
+pecm apply [--dir DIR] [name...]    # reconcile compartments onto the host
+pecm status [name...]               # per-unit ActiveState/SubState
+pecm logs <name> <unit>             # journalctl --user for one unit
+pecm rm <name> [--purge]            # stop + unmanage; --purge also deletes the user + data
+```
+
+No `--dir` defaults to `./compartments`; no names means all compartments.
+
+## Secret workflow
+
+```bash
+sudo pecm new web                                   # prints age1... recipient
+printf 'db_password: s3cr3t\n' \
+  | sops --encrypt --age <recipient> /dev/stdin \
+  > compartments/web/secrets.sops.yaml              # encrypt to that recipient
+sudo pecm apply --dir ./compartments web            # decrypt + create podman secret + start
+```
+
+At apply time the root agent decrypts the SOPS file using the compartment's age identity
+(root can read both the file and the identity), then creates the podman secret and any
+registry logins as the compartment user via stdin.
+
+## On-host layout
+
+| What | Path |
+|------|------|
+| Compartment user | `pecm-<name>` (system user, nologin) |
+| Home | `/var/lib/podman-essaim/compartments/<name>` |
+| Units + support files | `<home>/.config/containers/systemd/` |
+| age identity / recipient | `<home>/.config/podman-essaim-compartment-manager/age/` |
+| Last-applied state (hashes only) | `/var/lib/podman-essaim/compartments/state/<name>.json` |
+| Resource slice drop-in | `/etc/systemd/system/user-<uid>.slice.d/50-podman-essaim-compartment-manager.conf` |
+
+Each compartment user gets a unique, non-overlapping subuid/subgid block (allocated from
+`/etc/subuid`), so many compartments coexist on one host.
+
+## Testing
+
+Pure logic and the shell-out layer are unit-tested with a fake command runner
+(`go test ./...`). End-to-end behavior on a real host is exercised by
+[`test/integration.md`](test/integration.md) on a Lima node.
