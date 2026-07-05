@@ -8,7 +8,7 @@ import (
 
 func usage() string {
 	return "podman-essaim-compartment-manager <command> [args]\n" +
-		"commands: new plan apply status rm logs age\n"
+		"commands: new plan apply status rm logs age node agent keygen\n"
 }
 
 // parseDir pulls an optional `--dir <value>` out of args wherever it appears
@@ -96,6 +96,41 @@ func run(args []string, stdout io.Writer) int {
 			return 2
 		}
 		return cmdRm(name, purge, stdout)
+	case "node":
+		if len(args) < 2 {
+			fmt.Fprintln(stdout, "usage: node init|recipient")
+			return 2
+		}
+		switch args[1] {
+		case "init":
+			return cmdNodeInit(stdout)
+		case "recipient":
+			return cmdNodeRecipient(stdout)
+		default:
+			fmt.Fprintf(stdout, "unknown node subcommand: %s\n", args[1])
+			return 2
+		}
+	case "agent":
+		if len(args) < 2 {
+			fmt.Fprintln(stdout, "usage: agent run|install")
+			return 2
+		}
+		configPath := "/etc/podman-essaim/agent.yml"
+		rest := args[2:]
+		if len(rest) >= 2 && rest[0] == "--config" {
+			configPath = rest[1]
+		}
+		switch args[1] {
+		case "run":
+			return cmdAgentRun(configPath, stdout)
+		case "install":
+			return cmdAgentInstall(configPath, stdout)
+		default:
+			fmt.Fprintf(stdout, "unknown agent subcommand: %s\n", args[1])
+			return 2
+		}
+	case "keygen":
+		return cmdKeygen(args[1:], stdout)
 	default:
 		fmt.Fprintf(stdout, "unknown or not-yet-implemented command: %s\n\n%s", args[0], usage())
 		return 2
