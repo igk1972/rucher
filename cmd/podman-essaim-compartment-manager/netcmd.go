@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 
 	"podman-essaim-compartment-manager/internal/host"
 	"podman-essaim-compartment-manager/internal/hostcfg"
@@ -30,6 +31,11 @@ func parseNetJoin(args []string) (hostName, driver, overlayName, address string,
 			}
 			address, i = args[i+1], i+1
 		default:
+			// A real host name never starts with "-", so an unknown flag-looking
+			// token is a typo, not the host (e.g. --drivr silently becoming a name).
+			if strings.HasPrefix(args[i], "-") {
+				return "", "", "", "", fmt.Errorf("unknown flag %q", args[i])
+			}
 			if hostName != "" {
 				return "", "", "", "", fmt.Errorf("unexpected argument %q", args[i])
 			}
@@ -38,6 +44,9 @@ func parseNetJoin(args []string) (hostName, driver, overlayName, address string,
 	}
 	if hostName == "" {
 		return "", "", "", "", fmt.Errorf("usage: net join <host> [--driver ssh|tailscale] [--overlay-name N] [--address A]")
+	}
+	if driver != "ssh" && driver != "tailscale" {
+		return "", "", "", "", fmt.Errorf("unknown driver %q (want ssh|tailscale)", driver)
 	}
 	if overlayName == "" {
 		overlayName = hostName
