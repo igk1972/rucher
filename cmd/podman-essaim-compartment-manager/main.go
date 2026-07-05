@@ -142,6 +142,26 @@ func run(args []string, stdout io.Writer) int {
 		}
 		fmt.Fprintln(stdout, "usage: net [--hosts DIR] join <host> ...")
 		return 2
+	case "hosts":
+		hostsDir := "./hosts"
+		rest := args[1:]
+		if len(rest) >= 2 && rest[0] == "--hosts" {
+			hostsDir, rest = rest[1], rest[2:]
+		}
+		if len(rest) >= 1 && rest[0] == "status" {
+			live := false
+			var names []string
+			for _, a := range rest[1:] {
+				if a == "--live" {
+					live = true
+				} else {
+					names = append(names, a)
+				}
+			}
+			return cmdHostsStatus(hostsDir, names, live, stdout)
+		}
+		fmt.Fprintln(stdout, "usage: hosts [--hosts DIR] status [--live] [host...]")
+		return 2
 	default:
 		fmt.Fprintf(stdout, "unknown or not-yet-implemented command: %s\n\n%s", args[0], usage())
 		return 2
