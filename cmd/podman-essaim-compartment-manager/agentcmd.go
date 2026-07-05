@@ -17,32 +17,34 @@ import (
 const agentStatusPath = "/var/lib/podman-essaim/agent-status.json"
 const storeCachePath = "/var/lib/podman-essaim/store"
 
-func parseKeygen(args []string) (name, recipient string, err error) {
+// parseKeygen collects the compartment name and every repeatable --to recipient, so
+// the identity can be sealed to all target nodes at once.
+func parseKeygen(args []string) (name string, recipients []string, err error) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--to":
 			if i+1 >= len(args) {
-				return "", "", fmt.Errorf("--to needs a recipient")
+				return "", nil, fmt.Errorf("--to needs a recipient")
 			}
-			recipient = args[i+1]
+			recipients = append(recipients, args[i+1])
 			i++
 		default:
 			if name != "" {
-				return "", "", fmt.Errorf("unexpected argument: %q", args[i])
+				return "", nil, fmt.Errorf("unexpected argument: %q", args[i])
 			}
 			name = args[i]
 		}
 	}
-	if name == "" || recipient == "" {
-		return "", "", fmt.Errorf("usage: keygen <name> --to <node-recipient>")
+	if name == "" || len(recipients) == 0 {
+		return "", nil, fmt.Errorf("usage: keygen <name> --to <node-recipient> [--to <node-recipient> ...]")
 	}
-	return name, recipient, nil
+	return name, recipients, nil
 }
 
-// cmdKeygen generates a compartment keypair, seals its identity to the node recipient,
+// cmdKeygen generates a compartment keypair, seals its identity to every node recipient,
 // writes identity.age to ./compartments/<name>/, and prints the compartment recipient.
 func cmdKeygen(args []string, out io.Writer) int {
-	name, to, err := parseKeygen(args)
+	name, recipients, err := parseKeygen(args)
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 2
@@ -52,7 +54,7 @@ func cmdKeygen(args []string, out io.Writer) int {
 		fmt.Fprintln(out, "error:", err)
 		return 1
 	}
-	sealed, err := age.Seal(to, []byte(id))
+	sealed, err := age.SealTo(recipients, []byte(id))
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1

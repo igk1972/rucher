@@ -15,12 +15,19 @@ func TestAgentTimerUnit(t *testing.T) {
 }
 
 func TestParseKeygen(t *testing.T) {
-	name, to, err := parseKeygen([]string{"web", "--to", "age1abc"})
+	name, recipients, err := parseKeygen([]string{"web", "--to", "age1abc"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if name != "web" || to != "age1abc" {
-		t.Fatalf("got %q %q", name, to)
+	if name != "web" || len(recipients) != 1 || recipients[0] != "age1abc" {
+		t.Fatalf("got %q %v", name, recipients)
+	}
+	name, recipients, err = parseKeygen([]string{"web", "--to", "age1abc", "--to", "age1def"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "web" || len(recipients) != 2 || recipients[0] != "age1abc" || recipients[1] != "age1def" {
+		t.Fatalf("got %q %v", name, recipients)
 	}
 	if _, _, err := parseKeygen([]string{"web"}); err == nil {
 		t.Fatal("expected error when --to is missing")
