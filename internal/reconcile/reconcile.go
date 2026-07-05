@@ -18,11 +18,12 @@ import (
 	"podman-essaim-compartment-manager/internal/state"
 )
 
-// baseDirForState is a var so tests can redirect state to a temp dir.
-var baseDirForState = provision.BaseDir
+// BaseDirForState is a var so tests (including those in other packages, e.g. agent)
+// can redirect state to a temp dir instead of the production BaseDir.
+var BaseDirForState = provision.BaseDir
 
 func statePath(name string) string {
-	return filepath.Join(baseDirForState, "state", name+".json")
+	return filepath.Join(BaseDirForState, "state", name+".json")
 }
 
 func systemdDir(name string) string {
@@ -33,7 +34,7 @@ func ageDir(name string) string {
 	return provision.HomeDir(name) + "/.config/podman-essaim-compartment-manager/age"
 }
 
-func identityPath(name string) string  { return ageDir(name) + "/identity.txt" }
+func IdentityPath(name string) string  { return ageDir(name) + "/identity.txt" }
 func recipientPath(name string) string { return ageDir(name) + "/recipient.txt" }
 
 // New ensures the compartment's OS user and age identity exist and returns its age recipient.
@@ -46,7 +47,7 @@ func New(r host.Runner, name string) (string, error) {
 	if _, err := r.User(user, uid, []string{"mkdir", "-p", ageDir(name)}, nil); err != nil {
 		return "", err
 	}
-	idp := identityPath(name)
+	idp := IdentityPath(name)
 	if res, _ := r.User(user, uid, []string{"test", "-f", idp}, nil); res.Code != 0 {
 		recipient, err := ops.Ops{R: r, User: user, UID: uid}.GenerateAgeKey(idp)
 		if err != nil {
@@ -74,7 +75,7 @@ func Recipient(r host.Runner, name string) (string, error) {
 
 // List returns the names of compartments that have a persisted state file.
 func List() ([]string, error) {
-	dir := filepath.Join(baseDirForState, "state")
+	dir := filepath.Join(BaseDirForState, "state")
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -183,7 +184,7 @@ func Apply(r host.Runner, c compartment.Compartment) (plan.Plan, error) {
 	var secretHashes map[string]string
 	var secretValues map[string]string
 	if c.SopsPath != "" {
-		secretValues, err = secrets.Decrypt(r, identityPath(c.Name), c.SopsPath)
+		secretValues, err = secrets.Decrypt(r, IdentityPath(c.Name), c.SopsPath)
 		if err != nil {
 			return plan.Plan{}, fmt.Errorf("compartment %s: %w", c.Name, err)
 		}

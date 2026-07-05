@@ -22,9 +22,9 @@ func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
 		"root:id -u pecm-web": {Stdout: "1234", Code: 0},
 	}}
 	// override statePath to a temp location for the test
-	oldBase := baseDirForState
-	baseDirForState = t.TempDir()
-	defer func() { baseDirForState = oldBase }()
+	oldBase := BaseDirForState
+	BaseDirForState = t.TempDir()
+	defer func() { BaseDirForState = oldBase }()
 
 	p, err := Apply(f, c)
 	if err != nil {
@@ -77,9 +77,9 @@ func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 }
 
 func TestStatusReportsUnitStates(t *testing.T) {
-	oldBase := baseDirForState
-	baseDirForState = t.TempDir()
-	defer func() { baseDirForState = oldBase }()
+	oldBase := BaseDirForState
+	BaseDirForState = t.TempDir()
+	defer func() { BaseDirForState = oldBase }()
 	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -98,9 +98,9 @@ func TestStatusReportsUnitStates(t *testing.T) {
 }
 
 func TestListReturnsCompartmentsWithState(t *testing.T) {
-	oldBase := baseDirForState
-	baseDirForState = t.TempDir()
-	defer func() { baseDirForState = oldBase }()
+	oldBase := BaseDirForState
+	BaseDirForState = t.TempDir()
+	defer func() { BaseDirForState = oldBase }()
 	if err := state.Save(statePath("web"), state.State{Name: "web"}); err != nil {
 		t.Fatal(err)
 	}
@@ -117,9 +117,9 @@ func TestListReturnsCompartmentsWithState(t *testing.T) {
 }
 
 func TestListEmptyWhenNoStateDir(t *testing.T) {
-	oldBase := baseDirForState
-	baseDirForState = t.TempDir()
-	defer func() { baseDirForState = oldBase }()
+	oldBase := BaseDirForState
+	BaseDirForState = t.TempDir()
+	defer func() { BaseDirForState = oldBase }()
 	got, err := List()
 	if err != nil {
 		t.Fatal(err)
@@ -130,9 +130,9 @@ func TestListEmptyWhenNoStateDir(t *testing.T) {
 }
 
 func TestStatusEmptyWhenNoState(t *testing.T) {
-	oldBase := baseDirForState
-	baseDirForState = t.TempDir()
-	defer func() { baseDirForState = oldBase }()
+	oldBase := BaseDirForState
+	BaseDirForState = t.TempDir()
+	defer func() { BaseDirForState = oldBase }()
 	f := &host.Fake{Responses: map[string]host.Result{}}
 	got, err := Status(f, "web")
 	if err != nil {
@@ -144,9 +144,9 @@ func TestStatusEmptyWhenNoState(t *testing.T) {
 }
 
 func TestRemoveStopsUnitsAndFilesWithoutPurge(t *testing.T) {
-	oldBase := baseDirForState
-	baseDirForState = t.TempDir()
-	defer func() { baseDirForState = oldBase }()
+	oldBase := BaseDirForState
+	BaseDirForState = t.TempDir()
+	defer func() { BaseDirForState = oldBase }()
 	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -181,9 +181,9 @@ func TestRemoveStopsUnitsAndFilesWithoutPurge(t *testing.T) {
 }
 
 func TestRemovePurgeDeletesUser(t *testing.T) {
-	oldBase := baseDirForState
-	baseDirForState = t.TempDir()
-	defer func() { baseDirForState = oldBase }()
+	oldBase := BaseDirForState
+	BaseDirForState = t.TempDir()
+	defer func() { BaseDirForState = oldBase }()
 	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -213,12 +213,12 @@ func TestRemovePurgeDeletesUser(t *testing.T) {
 }
 
 func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
-	oldBase := baseDirForState
-	baseDirForState = t.TempDir()
-	defer func() { baseDirForState = oldBase }()
+	oldBase := BaseDirForState
+	BaseDirForState = t.TempDir()
+	defer func() { BaseDirForState = oldBase }()
 
 	sopsPath := "/etc/pecm/web/secrets.sops.yaml"
-	idp := identityPath("web")
+	idp := IdentityPath("web")
 	decrypted := `{"db_password":"pw1","ghcr_token":"tok"}`
 	f := &host.Fake{Responses: map[string]host.Result{
 		"root:id -u pecm-web": {Stdout: "1234", Code: 0},
@@ -256,12 +256,12 @@ func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 }
 
 func TestApplyErrorsOnMissingLoginPasswordKey(t *testing.T) {
-	oldBase := baseDirForState
-	baseDirForState = t.TempDir()
-	defer func() { baseDirForState = oldBase }()
+	oldBase := BaseDirForState
+	BaseDirForState = t.TempDir()
+	defer func() { BaseDirForState = oldBase }()
 
 	sopsPath := "/etc/pecm/web/secrets.sops.yaml"
-	idp := identityPath("web")
+	idp := IdentityPath("web")
 	decrypted := `{"db_password":"pw1"}`
 	f := &host.Fake{Responses: map[string]host.Result{
 		"root:id -u pecm-web": {Stdout: "1234", Code: 0},
