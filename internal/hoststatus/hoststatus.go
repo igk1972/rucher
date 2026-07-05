@@ -16,14 +16,14 @@ import (
 const statusPath = "/var/lib/podman-essaim/agent-status.json"
 
 type Row struct {
-	Host      string
-	Address   string
-	Reachable bool
-	Revision  string
-	Applied   int
-	Removed   int
-	Errors    []string
-	Live      string
+	Host      string   `json:"host"`
+	Address   string   `json:"address"`
+	Reachable bool     `json:"reachable"`
+	Revision  string   `json:"revision"`
+	Applied   int      `json:"applied"`
+	Removed   int      `json:"removed"`
+	Errors    []string `json:"errors,omitempty"`
+	Live      string   `json:"live,omitempty"`
 }
 
 func Collect(r host.Runner, hostsDir, limaDir string, names []string, live bool) ([]Row, error) {

@@ -150,17 +150,21 @@ func run(args []string, stdout io.Writer) int {
 		}
 		if len(rest) >= 1 && rest[0] == "status" {
 			live := false
+			jsonOut := false
 			var names []string
 			for _, a := range rest[1:] {
-				if a == "--live" {
+				switch a {
+				case "--live":
 					live = true
-				} else {
+				case "--json":
+					jsonOut = true
+				default:
 					names = append(names, a)
 				}
 			}
-			return cmdHostsStatus(hostsDir, names, live, stdout)
+			return cmdHostsStatus(hostsDir, names, live, jsonOut, stdout)
 		}
-		fmt.Fprintln(stdout, "usage: hosts [--hosts DIR] status [--live] [host...]")
+		fmt.Fprintln(stdout, "usage: hosts [--hosts DIR] status [--live] [--json] [host...]")
 		return 2
 	default:
 		fmt.Fprintf(stdout, "unknown or not-yet-implemented command: %s\n\n%s", args[0], usage())

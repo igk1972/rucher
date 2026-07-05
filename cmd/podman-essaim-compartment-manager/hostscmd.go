@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -20,13 +21,24 @@ func limaDir() string {
 	return filepath.Join(home, ".lima")
 }
 
-// cmdHostsStatus prints a per-host status table gathered over ssh.
-func cmdHostsStatus(hostsDir string, names []string, live bool, out io.Writer) int {
+// cmdHostsStatus gathers per-host status over ssh and renders it as either a
+// human-readable table or, when jsonOut is set, a machine-readable JSON array.
+func cmdHostsStatus(hostsDir string, names []string, live, jsonOut bool, out io.Writer) int {
 	rows, err := hoststatus.Collect(host.NewExec(), hostsDir, limaDir(), names, live)
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1
 	}
+	if jsonOut {
+		return renderHostsJSON(out, rows)
+	}
+	return renderHostsTable(out, rows, live)
+}
+
+// renderHostsTable writes the status table plus an errors detail block and, when
+// live is set, per-host live status blocks. It returns 1 if any host is
+// unreachable, else 0.
+func renderHostsTable(out io.Writer, rows []hoststatus.Row, live bool) int {
 	tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "HOST\tADDRESS\tREACHABLE\tREVISION\tAPPLIED\tREMOVED\tERRORS")
 	rc := 0
@@ -66,5 +78,28 @@ func cmdHostsStatus(hostsDir string, names []string, live bool, out io.Writer) i
 			}
 		}
 	}
+	return rc
+}
+
+// renderHostsJSON writes rows as an indented JSON array followed by a newline.
+// It returns 1 if any host is unreachable, else 0.
+func renderHostsJSON(out io.Writer, rows []hoststatus.Row) int {
+	rc := 0
+	for _, r := range rows {
+		if !r.Reachable {
+			rc = 1
+			break
+		}
+	}
+	// Marshal an empty slice (not nil) so a no-host result is `[]`, not `null`.
+	if rows == nil {
+		rows = []hoststatus.Row{}
+	}
+	b, err := json.MarshalIndent(rows, "", "  ")
+	if err != nil {
+		fmt.Fprintln(out, "error:", err)
+		return 1
+	}
+	fmt.Fprintf(out, "%s\n", b)
 	return rc
 }
