@@ -261,7 +261,6 @@ func nextState(c compartment.Compartment, uid int, secretHashes map[string]strin
 		Files:        map[string]string{},
 		SecretHashes: secretHashes,
 		Resources:    c.Manifest.Resources,
-		Logins:       map[string]string{},
 	}
 	if s.SecretHashes == nil {
 		s.SecretHashes = map[string]string{}

@@ -17,7 +17,6 @@ type Plan struct {
 	RemoveFiles   []string
 	CreateSecrets []string
 	RemoveSecrets []string
-	Logins        []manifest.Login
 	Resources     *manifest.Resources // non-nil when slice limits must be (re)applied
 	DaemonReload  bool
 	StartUnits    []string
@@ -27,7 +26,7 @@ type Plan struct {
 
 func (p Plan) Empty() bool {
 	return len(p.WriteFiles) == 0 && len(p.RemoveFiles) == 0 &&
-		len(p.CreateSecrets) == 0 && len(p.RemoveSecrets) == 0 && len(p.Logins) == 0 &&
+		len(p.CreateSecrets) == 0 && len(p.RemoveSecrets) == 0 &&
 		p.Resources == nil && !p.DaemonReload &&
 		len(p.StartUnits) == 0 && len(p.RestartUnits) == 0 && len(p.StopUnits) == 0
 }

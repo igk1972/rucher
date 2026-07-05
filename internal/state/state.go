@@ -18,14 +18,12 @@ type State struct {
 	SecretHashes map[string]string  `json:"secretHashes"`
 	Units        []string           `json:"units"`
 	Resources    manifest.Resources `json:"resources"`
-	Logins       map[string]string  `json:"logins"`
 }
 
 func empty() State {
 	return State{
 		Files:        map[string]string{},
 		SecretHashes: map[string]string{},
-		Logins:       map[string]string{},
 	}
 }
 
