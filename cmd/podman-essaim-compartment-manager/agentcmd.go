@@ -120,13 +120,27 @@ func cmdAgentRun(configPath string, out io.Writer) int {
 	return 0
 }
 
+// agentTimerUnit returns the systemd timer unit body, firing the agent every interval
+// (default 30s when interval is empty).
+func agentTimerUnit(interval string) string {
+	if interval == "" {
+		interval = "30s"
+	}
+	return "[Unit]\nDescription=run the podman-essaim GitOps agent periodically\n\n" +
+		"[Timer]\nOnBootSec=30s\nOnUnitActiveSec=" + interval + "\n\n[Install]\nWantedBy=timers.target\n"
+}
+
 // cmdAgentInstall writes the systemd oneshot service + timer that run `agent run`.
 func cmdAgentInstall(configPath string, out io.Writer) int {
+	cfg, err := agentcfg.Load(configPath)
+	if err != nil {
+		fmt.Fprintln(out, "error:", err)
+		return 1
+	}
 	r := host.NewExec()
 	service := "[Unit]\nDescription=podman-essaim GitOps agent (one pass)\n\n" +
 		"[Service]\nType=oneshot\nExecStart=/usr/local/bin/pecm agent run --config " + configPath + "\n"
-	timer := "[Unit]\nDescription=run the podman-essaim GitOps agent periodically\n\n" +
-		"[Timer]\nOnBootSec=30s\nOnUnitActiveSec=30s\n\n[Install]\nWantedBy=timers.target\n"
+	timer := agentTimerUnit(cfg.Interval)
 	for path, body := range map[string]string{
 		"/etc/systemd/system/podman-essaim-agent.service": service,
 		"/etc/systemd/system/podman-essaim-agent.timer":   timer,
@@ -136,8 +150,12 @@ func cmdAgentInstall(configPath string, out io.Writer) int {
 			return 1
 		}
 	}
-	r.Root([]string{"systemctl", "daemon-reload"}, nil)
-	r.Root([]string{"systemctl", "enable", "--now", "podman-essaim-agent.timer"}, nil)
+	r.Root([]string{"systemctl", "daemon-reload"}, nil) // best-effort
+	res, err := r.Root([]string{"systemctl", "enable", "--now", "podman-essaim-agent.timer"}, nil)
+	if err != nil || res.Code != 0 {
+		fmt.Fprintln(out, "error: enable podman-essaim-agent.timer:", err, res.Stderr)
+		return 1
+	}
 	fmt.Fprintln(out, "installed podman-essaim-agent.timer")
 	return 0
 }

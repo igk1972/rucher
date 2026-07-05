@@ -1,6 +1,18 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestAgentTimerUnit(t *testing.T) {
+	if got := agentTimerUnit("45s"); !strings.Contains(got, "OnUnitActiveSec=45s") {
+		t.Fatalf("configured interval not honored: %q", got)
+	}
+	if got := agentTimerUnit(""); !strings.Contains(got, "OnUnitActiveSec=30s") {
+		t.Fatalf("empty interval should default to 30s: %q", got)
+	}
+}
 
 func TestParseKeygen(t *testing.T) {
 	name, to, err := parseKeygen([]string{"web", "--to", "age1abc"})
