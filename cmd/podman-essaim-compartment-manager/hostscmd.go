@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"text/tabwriter"
+	"time"
 
-	"podman-essaim-compartment-manager/internal/host"
 	"podman-essaim-compartment-manager/internal/hoststatus"
+	"podman-essaim-compartment-manager/internal/sshx"
 )
 
 func limaDir() string {
@@ -21,10 +22,20 @@ func limaDir() string {
 	return filepath.Join(home, ".lima")
 }
 
+// knownHostsPath is where the native ssh client pins host keys (TOFU accept-new).
+func knownHostsPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "known_hosts"
+	}
+	return filepath.Join(home, ".config", "podman-essaim", "known_hosts")
+}
+
 // cmdHostsStatus gathers per-host status over ssh and renders it as either a
 // human-readable table or, when jsonOut is set, a machine-readable JSON array.
 func cmdHostsStatus(hostsDir string, names []string, live, jsonOut bool, out io.Writer) int {
-	rows, err := hoststatus.Collect(host.NewExec(), hostsDir, limaDir(), names, live)
+	client := sshx.NewClient(knownHostsPath(), 10*time.Second)
+	rows, err := hoststatus.Collect(client, hostsDir, limaDir(), names, live)
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1

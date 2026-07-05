@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"podman-essaim-compartment-manager/internal/host"
+	"podman-essaim-compartment-manager/internal/sshx"
 )
 
 func writeHost(t *testing.T, dir, name, body string) {
@@ -21,12 +21,17 @@ func TestCollectAggregatesAndIsolates(t *testing.T) {
 	writeHost(t, hosts, "a", "network: {driver: ssh, address: 1.1.1.1}\n")
 	writeHost(t, hosts, "b", "network: {driver: ssh, address: 2.2.2.2}\n")
 
+	// The Targets that Resolve yields for the two host configs.
+	targetA := sshx.Target{Addr: "1.1.1.1:22", User: "root"}
+	targetB := sshx.Target{Addr: "2.2.2.2:22", User: "root"}
+	catCmd := []string{"cat", statusPath}
+
 	statusJSON := `{"revision":"rev9","applied":[{"name":"web","ok":true},{"name":"db","ok":false,"error":"boom"}],"removed":["old"]}`
-	f := &host.Fake{Responses: map[string]host.Result{
-		// host a returns a status doc; the ssh argv ends with the address then the remote cmd
-		"root:ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new root@1.1.1.1 cat /var/lib/podman-essaim/agent-status.json": {Stdout: statusJSON},
+	f := &sshx.Fake{Responses: map[string]sshx.Result{
+		// host a returns a status doc
+		sshx.Key(targetA, catCmd): {Stdout: statusJSON},
 		// host b: ssh fails (unreachable)
-		"root:ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new root@2.2.2.2 cat /var/lib/podman-essaim/agent-status.json": {Code: 255, Stderr: "conn refused"},
+		sshx.Key(targetB, catCmd): {Code: 255, Stderr: "conn refused"},
 	}}
 	rows, err := Collect(f, hosts, "/nonexistent", nil, false)
 	if err != nil {
@@ -64,8 +69,8 @@ func TestCollectCapturesTransportError(t *testing.T) {
 	hosts := t.TempDir()
 	writeHost(t, hosts, "c", "network: {driver: ssh, address: 3.3.3.3}\n")
 
-	// A transport failure makes Root return a non-nil error rather than a Result.
-	f := &host.Fake{Err: errors.New("ssh spawn failed")}
+	// A transport failure makes Run return a non-nil error rather than a Result.
+	f := &sshx.Fake{Err: errors.New("ssh spawn failed")}
 	rows, err := Collect(f, hosts, "/nonexistent", nil, false)
 	if err != nil {
 		t.Fatal(err)

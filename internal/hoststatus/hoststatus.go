@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"podman-essaim-compartment-manager/internal/agent"
-	"podman-essaim-compartment-manager/internal/host"
 	"podman-essaim-compartment-manager/internal/hostcfg"
 	"podman-essaim-compartment-manager/internal/sshresolve"
+	"podman-essaim-compartment-manager/internal/sshx"
 )
 
 const statusPath = "/var/lib/podman-essaim/agent-status.json"
@@ -26,7 +26,7 @@ type Row struct {
 	Live      string   `json:"live,omitempty"`
 }
 
-func Collect(r host.Runner, hostsDir, limaDir string, names []string, live bool) ([]Row, error) {
+func Collect(r sshx.Runner, hostsDir, limaDir string, names []string, live bool) ([]Row, error) {
 	if len(names) == 0 {
 		listed, err := hostcfg.List(hostsDir)
 		if err != nil {
@@ -44,15 +44,13 @@ func Collect(r host.Runner, hostsDir, limaDir string, names []string, live bool)
 			continue
 		}
 		row.Address = cfg.Network.Address
-		argv, err := sshresolve.SSHArgv(name, cfg, limaDir)
+		target, err := sshresolve.Resolve(name, cfg, limaDir)
 		if err != nil {
 			row.Errors = []string{err.Error()}
 			rows = append(rows, row)
 			continue
 		}
-		// Cap the slice so each append gets a fresh backing array; argv is reused
-		// below for the --live call and must not be aliased.
-		res, err := r.Root(append(argv[:len(argv):len(argv)], "cat", statusPath), nil)
+		res, err := r.Run(target, []string{"cat", statusPath}, nil)
 		if err != nil || res.Code != 0 {
 			// Record why the host is unreachable so the operator can tell a
 			// transport/config failure from a plain "host down".
@@ -82,7 +80,7 @@ func Collect(r host.Runner, hostsDir, limaDir string, names []string, live bool)
 			}
 		}
 		if live {
-			if lv, err := r.Root(append(argv[:len(argv):len(argv)], "sudo", "pecm", "status"), nil); err == nil {
+			if lv, err := r.Run(target, []string{"sudo", "pecm", "status"}, nil); err == nil {
 				row.Live = lv.Stdout
 			}
 		}
