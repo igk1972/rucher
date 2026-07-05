@@ -17,6 +17,15 @@ type StoreConfig struct {
 	User   string `yaml:"user"`
 
 	InsecureHostKey bool `yaml:"insecureHostKey"`
+
+	// S3 store fields (kind: s3).
+	Endpoint  string `yaml:"endpoint"` // host:port, no scheme
+	Bucket    string `yaml:"bucket"`
+	Prefix    string `yaml:"prefix"`
+	AccessKey string `yaml:"accessKey"`
+	SecretKey string `yaml:"secretKey"`
+	Region    string `yaml:"region"`
+	UseSSL    bool   `yaml:"useSSL"`
 }
 
 type Config struct {
