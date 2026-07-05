@@ -104,10 +104,23 @@ func pinnedHostKeyAlgorithms(knownHostsPath, addr string) []string {
 
 	seen := make(map[string]bool, len(keyErr.Want))
 	var algos []string
+	add := func(a string) {
+		if !seen[a] {
+			seen[a] = true
+			algos = append(algos, a)
+		}
+	}
 	for _, k := range keyErr.Want {
-		if typ := k.Key.Type(); !seen[typ] {
-			seen[typ] = true
-			algos = append(algos, typ)
+		switch typ := k.Key.Type(); typ {
+		case ssh.KeyAlgoRSA:
+			// A pinned RSA host key also serves the SHA-2 signature algorithms;
+			// offer those first so a modern server that disables the legacy
+			// SHA-1 "ssh-rsa" algorithm still negotiates on reconnect.
+			add(ssh.KeyAlgoRSASHA512)
+			add(ssh.KeyAlgoRSASHA256)
+			add(ssh.KeyAlgoRSA)
+		default:
+			add(typ)
 		}
 	}
 	return algos

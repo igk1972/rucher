@@ -3,9 +3,11 @@ package sshx
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -98,6 +100,34 @@ func TestPinnedHostKeyAlgorithmsAfterPin(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("algorithms %v must contain the pinned key type %q", algos, key.Type())
+	}
+}
+
+func TestPinnedHostKeyAlgorithmsRSAExpansion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "known_hosts")
+	const host = "127.0.0.1:2200"
+	remote := &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 2200}
+
+	// Pin an RSA host key via the TOFU accept-new path.
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+	pub, err := ssh.NewPublicKey(&rsaKey.PublicKey)
+	if err != nil {
+		t.Fatalf("new rsa public key: %v", err)
+	}
+	if err := acceptNewHostKey(path)(host, remote, pub); err != nil {
+		t.Fatalf("pin rsa host key: %v", err)
+	}
+
+	// A pinned bare "ssh-rsa" must expand to the SHA-2 algorithms (offered first)
+	// so a modern server that disabled the SHA-1 ssh-rsa algorithm still
+	// negotiates on reconnect.
+	got := pinnedHostKeyAlgorithms(path, host)
+	want := []string{ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSA}
+	if !slices.Equal(got, want) {
+		t.Fatalf("rsa expansion = %v, want %v", got, want)
 	}
 }
 
