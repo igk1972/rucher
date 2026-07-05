@@ -66,6 +66,9 @@ func (o Ops) GenerateAgeKey(identityPath string) (string, error) {
 // UnitService maps a Quadlet unit filename to its generated .service name.
 func UnitService(unit string) string {
 	dot := strings.LastIndex(unit, ".")
+	if dot < 0 {
+		return unit // already a bare/service-style name; nothing to map
+	}
 	stem, ext := unit[:dot], unit[dot+1:]
 	switch ext {
 	case "container":

@@ -13,6 +13,7 @@ func TestUnitService(t *testing.T) {
 		"data.volume":   "data-volume.service",
 		"net.network":   "net-network.service",
 		"app.pod":       "app-pod.service",
+		"web":           "web", // no extension: returned unchanged, must not panic
 	}
 	for in, want := range cases {
 		if got := UnitService(in); got != want {
