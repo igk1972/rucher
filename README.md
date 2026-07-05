@@ -111,6 +111,20 @@ registry logins as the compartment user via stdin.
 Each compartment user gets a unique, non-overlapping subuid/subgid block (allocated from
 `/etc/subuid`), so many compartments coexist on one host.
 
+## Host keys
+
+`pecm hosts status` (and the rest of the operator control plane) reaches hosts with a
+built-in Go SSH client — no system `ssh` binary is required. Host keys are trusted
+**TOFU**: an unknown host is accepted and pinned on first contact into
+`~/.config/podman-essaim/known_hosts` (created mode 0600); a later key **change** for the
+same host is rejected.
+
+This is a separate trust store from `~/.ssh/known_hosts`, so every host re-pins on first
+contact after switching to the native client. Lima nodes (previously reached via
+`ssh -F ~/.lima/<name>/ssh.config`, which disables host-key checking) are now TOFU-pinned
+like any other host. If a Lima VM is recreated on the **same** forwarded port with a new
+key, clear its line from `~/.config/podman-essaim/known_hosts` before reconnecting.
+
 ## Testing
 
 Pure logic and the shell-out layer are unit-tested with a fake command runner
