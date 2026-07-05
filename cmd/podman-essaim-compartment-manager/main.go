@@ -8,7 +8,7 @@ import (
 
 func usage() string {
 	return "podman-essaim-compartment-manager <command> [args]\n" +
-		"commands: new plan apply status rm logs age node agent keygen\n"
+		"commands: new plan apply status rm logs age node agent keygen net hosts\n"
 }
 
 // parseDir pulls an optional `--dir <value>` out of args wherever it appears
@@ -131,6 +131,17 @@ func run(args []string, stdout io.Writer) int {
 		}
 	case "keygen":
 		return cmdKeygen(args[1:], stdout)
+	case "net":
+		hostsDir := "./hosts"
+		rest := args[1:]
+		if len(rest) >= 2 && rest[0] == "--hosts" {
+			hostsDir, rest = rest[1], rest[2:]
+		}
+		if len(rest) >= 1 && rest[0] == "join" {
+			return cmdNetJoin(hostsDir, rest[1:], stdout)
+		}
+		fmt.Fprintln(stdout, "usage: net [--hosts DIR] join <host> ...")
+		return 2
 	default:
 		fmt.Fprintf(stdout, "unknown or not-yet-implemented command: %s\n\n%s", args[0], usage())
 		return 2
