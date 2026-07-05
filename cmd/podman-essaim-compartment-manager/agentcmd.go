@@ -160,7 +160,10 @@ func cmdAgentInstall(configPath string, out io.Writer) int {
 			return 1
 		}
 	}
-	r.Root([]string{"systemctl", "daemon-reload"}, nil) // best-effort
+	if res, err := r.Root([]string{"systemctl", "daemon-reload"}, nil); err != nil || res.Code != 0 {
+		fmt.Fprintln(out, "error: systemctl daemon-reload:", err, res.Stderr)
+		return 1
+	}
 	res, err := r.Root([]string{"systemctl", "enable", "--now", "podman-essaim-agent.timer"}, nil)
 	if err != nil || res.Code != 0 {
 		fmt.Fprintln(out, "error: enable podman-essaim-agent.timer:", err, res.Stderr)
