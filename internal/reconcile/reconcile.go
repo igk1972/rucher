@@ -2,7 +2,10 @@
 package reconcile
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -67,6 +70,59 @@ func Recipient(r host.Runner, name string) (string, error) {
 		return "", fmt.Errorf("recipient for %s: %s", name, res.Stderr)
 	}
 	return strings.TrimSpace(res.Stdout), nil
+}
+
+// List returns the names of compartments that have a persisted state file.
+func List() ([]string, error) {
+	dir := filepath.Join(baseDirForState, "state")
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if name, ok := strings.CutSuffix(e.Name(), ".json"); ok {
+			names = append(names, name)
+		}
+	}
+	return names, nil
+}
+
+// UnitStatus is the runtime state of one of a compartment's units.
+type UnitStatus struct{ Unit, Active, Sub string }
+
+// Status reports the ActiveState/SubState of each unit in the compartment's last-applied state.
+func Status(r host.Runner, name string) ([]UnitStatus, error) {
+	prior, err := state.Load(statePath(name))
+	if err != nil {
+		return nil, err
+	}
+	user := provision.UserName(name)
+	var out []UnitStatus
+	for _, u := range prior.Units {
+		argv := []string{"systemctl", "--user", "show", ops.UnitService(u), "-p", "ActiveState", "-p", "SubState", "--value"}
+		res, err := r.User(user, prior.UID, argv, nil)
+		if err != nil {
+			return nil, err
+		}
+		// --value prints the properties' values one per line, in the -p order.
+		lines := strings.Split(strings.TrimRight(res.Stdout, "\n"), "\n")
+		st := UnitStatus{Unit: u}
+		if len(lines) > 0 {
+			st.Active = lines[0]
+		}
+		if len(lines) > 1 {
+			st.Sub = lines[1]
+		}
+		out = append(out, st)
+	}
+	return out, nil
 }
 
 // Remove stops a compartment's units; with purge it also deletes the OS user and its home.

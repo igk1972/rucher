@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"text/tabwriter"
 
 	"podman-essaim-compartment-manager/internal/compartment"
 	"podman-essaim-compartment-manager/internal/host"
@@ -109,6 +110,36 @@ func cmdAgeRecipient(name string, out io.Writer) int {
 	}
 	fmt.Fprintln(out, rec)
 	return 0
+}
+
+// cmdStatus prints the runtime state of each compartment's units.
+// With no names it reports every compartment that has a persisted state file.
+func cmdStatus(names []string, out io.Writer) int {
+	if len(names) == 0 {
+		listed, err := reconcile.List()
+		if err != nil {
+			fmt.Fprintln(out, "error:", err)
+			return 1
+		}
+		names = listed
+	}
+	r := host.NewExec()
+	tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "COMPARTMENT\tUNIT\tACTIVE\tSUB")
+	rc := 0
+	for _, name := range names {
+		units, err := reconcile.Status(r, name)
+		if err != nil {
+			fmt.Fprintf(tw, "%s\tERROR\t%v\t\n", name, err)
+			rc = 1
+			continue
+		}
+		for _, u := range units {
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", name, u.Unit, u.Active, u.Sub)
+		}
+	}
+	tw.Flush()
+	return rc
 }
 
 // cmdRm stops a compartment's units; with purge it also removes its OS user.

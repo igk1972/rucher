@@ -1,6 +1,7 @@
 package reconcile
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"podman-essaim-compartment-manager/internal/host"
 	"podman-essaim-compartment-manager/internal/manifest"
 	"podman-essaim-compartment-manager/internal/provision"
+	"podman-essaim-compartment-manager/internal/state"
 )
 
 func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
@@ -71,6 +73,73 @@ func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 	}
 	if string(teed.Stdin) != "age1testrecipient\n" {
 		t.Fatalf("tee stdin = %q, want %q", teed.Stdin, "age1testrecipient\n")
+	}
+}
+
+func TestStatusReportsUnitStates(t *testing.T) {
+	oldBase := baseDirForState
+	baseDirForState = t.TempDir()
+	defer func() { baseDirForState = oldBase }()
+	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	f := &host.Fake{Responses: map[string]host.Result{
+		"user:1234:systemctl --user show web.service -p ActiveState -p SubState --value": {Stdout: "active\nrunning\n"},
+	}}
+	got, err := Status(f, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []UnitStatus{{Unit: "web.container", Active: "active", Sub: "running"}}
+	if len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("Status = %+v, want %+v", got, want)
+	}
+}
+
+func TestListReturnsCompartmentsWithState(t *testing.T) {
+	oldBase := baseDirForState
+	baseDirForState = t.TempDir()
+	defer func() { baseDirForState = oldBase }()
+	if err := state.Save(statePath("web"), state.State{Name: "web"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.Save(statePath("api"), state.State{Name: "api"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || !slices.Contains(got, "web") || !slices.Contains(got, "api") {
+		t.Fatalf("List = %v, want web and api", got)
+	}
+}
+
+func TestListEmptyWhenNoStateDir(t *testing.T) {
+	oldBase := baseDirForState
+	baseDirForState = t.TempDir()
+	defer func() { baseDirForState = oldBase }()
+	got, err := List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("List = %v, want empty", got)
+	}
+}
+
+func TestStatusEmptyWhenNoState(t *testing.T) {
+	oldBase := baseDirForState
+	baseDirForState = t.TempDir()
+	defer func() { baseDirForState = oldBase }()
+	f := &host.Fake{Responses: map[string]host.Result{}}
+	got, err := Status(f, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("Status = %+v, want empty", got)
 	}
 }
 

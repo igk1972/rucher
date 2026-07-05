@@ -41,6 +41,8 @@ func run(args []string, stdout io.Writer) int {
 			rest = rest[2:]
 		}
 		return cmdApply(dir, rest, stdout)
+	case "status":
+		return cmdStatus(args[1:], stdout)
 	case "age":
 		if len(args) >= 3 && args[1] == "recipient" {
 			return cmdAgeRecipient(args[2], stdout)
