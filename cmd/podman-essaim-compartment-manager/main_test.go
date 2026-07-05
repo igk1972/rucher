@@ -18,6 +18,20 @@ func TestRunNoArgsPrintsUsageAndFails(t *testing.T) {
 	}
 }
 
+func TestHostsStatusJSONWiring(t *testing.T) {
+	// An empty hosts dir means no rows, so the --json wiring in run() should emit
+	// an empty JSON array (not null) and exit 0 since nothing is unreachable.
+	dir := t.TempDir()
+	var out bytes.Buffer
+	code := run([]string{"hosts", "--hosts", dir, "status", "--json"}, &out)
+	if code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if got := strings.TrimSpace(out.String()); got != "[]" {
+		t.Fatalf("output = %q, want []", got)
+	}
+}
+
 func TestParseDir(t *testing.T) {
 	cases := []struct {
 		args     []string

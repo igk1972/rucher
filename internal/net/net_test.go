@@ -23,6 +23,32 @@ func TestTailscaleResolveAddress(t *testing.T) {
 	}
 }
 
+func TestTailscaleResolveNonZeroExit(t *testing.T) {
+	f := &host.Fake{Responses: map[string]host.Result{
+		"root:tailscale ip -4 web": {Code: 1, Stderr: "tailscale not running"},
+	}}
+	d, err := DriverFor("tailscale", f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.ResolveAddress("web"); err == nil {
+		t.Fatal("expected error on non-zero tailscale exit")
+	}
+}
+
+func TestTailscaleResolveEmptyOutput(t *testing.T) {
+	f := &host.Fake{Responses: map[string]host.Result{
+		"root:tailscale ip -4 web": {Stdout: "\n"},
+	}}
+	d, err := DriverFor("tailscale", f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.ResolveAddress("web"); err == nil {
+		t.Fatal("expected error when tailscale returns no address")
+	}
+}
+
 func TestSSHDriverRequiresAddress(t *testing.T) {
 	d, _ := DriverFor("ssh", &host.Fake{})
 	if _, err := d.ResolveAddress("web"); err == nil {
