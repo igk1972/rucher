@@ -55,6 +55,14 @@ func (c *Client) Run(t Target, cmd []string, stdin []byte) (Result, error) {
 		Timeout:         c.Timeout,
 	}
 
+	// Prefer the key type already pinned for this host so negotiation lands on
+	// the pinned key. Only constrain when the host IS pinned: on first contact
+	// the list is empty, and setting an empty HostKeyAlgorithms would break
+	// negotiation and defeat TOFU accept-new.
+	if algos := pinnedHostKeyAlgorithms(c.KnownHosts, t.Addr); len(algos) > 0 {
+		config.HostKeyAlgorithms = algos
+	}
+
 	conn, err := ssh.Dial("tcp", t.Addr, config)
 	if err != nil {
 		return Result{}, fmt.Errorf("ssh dial %s: %w", t.Addr, err)

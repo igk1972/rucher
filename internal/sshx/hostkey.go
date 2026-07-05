@@ -1,6 +1,8 @@
 package sshx
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"net"
 	"os"
@@ -56,6 +58,74 @@ func ensureFile(path string) error {
 		return err
 	}
 	return f.Close()
+}
+
+// probeAddr is a net.Addr backed by a raw "host:port" string, used to query the
+// known_hosts callback for an address whose host may be a name (not an IP).
+type probeAddr string
+
+func (a probeAddr) Network() string { return "tcp" }
+func (a probeAddr) String() string  { return string(a) }
+
+// pinnedHostKeyAlgorithms returns the host-key algorithms already pinned for
+// addr ("host:port") in the known_hosts file, so a reconnect can constrain
+// negotiation to the pinned key type.
+//
+// x/crypto's knownhosts (v0.24) exposes no direct "algorithms for addr" call,
+// so we ask its callback: probing with a throwaway key that cannot match any
+// pinned entry yields a *knownhosts.KeyError whose Want holds every host key
+// already pinned for addr (one KnownKey per algorithm). This reuses the
+// package's own host matching.
+//
+// The result is EMPTY when the host is not yet pinned (first contact). Callers
+// MUST leave ssh.ClientConfig.HostKeyAlgorithms unset in that case: an empty
+// constraint would break negotiation and defeat TOFU accept-new.
+func pinnedHostKeyAlgorithms(knownHostsPath, addr string) []string {
+	if err := ensureFile(knownHostsPath); err != nil {
+		return nil
+	}
+	cb, err := knownhosts.New(knownHostsPath)
+	if err != nil {
+		return nil
+	}
+	probe := throwawayHostKey()
+	if probe == nil {
+		return nil
+	}
+
+	err = cb(addr, probeAddr(addr), probe)
+	if err == nil {
+		return nil // improbable key collision: treat as no constraint
+	}
+	var keyErr *knownhosts.KeyError
+	if !errors.As(err, &keyErr) || len(keyErr.Want) == 0 {
+		return nil // unknown host (first contact) or an unexpected error
+	}
+
+	seen := make(map[string]bool, len(keyErr.Want))
+	var algos []string
+	for _, k := range keyErr.Want {
+		if typ := k.Key.Type(); !seen[typ] {
+			seen[typ] = true
+			algos = append(algos, typ)
+		}
+	}
+	return algos
+}
+
+// throwawayHostKey returns a fresh ed25519 public key used only to probe the
+// known_hosts callback; it is never persisted and (statistically) never matches
+// a pinned entry. Returns nil if key generation fails.
+func throwawayHostKey() ssh.PublicKey {
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil
+	}
+	sshPub, err := ssh.NewPublicKey(pub)
+	if err != nil {
+		return nil
+	}
+	return sshPub
 }
 
 // appendKnownHost pins the presented key for hostname in the known_hosts file.

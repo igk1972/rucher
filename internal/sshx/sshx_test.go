@@ -56,6 +56,51 @@ func TestAcceptNewTOFU(t *testing.T) {
 	}
 }
 
+func TestPinnedHostKeyAlgorithmsFirstContact(t *testing.T) {
+	// A nonexistent known_hosts path: the host is not yet pinned, so the
+	// algorithm list must be empty and the caller leaves HostKeyAlgorithms
+	// unset (otherwise TOFU accept-new on first contact would break).
+	missing := filepath.Join(t.TempDir(), "sub", "known_hosts")
+	if algos := pinnedHostKeyAlgorithms(missing, "127.0.0.1:2222"); len(algos) != 0 {
+		t.Fatalf("first contact must yield no algorithms, got %v", algos)
+	}
+
+	// An existing but empty known_hosts file: still no pinned key -> empty.
+	empty := filepath.Join(t.TempDir(), "known_hosts")
+	if err := os.WriteFile(empty, nil, 0o600); err != nil {
+		t.Fatalf("write empty known_hosts: %v", err)
+	}
+	if algos := pinnedHostKeyAlgorithms(empty, "127.0.0.1:2222"); len(algos) != 0 {
+		t.Fatalf("empty known_hosts must yield no algorithms, got %v", algos)
+	}
+}
+
+func TestPinnedHostKeyAlgorithmsAfterPin(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "known_hosts")
+	const host = "127.0.0.1:2222"
+	remote := &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 2222}
+	key := newTestHostKey(t)
+
+	// Pin the host key via the TOFU accept-new path.
+	if err := acceptNewHostKey(path)(host, remote, key); err != nil {
+		t.Fatalf("pin host key: %v", err)
+	}
+
+	algos := pinnedHostKeyAlgorithms(path, host)
+	if len(algos) == 0 {
+		t.Fatal("a pinned host must yield a non-empty algorithm list")
+	}
+	found := false
+	for _, a := range algos {
+		if a == key.Type() {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("algorithms %v must contain the pinned key type %q", algos, key.Type())
+	}
+}
+
 func TestFakeRunKeyed(t *testing.T) {
 	tgt := Target{Addr: "h:22"}
 	f := &Fake{Responses: map[string]Result{
