@@ -59,6 +59,7 @@ func (g Git) Sync(ctx context.Context) (string, string, error) {
 	}
 	ref := plumbing.NewBranchReferenceName(g.Branch)
 
+	cloned := false
 	repo, err := git.PlainOpen(g.CachePath)
 	if errors.Is(err, git.ErrRepositoryNotExists) {
 		repo, err = git.PlainCloneContext(ctx, g.CachePath, false, &git.CloneOptions{
@@ -67,23 +68,27 @@ func (g Git) Sync(ctx context.Context) (string, string, error) {
 			SingleBranch:  true,
 			Auth:          auth,
 		})
+		cloned = true
 	}
 	if err != nil {
 		return "", "", fmt.Errorf("git open/clone: %w", err)
 	}
 
-	wt, err := repo.Worktree()
-	if err != nil {
-		return "", "", err
-	}
-	err = wt.PullContext(ctx, &git.PullOptions{ReferenceName: ref, SingleBranch: true, Auth: auth})
-	if err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
-		// Last-good: if a valid checkout already exists, keep running on it rather than
-		// stopping reconciliation on a transient fetch failure.
-		if head, herr := repo.Head(); herr == nil {
-			return g.CachePath, head.Hash().String(), nil
+	// A fresh clone already fetched the branch, so pulling again is a redundant round-trip.
+	if !cloned {
+		wt, err := repo.Worktree()
+		if err != nil {
+			return "", "", err
 		}
-		return "", "", fmt.Errorf("git pull: %w", err)
+		err = wt.PullContext(ctx, &git.PullOptions{ReferenceName: ref, SingleBranch: true, Auth: auth})
+		if err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
+			// Last-good: if a valid checkout already exists, keep running on it rather than
+			// stopping reconciliation on a transient fetch failure.
+			if head, herr := repo.Head(); herr == nil {
+				return g.CachePath, head.Hash().String(), nil
+			}
+			return "", "", fmt.Errorf("git pull: %w", err)
+		}
 	}
 	head, err := repo.Head()
 	if err != nil {
