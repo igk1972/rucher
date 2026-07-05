@@ -33,6 +33,26 @@ interval: 30s
 	}
 }
 
+func TestLoadDefaults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.yml")
+	// store block omits kind and branch: Load must inject the defaults.
+	os.WriteFile(path, []byte(`
+node: lima-essaim-01
+store:
+  url: git@example.com:org/fleet.git
+`), 0o644)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Store.Kind != "git" {
+		t.Fatalf("Store.Kind = %q, want %q", c.Store.Kind, "git")
+	}
+	if c.Store.Branch != "main" {
+		t.Fatalf("Store.Branch = %q, want %q", c.Store.Branch, "main")
+	}
+}
+
 func TestNodeIDDefaultsToHostname(t *testing.T) {
 	c := Config{}
 	id, err := c.NodeID()
