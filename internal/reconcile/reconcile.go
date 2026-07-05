@@ -18,12 +18,17 @@ import (
 	"podman-essaim-compartment-manager/internal/state"
 )
 
-// BaseDirForState is a var so tests (including those in other packages, e.g. agent)
-// can redirect state to a temp dir instead of the production BaseDir.
-var BaseDirForState = provision.BaseDir
+// stateBaseDir is where per-compartment state files live. PECM_STATE_DIR overrides the
+// default (useful for tests and alternative layouts); empty falls back to provision.BaseDir.
+func stateBaseDir() string {
+	if d := os.Getenv("PECM_STATE_DIR"); d != "" {
+		return d
+	}
+	return provision.BaseDir
+}
 
 func statePath(name string) string {
-	return filepath.Join(BaseDirForState, "state", name+".json")
+	return filepath.Join(stateBaseDir(), "state", name+".json")
 }
 
 func systemdDir(name string) string {
@@ -75,7 +80,7 @@ func Recipient(r host.Runner, name string) (string, error) {
 
 // List returns the names of compartments that have a persisted state file.
 func List() ([]string, error) {
-	dir := filepath.Join(BaseDirForState, "state")
+	dir := filepath.Join(stateBaseDir(), "state")
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil

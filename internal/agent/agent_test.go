@@ -10,7 +10,6 @@ import (
 
 	"podman-essaim-compartment-manager/internal/age"
 	"podman-essaim-compartment-manager/internal/host"
-	"podman-essaim-compartment-manager/internal/reconcile"
 	"podman-essaim-compartment-manager/internal/state"
 	"podman-essaim-compartment-manager/internal/store"
 )
@@ -70,7 +69,7 @@ func TestRunRemovesUnassignedManaged(t *testing.T) {
 	os.WriteFile(filepath.Join(co, "placement.yml"), []byte("placements: {web: node-b}\n"), 0o644)
 
 	// persist state for "old" so reconcile.List() reports it as managed on this node
-	statePath := filepath.Join(reconcile.BaseDirForState, "state", "old.json")
+	statePath := filepath.Join(os.Getenv("PECM_STATE_DIR"), "state", "old.json")
 	if err := state.Save(statePath, state.State{Name: "old", UID: 1234, Units: []string{"old.container"}}); err != nil {
 		t.Fatal(err)
 	}
