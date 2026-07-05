@@ -10,7 +10,9 @@ import (
 
 	"podman-essaim-compartment-manager/internal/compartment"
 	"podman-essaim-compartment-manager/internal/host"
+	"podman-essaim-compartment-manager/internal/ops"
 	"podman-essaim-compartment-manager/internal/plan"
+	"podman-essaim-compartment-manager/internal/provision"
 	"podman-essaim-compartment-manager/internal/reconcile"
 	"podman-essaim-compartment-manager/internal/state"
 )
@@ -140,6 +142,30 @@ func cmdStatus(names []string, out io.Writer) int {
 	}
 	tw.Flush()
 	return rc
+}
+
+// cmdLogs prints the last 200 journal lines for one of a compartment's units.
+func cmdLogs(name, unit string, out io.Writer) int {
+	r := host.NewExec()
+	// EnsureUser is idempotent; here it mainly guarantees the user's systemd/DBus
+	// session is up so `journalctl --user` can reach the user journal.
+	uid, err := provision.EnsureUser(r, name)
+	if err != nil {
+		fmt.Fprintf(out, "error: %v\n", err)
+		return 1
+	}
+	argv := []string{"journalctl", "--user", "-u", ops.UnitService(unit), "-n", "200", "--no-pager"}
+	res, err := r.User(provision.UserName(name), uid, argv, nil)
+	if err != nil {
+		fmt.Fprintf(out, "error: %v\n", err)
+		return 1
+	}
+	fmt.Fprint(out, res.Stdout)
+	if res.Code != 0 {
+		fmt.Fprint(out, res.Stderr)
+		return 1
+	}
+	return 0
 }
 
 // cmdRm stops a compartment's units; with purge it also removes its OS user.
