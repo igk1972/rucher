@@ -54,9 +54,14 @@ func Load(dir string) (Compartment, error) {
 		m.Secrets.From:    true,
 		".sops.yaml":      true,
 	}
+	// sealed age identities (identity.age / identity.<node>.age) are B service
+	// files, not support files, so they must never be materialized either
+	isSealedIdentity := func(name string) bool {
+		return strings.HasPrefix(name, "identity.") && strings.HasSuffix(name, ".age")
+	}
 	c := Compartment{Name: m.Name, Dir: dir, Manifest: m}
 	for _, e := range entries {
-		if e.IsDir() || service[e.Name()] {
+		if e.IsDir() || service[e.Name()] || isSealedIdentity(e.Name()) {
 			if e.Name() == m.Secrets.From {
 				c.SopsPath = filepath.Join(dir, e.Name())
 			}

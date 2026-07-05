@@ -3,6 +3,7 @@ package compartment
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -47,6 +48,21 @@ func TestLoadClassifiesFiles(t *testing.T) {
 	}
 	if !got["web.container"] || got["nginx.conf"] {
 		t.Fatalf("classification wrong: %v", got)
+	}
+}
+
+func TestLoadExcludesSealedIdentity(t *testing.T) {
+	dir := writeDir(t) // existing helper: builds a valid "web" compartment
+	os.WriteFile(filepath.Join(dir, "identity.age"), []byte("-----BEGIN AGE-----\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "identity.lima-essaim-01.age"), []byte("-----BEGIN AGE-----\n"), 0o644)
+	c, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range c.Files {
+		if strings.HasPrefix(f.Name, "identity.") && strings.HasSuffix(f.Name, ".age") {
+			t.Fatalf("sealed identity %q must not be a materialized file", f.Name)
+		}
 	}
 }
 
