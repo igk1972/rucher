@@ -92,14 +92,7 @@ func Apply(r host.Runner, c compartment.Compartment) (plan.Plan, error) {
 	var secretHashes map[string]string
 	var secretValues map[string]string
 	if c.SopsPath != "" {
-		ct, err := r.Root([]string{"cat", c.SopsPath}, nil)
-		if err != nil {
-			return plan.Plan{}, err
-		}
-		if ct.Code != 0 {
-			return plan.Plan{}, fmt.Errorf("compartment %s: read %s: %s", c.Name, c.SopsPath, ct.Stderr)
-		}
-		secretValues, err = secrets.Decrypt(r, o.User, uid, identityPath(c.Name), []byte(ct.Stdout))
+		secretValues, err = secrets.Decrypt(r, identityPath(c.Name), c.SopsPath)
 		if err != nil {
 			return plan.Plan{}, fmt.Errorf("compartment %s: %w", c.Name, err)
 		}

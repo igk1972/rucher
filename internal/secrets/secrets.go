@@ -9,19 +9,21 @@ import (
 	"podman-essaim-compartment-manager/internal/host"
 )
 
-func Decrypt(r host.Runner, user string, uid int, identityPath string, ciphertext []byte) (map[string]string, error) {
-	// Ciphertext is fed on stdin so the compartment user never needs read access
-	// to the (root-owned) source directory; only its own age identity decrypts it.
+func Decrypt(r host.Runner, identityPath, sopsPath string) (map[string]string, error) {
+	// Decrypt as root (the agent): root can read both the root-owned source file and
+	// the compartment user's age identity. Plaintext stays in the agent's memory and
+	// is fed to podman via stdin. The per-compartment identity scopes at-rest access
+	// in the store, not runtime access on the host (root already sees all secrets).
 	argv := []string{
 		"env", "SOPS_AGE_KEY_FILE=" + identityPath,
-		"sops", "-d", "--input-type", "yaml", "--output-type", "json", "/dev/stdin",
+		"sops", "-d", "--output-type", "json", sopsPath,
 	}
-	res, err := r.User(user, uid, argv, ciphertext)
+	res, err := r.Root(argv, nil)
 	if err != nil {
 		return nil, fmt.Errorf("sops decrypt: %w", err)
 	}
 	if res.Code != 0 {
-		return nil, fmt.Errorf("sops decrypt exited %d: %s", res.Code, res.Stderr)
+		return nil, fmt.Errorf("sops decrypt %s exited %d: %s", sopsPath, res.Code, res.Stderr)
 	}
 	var m map[string]string
 	if err := json.Unmarshal([]byte(res.Stdout), &m); err != nil {
