@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"text/tabwriter"
 
 	"podman-essaim-compartment-manager/internal/compartment"
@@ -145,17 +146,21 @@ func cmdStatus(names []string, out io.Writer) int {
 }
 
 // cmdLogs prints the last 200 journal lines for one of a compartment's units.
+// A system user's own `journalctl --user` cannot open the journal, so the entries
+// are read as root filtered to the user's unit (_SYSTEMD_USER_UNIT + _UID).
 func cmdLogs(name, unit string, out io.Writer) int {
 	r := host.NewExec()
-	// EnsureUser is idempotent; here it mainly guarantees the user's systemd/DBus
-	// session is up so `journalctl --user` can reach the user journal.
-	uid, err := provision.EnsureUser(r, name)
-	if err != nil {
-		fmt.Fprintf(out, "error: %v\n", err)
+	res, err := r.Root([]string{"id", "-u", provision.UserName(name)}, nil)
+	if err != nil || res.Code != 0 {
+		fmt.Fprintf(out, "error: unknown compartment %s\n", name)
 		return 1
 	}
-	argv := []string{"journalctl", "--user", "-u", ops.UnitService(unit), "-n", "200", "--no-pager"}
-	res, err := r.User(provision.UserName(name), uid, argv, nil)
+	uid := strings.TrimSpace(res.Stdout)
+	argv := []string{
+		"journalctl", "_SYSTEMD_USER_UNIT=" + ops.UnitService(unit), "_UID=" + uid,
+		"-n", "200", "--no-pager",
+	}
+	res, err = r.Root(argv, nil)
 	if err != nil {
 		fmt.Fprintf(out, "error: %v\n", err)
 		return 1
