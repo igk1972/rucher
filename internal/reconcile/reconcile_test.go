@@ -193,14 +193,22 @@ func TestRemovePurgeDeletesUser(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var sawUserdel bool
+	var sawUserdel, sawRmSlice bool
+	wantRmSlice := "rm -rf /etc/systemd/system/user-1234.slice.d"
 	for _, c := range f.Calls {
-		if c.Root && strings.Join(c.Argv, " ") == "userdel -r pecm-web" {
+		joined := strings.Join(c.Argv, " ")
+		if c.Root && joined == "userdel -r pecm-web" {
 			sawUserdel = true
+		}
+		if c.Root && joined == wantRmSlice {
+			sawRmSlice = true
 		}
 	}
 	if !sawUserdel {
 		t.Errorf("expected a root `userdel -r pecm-web` call")
+	}
+	if !sawRmSlice {
+		t.Errorf("expected a root `%s` call", wantRmSlice)
 	}
 }
 

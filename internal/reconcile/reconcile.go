@@ -164,6 +164,12 @@ func Remove(r host.Runner, name string, purge bool) error {
 	if res.Code != 0 {
 		return fmt.Errorf("userdel %s: %s", user, res.Stderr)
 	}
+	// The resource slice drop-in (provision.ApplyResources) is keyed by uid; leaving it
+	// orphaned would silently bind a future user that reuses this uid. Best-effort.
+	if prior.UID != 0 {
+		r.Root([]string{"rm", "-rf", fmt.Sprintf("/etc/systemd/system/user-%d.slice.d", prior.UID)}, nil)
+		r.Root([]string{"systemctl", "daemon-reload"}, nil)
+	}
 	return nil
 }
 
