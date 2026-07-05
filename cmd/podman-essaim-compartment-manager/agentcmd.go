@@ -105,10 +105,19 @@ func cmdAgentRun(configPath string, out io.Writer) int {
 		fmt.Fprintln(out, "error: node key missing (run `pecm node init`):", err)
 		return 1
 	}
-	st, runErr := agent.Run(context.Background(), host.NewExec(), store.Git{
-		URL: cfg.Store.URL, Branch: cfg.Store.Branch, CachePath: storeCachePath,
-		SSHKey: cfg.Store.SSHKey, Token: cfg.Store.Token,
-	}, nodeID, nodeIdentity)
+	var st agent.Status
+	var runErr error
+	switch cfg.Store.Kind {
+	case "git":
+		st, runErr = agent.Run(context.Background(), host.NewExec(), store.Git{
+			URL: cfg.Store.URL, Branch: cfg.Store.Branch, CachePath: storeCachePath,
+			SSHKey: cfg.Store.SSHKey, Token: cfg.Store.Token,
+			User: cfg.Store.User, InsecureHostKey: cfg.Store.InsecureHostKey,
+		}, nodeID, nodeIdentity)
+	default:
+		fmt.Fprintln(out, "error: unsupported store kind:", cfg.Store.Kind)
+		return 1
+	}
 	if werr := agent.WriteStatus(agentStatusPath, st); werr != nil {
 		fmt.Fprintln(out, "warning: write status:", werr)
 	}
