@@ -15,8 +15,8 @@ func TestUnitService(t *testing.T) {
 		"app.pod":       "app-pod.service",
 	}
 	for in, want := range cases {
-		if got := unitService(in); got != want {
-			t.Fatalf("unitService(%q) = %q, want %q", in, got, want)
+		if got := UnitService(in); got != want {
+			t.Fatalf("UnitService(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

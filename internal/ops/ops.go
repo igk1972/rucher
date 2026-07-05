@@ -21,9 +21,9 @@ func (o Ops) sc(args ...string) error {
 }
 
 func (o Ops) DaemonReload() error    { return o.sc("daemon-reload") }
-func (o Ops) Start(u string) error   { return o.sc("start", unitService(u)) }
-func (o Ops) Restart(u string) error { return o.sc("restart", unitService(u)) }
-func (o Ops) Stop(u string) error    { return o.sc("stop", unitService(u)) }
+func (o Ops) Start(u string) error   { return o.sc("start", UnitService(u)) }
+func (o Ops) Restart(u string) error { return o.sc("restart", UnitService(u)) }
+func (o Ops) Stop(u string) error    { return o.sc("stop", UnitService(u)) }
 
 func (o Ops) SecretRemove(name string) error {
 	// ignore "no such secret"; treat only real failures as errors
@@ -63,8 +63,8 @@ func (o Ops) GenerateAgeKey(identityPath string) (string, error) {
 	return "", fmt.Errorf("age-keygen: recipient not found in output")
 }
 
-// unitService maps a Quadlet unit filename to its generated .service name.
-func unitService(unit string) string {
+// UnitService maps a Quadlet unit filename to its generated .service name.
+func UnitService(unit string) string {
 	dot := strings.LastIndex(unit, ".")
 	stem, ext := unit[:dot], unit[dot+1:]
 	switch ext {
