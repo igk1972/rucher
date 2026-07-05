@@ -4,6 +4,7 @@ package hoststatus
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"podman-essaim-compartment-manager/internal/agent"
@@ -36,7 +37,7 @@ func Collect(r host.Runner, hostsDir, limaDir string, names []string, live bool)
 	var rows []Row
 	for _, name := range names {
 		row := Row{Host: name}
-		cfg, err := hostcfg.Load(hostsDir + "/" + name + "/configuration.yml")
+		cfg, err := hostcfg.Load(filepath.Join(hostsDir, name, "configuration.yml"))
 		if err != nil {
 			row.Errors = []string{err.Error()}
 			rows = append(rows, row)
@@ -49,7 +50,9 @@ func Collect(r host.Runner, hostsDir, limaDir string, names []string, live bool)
 			rows = append(rows, row)
 			continue
 		}
-		res, err := r.Root(append(argv, "cat", statusPath), nil)
+		// Cap the slice so each append gets a fresh backing array; argv is reused
+		// below for the --live call and must not be aliased.
+		res, err := r.Root(append(argv[:len(argv):len(argv)], "cat", statusPath), nil)
 		if err != nil || res.Code != 0 {
 			// Record why the host is unreachable so the operator can tell a
 			// transport/config failure from a plain "host down".
@@ -79,7 +82,7 @@ func Collect(r host.Runner, hostsDir, limaDir string, names []string, live bool)
 			}
 		}
 		if live {
-			if lv, err := r.Root(append(argv, "sudo", "pecm", "status"), nil); err == nil {
+			if lv, err := r.Root(append(argv[:len(argv):len(argv)], "sudo", "pecm", "status"), nil); err == nil {
 				row.Live = lv.Stdout
 			}
 		}

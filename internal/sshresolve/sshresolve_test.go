@@ -20,6 +20,25 @@ func TestNetworkAddressWins(t *testing.T) {
 	}
 }
 
+func TestBaseSSHOptionsPinned(t *testing.T) {
+	// Guard the security-mandated non-interactive ssh options against an
+	// accidental edit to base.
+	cfg := hostcfg.Config{Network: hostcfg.Network{Address: "100.1.1.1"}}
+	got, err := SSHArgv("web", cfg, "/nonexistent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pair := range [][]string{
+		{"-o", "BatchMode=yes"},
+		{"-o", "ConnectTimeout=5"},
+		{"-o", "StrictHostKeyChecking=accept-new"},
+	} {
+		if !containsSeq(got, pair) {
+			t.Fatalf("argv %v missing option %v", got, pair)
+		}
+	}
+}
+
 func TestLimaWhenConfigExists(t *testing.T) {
 	lima := t.TempDir()
 	os.MkdirAll(filepath.Join(lima, "web"), 0o755)

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"text/tabwriter"
 
 	"podman-essaim-compartment-manager/internal/host"
@@ -36,7 +37,7 @@ func cmdHostsStatus(hostsDir string, names []string, live bool, out io.Writer) i
 		}
 		errs := ""
 		if len(r.Errors) > 0 {
-			errs = fmt.Sprintf("%d", len(r.Errors))
+			errs = strconv.Itoa(len(r.Errors))
 		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%d\t%s\n", r.Host, r.Address, reach, r.Revision, r.Applied, r.Removed, errs)
 	}
@@ -61,7 +62,7 @@ func cmdHostsStatus(hostsDir string, names []string, live bool, out io.Writer) i
 	if live {
 		for _, r := range rows {
 			if r.Live != "" {
-				fmt.Fprintf(out, "\n--- %s ---\n%s", r.Host, r.Live)
+				fmt.Fprintf(out, "\n--- %s ---\n%s\n", r.Host, r.Live)
 			}
 		}
 	}

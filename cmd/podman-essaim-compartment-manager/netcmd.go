@@ -10,7 +10,7 @@ import (
 	pnet "podman-essaim-compartment-manager/internal/net"
 )
 
-func parseNetJoin(args []string) (host, driver, overlayName, address string, err error) {
+func parseNetJoin(args []string) (hostName, driver, overlayName, address string, err error) {
 	driver = "tailscale"
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -30,19 +30,19 @@ func parseNetJoin(args []string) (host, driver, overlayName, address string, err
 			}
 			address, i = args[i+1], i+1
 		default:
-			if host != "" {
+			if hostName != "" {
 				return "", "", "", "", fmt.Errorf("unexpected argument %q", args[i])
 			}
-			host = args[i]
+			hostName = args[i]
 		}
 	}
-	if host == "" {
+	if hostName == "" {
 		return "", "", "", "", fmt.Errorf("usage: net join <host> [--driver ssh|tailscale] [--overlay-name N] [--address A]")
 	}
 	if overlayName == "" {
-		overlayName = host
+		overlayName = hostName
 	}
-	return host, driver, overlayName, address, nil
+	return hostName, driver, overlayName, address, nil
 }
 
 // cmdNetJoin resolves a host's overlay address and records it in its host config.
