@@ -30,6 +30,15 @@ func makeSourceRepo(t *testing.T) string {
 	return dir
 }
 
+func TestHTTPSUsername(t *testing.T) {
+	if got := httpsUsername(""); got != "git" {
+		t.Fatalf("httpsUsername(%q) = %q, want %q", "", got, "git")
+	}
+	if got := httpsUsername("oauth2"); got != "oauth2" {
+		t.Fatalf("httpsUsername(%q) = %q, want %q", "oauth2", got, "oauth2")
+	}
+}
+
 func TestGitSyncClonesThenPulls(t *testing.T) {
 	src := makeSourceRepo(t)
 	g := Git{URL: src, Branch: "master", CachePath: filepath.Join(t.TempDir(), "cache")}

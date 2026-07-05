@@ -14,6 +14,9 @@ type StoreConfig struct {
 	Branch string `yaml:"branch"`
 	SSHKey string `yaml:"sshKey"`
 	Token  string `yaml:"token"`
+	User   string `yaml:"user"`
+
+	InsecureHostKey bool `yaml:"insecureHostKey"`
 }
 
 type Config struct {

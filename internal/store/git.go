@@ -10,22 +10,43 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 type Git struct {
-	URL       string
-	Branch    string
-	CachePath string
-	SSHKey    string // path to a private key for git-over-ssh (optional)
-	Token     string // token for https basic auth (optional)
+	URL             string
+	Branch          string
+	CachePath       string
+	SSHKey          string // path to a private key for git-over-ssh (optional)
+	Token           string // token for https basic auth (optional)
+	User            string // https basic-auth username (GitLab wants "oauth2"); defaults to "git"
+	InsecureHostKey bool   // skip SSH host-key verification (see auth)
+}
+
+// httpsUsername resolves the https basic-auth username, defaulting to "git"
+// (GitHub's convention) when none is configured.
+func httpsUsername(user string) string {
+	if user == "" {
+		return "git"
+	}
+	return user
 }
 
 func (g Git) auth() (transport.AuthMethod, error) {
 	switch {
 	case g.SSHKey != "":
-		return gitssh.NewPublicKeysFromFile("git", g.SSHKey, "")
+		pk, err := gitssh.NewPublicKeysFromFile("git", g.SSHKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if g.InsecureHostKey {
+			// Controlled fleets may spin up fresh nodes that never pre-seed
+			// known_hosts, so the default callback would fail the first clone.
+			pk.HostKeyCallback = gossh.InsecureIgnoreHostKey()
+		}
+		return pk, nil
 	case g.Token != "":
-		return &githttp.BasicAuth{Username: "git", Password: g.Token}, nil
+		return &githttp.BasicAuth{Username: httpsUsername(g.User), Password: g.Token}, nil
 	default:
 		return nil, nil
 	}
