@@ -43,6 +43,10 @@ func userEnvArgv(uid int, argv []string) []string {
 
 func runExec(argv []string, stdin []byte) (Result, error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
+	// Run from a world-accessible directory so a command dropped to a compartment
+	// user (via runuser) never inherits a caller CWD it cannot chdir into (e.g. the
+	// agent launched from a root-only store checkout).
+	cmd.Dir = "/"
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
