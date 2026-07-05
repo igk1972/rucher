@@ -71,13 +71,23 @@ func Recipient(r host.Runner, name string) (string, error) {
 
 // Remove stops a compartment's units; with purge it also deletes the OS user and its home.
 func Remove(r host.Runner, name string, purge bool) error {
-	if purge {
-		if _, err := r.Root([]string{"loginctl", "disable-linger", provision.UserName(name)}, nil); err != nil {
-			return err
-		}
-		if _, err := r.Root([]string{"userdel", "-r", provision.UserName(name)}, nil); err != nil {
-			return err
-		}
+	if !purge {
+		return nil
+	}
+	user := provision.UserName(name)
+	// Tear down everything the user runs before deleting the account: userdel refuses
+	// to remove a user with live processes. These are best-effort (a user with no
+	// session/manager makes them no-ops), so their exit codes are not checked.
+	r.Root([]string{"loginctl", "disable-linger", user}, nil)
+	r.Root([]string{"loginctl", "terminate-user", user}, nil)
+	r.Root([]string{"pkill", "-KILL", "-u", user}, nil)
+	r.Root([]string{"sleep", "1"}, nil) // let the kernel reap the killed processes
+	res, err := r.Root([]string{"userdel", "-r", user}, nil)
+	if err != nil {
+		return err
+	}
+	if res.Code != 0 {
+		return fmt.Errorf("userdel %s: %s", user, res.Stderr)
 	}
 	return nil
 }
