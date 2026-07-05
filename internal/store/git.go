@@ -57,6 +57,11 @@ func (g Git) Sync(ctx context.Context) (string, string, error) {
 	}
 	err = wt.PullContext(ctx, &git.PullOptions{ReferenceName: ref, SingleBranch: true, Auth: auth})
 	if err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
+		// Last-good: if a valid checkout already exists, keep running on it rather than
+		// stopping reconciliation on a transient fetch failure.
+		if head, herr := repo.Head(); herr == nil {
+			return g.CachePath, head.Hash().String(), nil
+		}
 		return "", "", fmt.Errorf("git pull: %w", err)
 	}
 	head, err := repo.Head()

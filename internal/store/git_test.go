@@ -64,3 +64,29 @@ func TestGitSyncClonesThenPulls(t *testing.T) {
 		t.Fatalf("checkout not updated: %q", got)
 	}
 }
+
+func TestGitSyncFallsBackToCachedCheckout(t *testing.T) {
+	src := makeSourceRepo(t)
+	g := Git{URL: src, Branch: "master", CachePath: filepath.Join(t.TempDir(), "cache")}
+
+	_, rev1, err := g.Sync(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Make the remote unreachable; a subsequent pull must fail.
+	if err := os.RemoveAll(src); err != nil {
+		t.Fatal(err)
+	}
+
+	co2, rev2, err := g.Sync(context.Background())
+	if err != nil {
+		t.Fatalf("Sync should fall back to the cached checkout, got: %v", err)
+	}
+	if rev2 != rev1 {
+		t.Fatalf("revision changed on fallback: %q != %q", rev2, rev1)
+	}
+	if _, err := os.Stat(filepath.Join(co2, "placement.yml")); err != nil {
+		t.Fatalf("cached checkout missing placement.yml: %v", err)
+	}
+}
