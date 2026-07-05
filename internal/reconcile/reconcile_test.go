@@ -143,6 +143,67 @@ func TestStatusEmptyWhenNoState(t *testing.T) {
 	}
 }
 
+func TestRemoveStopsUnitsAndFilesWithoutPurge(t *testing.T) {
+	oldBase := baseDirForState
+	baseDirForState = t.TempDir()
+	defer func() { baseDirForState = oldBase }()
+	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	f := &host.Fake{Responses: map[string]host.Result{}}
+	if err := Remove(f, "web", false); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawStop, sawRmDir, sawUserdel bool
+	wantRmDir := "rm -rf " + systemdDir("web")
+	for _, c := range f.Calls {
+		joined := strings.Join(c.Argv, " ")
+		switch {
+		case !c.Root && joined == "systemctl --user stop web.service":
+			sawStop = true
+		case !c.Root && joined == wantRmDir:
+			sawRmDir = true
+		case c.Argv[0] == "userdel":
+			sawUserdel = true
+		}
+	}
+	if !sawStop {
+		t.Errorf("expected a `systemctl --user stop web.service` user call")
+	}
+	if !sawRmDir {
+		t.Errorf("expected a `%s` user call", wantRmDir)
+	}
+	if sawUserdel {
+		t.Errorf("userdel must not run without --purge")
+	}
+}
+
+func TestRemovePurgeDeletesUser(t *testing.T) {
+	oldBase := baseDirForState
+	baseDirForState = t.TempDir()
+	defer func() { baseDirForState = oldBase }()
+	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	f := &host.Fake{Responses: map[string]host.Result{}}
+	if err := Remove(f, "web", true); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawUserdel bool
+	for _, c := range f.Calls {
+		if c.Root && strings.Join(c.Argv, " ") == "userdel -r pecm-web" {
+			sawUserdel = true
+		}
+	}
+	if !sawUserdel {
+		t.Errorf("expected a root `userdel -r pecm-web` call")
+	}
+}
+
 func TestRecipientReadsFile(t *testing.T) {
 	recp := provision.HomeDir("web") + "/.config/podman-essaim-compartment-manager/age/recipient.txt"
 	f := &host.Fake{Responses: map[string]host.Result{

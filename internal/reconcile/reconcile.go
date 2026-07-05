@@ -125,12 +125,31 @@ func Status(r host.Runner, name string) ([]UnitStatus, error) {
 	return out, nil
 }
 
-// Remove stops a compartment's units; with purge it also deletes the OS user and its home.
+// Remove unmanages a compartment: it stops the workloads and deletes their unit files
+// (so nothing restarts on boot), then drops the state file. The user, its podman
+// secrets/volumes and the age identity are kept. With purge it additionally tears down
+// the OS user and its home.
 func Remove(r host.Runner, name string, purge bool) error {
+	prior, _ := state.Load(statePath(name))
+	user := provision.UserName(name)
+
+	if prior.UID != 0 {
+		o := ops.Ops{R: r, User: user, UID: prior.UID}
+		// Stop workloads and remove their unit files so they don't come back on boot.
+		// Best-effort: a compartment with no live manager makes these no-ops.
+		for _, u := range prior.Units {
+			o.Stop(u)
+		}
+		r.User(o.User, prior.UID, []string{"rm", "-rf", systemdDir(name)}, nil)
+		o.DaemonReload()
+	}
+
+	// The compartment is no longer managed once its state file is gone.
+	r.Root([]string{"rm", "-f", statePath(name)}, nil)
+
 	if !purge {
 		return nil
 	}
-	user := provision.UserName(name)
 	// Tear down everything the user runs before deleting the account: userdel refuses
 	// to remove a user with live processes. These are best-effort (a user with no
 	// session/manager makes them no-ops), so their exit codes are not checked.
