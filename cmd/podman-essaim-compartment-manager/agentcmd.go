@@ -27,9 +27,10 @@ func parseKeygen(args []string) (name, recipient string, err error) {
 			recipient = args[i+1]
 			i++
 		default:
-			if name == "" {
-				name = args[i]
+			if name != "" {
+				return "", "", fmt.Errorf("unexpected argument: %q", args[i])
 			}
+			name = args[i]
 		}
 	}
 	if name == "" || recipient == "" {

@@ -25,4 +25,7 @@ func TestParseKeygen(t *testing.T) {
 	if _, _, err := parseKeygen([]string{"web"}); err == nil {
 		t.Fatal("expected error when --to is missing")
 	}
+	if _, _, err := parseKeygen([]string{"web", "extra", "--to", "age1"}); err == nil {
+		t.Fatal("expected error on an extra positional argument")
+	}
 }
