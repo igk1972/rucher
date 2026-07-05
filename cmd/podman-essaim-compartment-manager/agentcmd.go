@@ -64,7 +64,7 @@ func cmdKeygen(args []string, out io.Writer) int {
 		fmt.Fprintln(out, "error:", err)
 		return 1
 	}
-	if err := os.WriteFile(dir+"/identity.age", sealed, 0o644); err != nil {
+	if err := os.WriteFile(dir+"/identity.age", sealed, 0o600); err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1
 	}
