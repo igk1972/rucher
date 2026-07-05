@@ -40,6 +40,38 @@ func TestUnsealWithWrongIdentityFails(t *testing.T) {
 	}
 }
 
+func TestSealToMultipleRecipients(t *testing.T) {
+	idA, rcptA, err := GenerateIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	idB, rcptB, err := GenerateIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	idC, _, err := GenerateIdentity() // unrelated identity, must not decrypt
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := []byte("the shared compartment identity")
+	ct, err := SealTo([]string{rcptA, rcptB}, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, id := range map[string]string{"A": idA, "B": idB} {
+		got, err := Unseal(id, ct)
+		if err != nil {
+			t.Fatalf("recipient %s failed to unseal: %v", name, err)
+		}
+		if !bytes.Equal(got, msg) {
+			t.Fatalf("recipient %s round trip mismatch: %q", name, got)
+		}
+	}
+	if _, err := Unseal(idC, ct); err == nil {
+		t.Fatal("expected an unrelated identity to fail decryption")
+	}
+}
+
 func TestRecipientFor(t *testing.T) {
 	id, rcpt, _ := GenerateIdentity()
 	got, err := RecipientFor(id)

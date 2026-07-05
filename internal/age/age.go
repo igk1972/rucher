@@ -28,13 +28,24 @@ func RecipientFor(identity string) (string, error) {
 }
 
 func Seal(recipient string, plaintext []byte) ([]byte, error) {
-	rcpt, err := age.ParseX25519Recipient(recipient)
-	if err != nil {
-		return nil, fmt.Errorf("parse recipient: %w", err)
+	return SealTo([]string{recipient}, plaintext)
+}
+
+// SealTo encrypts plaintext to every recipient so any one of their identities can
+// unseal it: age writes a stanza per recipient. Used when a compartment lives on
+// multiple nodes and its identity.age must be readable by each node's key.
+func SealTo(recipients []string, plaintext []byte) ([]byte, error) {
+	rcpts := make([]age.Recipient, 0, len(recipients))
+	for _, r := range recipients {
+		rcpt, err := age.ParseX25519Recipient(r)
+		if err != nil {
+			return nil, fmt.Errorf("parse recipient: %w", err)
+		}
+		rcpts = append(rcpts, rcpt)
 	}
 	var buf bytes.Buffer
 	aw := armor.NewWriter(&buf)
-	w, err := age.Encrypt(aw, rcpt)
+	w, err := age.Encrypt(aw, rcpts...)
 	if err != nil {
 		return nil, fmt.Errorf("age encrypt: %w", err)
 	}
