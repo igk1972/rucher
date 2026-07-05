@@ -29,6 +29,17 @@ type S3 struct {
 // objInfo is the minimal per-object identity used to compute a store revision.
 type objInfo struct{ Key, ETag string }
 
+// resolveDest joins rel under base and rejects any path that escapes base (e.g. a
+// crafted object key containing "../"), so a hostile store cannot write outside the cache.
+func resolveDest(base, rel string) (string, error) {
+	dest := filepath.Join(base, rel)
+	r, err := filepath.Rel(base, dest)
+	if err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("s3 object key escapes cache dir: %q", rel)
+	}
+	return dest, nil
+}
+
 // revisionOf hashes the object set into a deterministic, order-independent
 // revision: sorted "Key\tETag\n" lines over sha256.
 func revisionOf(objects []objInfo) string {
@@ -67,7 +78,11 @@ func (s S3) Sync(ctx context.Context) (string, string, error) {
 		return "", "", fmt.Errorf("s3 clear cache: %w", err)
 	}
 	for _, obj := range objects {
-		dest := filepath.Join(s.CachePath, strings.TrimPrefix(obj.Key, s.Prefix))
+		rel := strings.TrimPrefix(obj.Key, s.Prefix)
+		dest, err := resolveDest(s.CachePath, rel)
+		if err != nil {
+			return "", "", err
+		}
 		if err := client.FGetObject(ctx, s.Bucket, obj.Key, dest, minio.GetObjectOptions{}); err != nil {
 			return "", "", fmt.Errorf("s3 get %q: %w", obj.Key, err)
 		}

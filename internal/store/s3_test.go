@@ -39,6 +39,38 @@ func TestRevisionOf(t *testing.T) {
 	}
 }
 
+func TestResolveDest(t *testing.T) {
+	base := filepath.Join(t.TempDir(), "cache")
+
+	// A normal nested key resolves under base.
+	got, err := resolveDest(base, filepath.Join("compartments", "web", "compartment.yml"))
+	if err != nil {
+		t.Fatalf("nested key: unexpected error: %v", err)
+	}
+	if want := filepath.Join(base, "compartments", "web", "compartment.yml"); got != want {
+		t.Fatalf("nested key = %q, want %q", got, want)
+	}
+
+	// A key with "../" that escapes base must be rejected.
+	if _, err := resolveDest(base, filepath.Join("..", "..", "etc", "x")); err == nil {
+		t.Fatal("escaping key: expected error, got nil")
+	}
+
+	// A key that Rel-resolves back to exactly ".." must be rejected.
+	if _, err := resolveDest(base, ".."); err == nil {
+		t.Fatal(`".." key: expected error, got nil`)
+	}
+
+	// filepath.Join cleans a leading slash, so an "absolute" key stays under base and is SAFE.
+	got, err = resolveDest(base, "/abs")
+	if err != nil {
+		t.Fatalf("leading-slash key: unexpected error: %v", err)
+	}
+	if want := filepath.Join(base, "abs"); got != want {
+		t.Fatalf("leading-slash key = %q, want %q", got, want)
+	}
+}
+
 // freePort asks the OS for an ephemeral TCP port, then releases it.
 func freePort(t *testing.T) int {
 	t.Helper()
