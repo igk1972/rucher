@@ -20,13 +20,18 @@ const storeCachePath = "/var/lib/podman-essaim/store"
 // parseKeygen collects the compartment name and every repeatable --to recipient, so
 // the identity can be sealed to all target nodes at once.
 func parseKeygen(args []string) (name string, recipients []string, err error) {
+	seen := map[string]bool{}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--to":
 			if i+1 >= len(args) {
 				return "", nil, fmt.Errorf("--to needs a recipient")
 			}
-			recipients = append(recipients, args[i+1])
+			// A recipient repeated across --to flags should be sealed to once.
+			if r := args[i+1]; !seen[r] {
+				seen[r] = true
+				recipients = append(recipients, r)
+			}
 			i++
 		default:
 			if name != "" {

@@ -72,6 +72,12 @@ func TestSealToMultipleRecipients(t *testing.T) {
 	}
 }
 
+func TestSealToNoRecipientsFails(t *testing.T) {
+	if _, err := SealTo(nil, []byte("secret")); err == nil {
+		t.Fatal("expected an error when sealing to no recipients")
+	}
+}
+
 func TestRecipientFor(t *testing.T) {
 	id, rcpt, _ := GenerateIdentity()
 	got, err := RecipientFor(id)

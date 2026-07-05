@@ -29,6 +29,13 @@ func TestParseKeygen(t *testing.T) {
 	if name != "web" || len(recipients) != 2 || recipients[0] != "age1abc" || recipients[1] != "age1def" {
 		t.Fatalf("got %q %v", name, recipients)
 	}
+	_, recipients, err = parseKeygen([]string{"web", "--to", "age1abc", "--to", "age1abc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recipients) != 1 || recipients[0] != "age1abc" {
+		t.Fatalf("duplicate --to not deduplicated: %v", recipients)
+	}
 	if _, _, err := parseKeygen([]string{"web"}); err == nil {
 		t.Fatal("expected error when --to is missing")
 	}

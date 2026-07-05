@@ -35,6 +35,9 @@ func Seal(recipient string, plaintext []byte) ([]byte, error) {
 // unseal it: age writes a stanza per recipient. Used when a compartment lives on
 // multiple nodes and its identity.age must be readable by each node's key.
 func SealTo(recipients []string, plaintext []byte) ([]byte, error) {
+	if len(recipients) == 0 {
+		return nil, fmt.Errorf("no recipients to seal to")
+	}
 	rcpts := make([]age.Recipient, 0, len(recipients))
 	for _, r := range recipients {
 		rcpt, err := age.ParseX25519Recipient(r)
