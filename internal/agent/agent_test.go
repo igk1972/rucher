@@ -130,10 +130,14 @@ func TestRunFailsCompartmentIsolated(t *testing.T) {
 	if len(st.Applied) != 1 {
 		t.Fatalf("Applied = %+v, want exactly one result", st.Applied)
 	}
+	if st.Applied[0].Name != "web" {
+		t.Fatalf("Applied[0].Name = %q, want %q", st.Applied[0].Name, "web")
+	}
 	if st.Applied[0].OK {
 		t.Fatal("compartment Result.OK = true, want false for the failed apply")
 	}
-	if st.Applied[0].Error == "" {
-		t.Fatal("compartment Result.Error is empty, want a non-empty error")
+	// Pin the failure CAUSE: it must be the identity unseal, not some earlier step.
+	if !strings.Contains(st.Applied[0].Error, "unseal") {
+		t.Fatalf("Applied[0].Error = %q, want it to mention the unseal failure", st.Applied[0].Error)
 	}
 }

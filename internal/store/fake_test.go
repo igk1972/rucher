@@ -20,7 +20,7 @@ func TestFakeReturnsConfigured(t *testing.T) {
 func TestFakeReturnsError(t *testing.T) {
 	f := &Fake{Err: errors.New("boom")}
 	_, _, err := f.Sync(context.Background())
-	if err == nil {
-		t.Fatal("Sync returned nil error, want the configured Err")
+	if !errors.Is(err, f.Err) {
+		t.Fatalf("Sync err = %v, want the configured Err", err)
 	}
 }
