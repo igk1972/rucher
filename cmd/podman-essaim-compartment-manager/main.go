@@ -4,12 +4,48 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 )
 
 func usage() string {
 	return "podman-essaim-compartment-manager <command> [args]\n" +
 		"commands: new plan apply status rm logs age\n"
+}
+
+// parseDir pulls an optional `--dir <value>` out of args wherever it appears
+// (default ./compartments); the remaining positional args are compartment names.
+func parseDir(args []string) (dir string, names []string, err error) {
+	dir = "./compartments"
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--dir" {
+			if i+1 >= len(args) {
+				return "", nil, fmt.Errorf("--dir requires a value")
+			}
+			dir = args[i+1]
+			i++
+			continue
+		}
+		names = append(names, args[i])
+	}
+	return dir, names, nil
+}
+
+// parseRm extracts a `--purge` flag from anywhere in args; the single remaining
+// non-flag argument is the compartment name.
+func parseRm(args []string) (name string, purge bool, err error) {
+	for _, a := range args {
+		if a == "--purge" {
+			purge = true
+			continue
+		}
+		if name != "" {
+			return "", false, fmt.Errorf("rm takes a single compartment name")
+		}
+		name = a
+	}
+	if name == "" {
+		return "", false, fmt.Errorf("rm requires a compartment name")
+	}
+	return name, purge, nil
 }
 
 // run is the testable entry point; it returns a process exit code.
@@ -26,21 +62,19 @@ func run(args []string, stdout io.Writer) int {
 		}
 		return cmdNew(args[1], stdout)
 	case "plan":
-		dir := "./compartments"
-		rest := args[1:]
-		if len(rest) >= 2 && rest[0] == "--dir" {
-			dir = rest[1]
-			rest = rest[2:]
+		dir, names, err := parseDir(args[1:])
+		if err != nil {
+			fmt.Fprintln(stdout, "error:", err)
+			return 2
 		}
-		return cmdPlan(dir, rest, stdout)
+		return cmdPlan(dir, names, stdout)
 	case "apply":
-		dir := "./compartments"
-		rest := args[1:]
-		if len(rest) >= 2 && rest[0] == "--dir" {
-			dir = rest[1]
-			rest = rest[2:]
+		dir, names, err := parseDir(args[1:])
+		if err != nil {
+			fmt.Fprintln(stdout, "error:", err)
+			return 2
 		}
-		return cmdApply(dir, rest, stdout)
+		return cmdApply(dir, names, stdout)
 	case "status":
 		return cmdStatus(args[1:], stdout)
 	case "logs":
@@ -56,12 +90,12 @@ func run(args []string, stdout io.Writer) int {
 		fmt.Fprint(stdout, usage())
 		return 2
 	case "rm":
-		if len(args) < 2 {
-			fmt.Fprint(stdout, usage())
+		name, purge, err := parseRm(args[1:])
+		if err != nil {
+			fmt.Fprintf(stdout, "error: %v\n\n%s", err, usage())
 			return 2
 		}
-		purge := slices.Contains(args[2:], "--purge")
-		return cmdRm(args[1], purge, stdout)
+		return cmdRm(name, purge, stdout)
 	default:
 		fmt.Fprintf(stdout, "unknown or not-yet-implemented command: %s\n\n%s", args[0], usage())
 		return 2

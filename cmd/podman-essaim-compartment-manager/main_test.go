@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -14,5 +15,58 @@ func TestRunNoArgsPrintsUsageAndFails(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "podman-essaim-compartment-manager") {
 		t.Fatalf("usage not printed: %q", out.String())
+	}
+}
+
+func TestParseDir(t *testing.T) {
+	cases := []struct {
+		args     []string
+		wantDir  string
+		wantName []string
+	}{
+		{nil, "./compartments", nil},
+		{[]string{"web"}, "./compartments", []string{"web"}},
+		{[]string{"--dir", "/c", "web"}, "/c", []string{"web"}},
+		{[]string{"web", "--dir", "/c"}, "/c", []string{"web"}},               // flag after name
+		{[]string{"web", "--dir", "/c", "api"}, "/c", []string{"web", "api"}}, // flag between names
+	}
+	for _, tc := range cases {
+		dir, names, err := parseDir(tc.args)
+		if err != nil {
+			t.Fatalf("parseDir(%v) error: %v", tc.args, err)
+		}
+		if dir != tc.wantDir || !slices.Equal(names, tc.wantName) {
+			t.Fatalf("parseDir(%v) = (%q, %v), want (%q, %v)", tc.args, dir, names, tc.wantDir, tc.wantName)
+		}
+	}
+	if _, _, err := parseDir([]string{"--dir"}); err == nil {
+		t.Fatal("parseDir(--dir) with no value should error")
+	}
+}
+
+func TestParseRm(t *testing.T) {
+	cases := []struct {
+		args      []string
+		wantName  string
+		wantPurge bool
+	}{
+		{[]string{"web"}, "web", false},
+		{[]string{"web", "--purge"}, "web", true},
+		{[]string{"--purge", "web"}, "web", true}, // flag before name
+	}
+	for _, tc := range cases {
+		name, purge, err := parseRm(tc.args)
+		if err != nil {
+			t.Fatalf("parseRm(%v) error: %v", tc.args, err)
+		}
+		if name != tc.wantName || purge != tc.wantPurge {
+			t.Fatalf("parseRm(%v) = (%q, %v), want (%q, %v)", tc.args, name, purge, tc.wantName, tc.wantPurge)
+		}
+	}
+	if _, _, err := parseRm([]string{"--purge"}); err == nil {
+		t.Fatal("parseRm with no name should error")
+	}
+	if _, _, err := parseRm(nil); err == nil {
+		t.Fatal("parseRm with no args should error")
 	}
 }
