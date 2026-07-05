@@ -117,6 +117,10 @@ func installIdentity(r host.Runner, name string, uid int, dir, nodeIdentity stri
 	if _, err := r.User(user, uid, []string{"tee", idPath}, identity); err != nil {
 		return err
 	}
+	// tee creates the file at the user's umask; the unsealed identity is a private key.
+	if _, err := r.User(user, uid, []string{"chmod", "600", idPath}, nil); err != nil {
+		return err
+	}
 	return nil
 }
 

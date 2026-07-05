@@ -40,13 +40,20 @@ func TestRunAppliesAssignedCompartment(t *testing.T) {
 		t.Fatalf("status = %+v", st)
 	}
 	// the unsealed identity must have been written to the compartment's identity path via the user
-	var wroteIdentity bool
+	var wroteIdentity, chmodIdentity bool
 	for _, c := range f.Calls {
 		if len(c.Argv) >= 2 && c.Argv[0] == "tee" && strings.HasSuffix(c.Argv[1], "/age/identity.txt") && string(c.Stdin) == compID {
 			wroteIdentity = true
 		}
+		// the private key must be locked down to 0600
+		if len(c.Argv) >= 3 && c.Argv[0] == "chmod" && c.Argv[1] == "600" && strings.HasSuffix(c.Argv[2], "/age/identity.txt") {
+			chmodIdentity = true
+		}
 	}
 	if !wroteIdentity {
 		t.Fatal("unsealed compartment identity was not installed")
+	}
+	if !chmodIdentity {
+		t.Fatal("unsealed compartment identity was not chmod 600")
 	}
 }
