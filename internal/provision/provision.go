@@ -10,7 +10,7 @@ import (
 	"podman-essaim-compartment-manager/internal/manifest"
 )
 
-const BaseDir = "/var/lib/podman-essaim-compartment-manager"
+const BaseDir = "/var/lib/podman-essaim/compartments"
 
 const (
 	subidCount = 65536
