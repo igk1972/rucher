@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -44,5 +45,39 @@ func TestList(t *testing.T) {
 	}
 	if !slices.Equal(got, []string{"a", "b"}) {
 		t.Fatalf("List = %v", got)
+	}
+}
+
+func TestWriteNetworkPreservesOtherKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "configuration.yml")
+	os.WriteFile(path, []byte("# fleet host\nhostname: web\nconnection:\n  host: 10.0.0.5\n"), 0o644)
+	if err := WriteNetwork(path, Network{Driver: "tailscale", Address: "100.9.9.9"}); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Network.Driver != "tailscale" || c.Network.Address != "100.9.9.9" {
+		t.Fatalf("network not written: %+v", c.Network)
+	}
+	if c.Connection.Host != "10.0.0.5" {
+		t.Fatal("connection block was lost")
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), "# fleet host") {
+		t.Fatal("comment was lost")
+	}
+}
+
+func TestWriteNetworkCreatesFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sub", "configuration.yml")
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	if err := WriteNetwork(path, Network{Driver: "ssh", Address: "1.2.3.4"}); err != nil {
+		t.Fatal(err)
+	}
+	c, _ := Load(path)
+	if c.Network.Address != "1.2.3.4" {
+		t.Fatalf("network = %+v", c.Network)
 	}
 }
