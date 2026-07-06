@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -19,20 +18,32 @@ import (
 )
 
 // discover returns compartment directories under dir, optionally filtered by names.
+// When names is non-empty, every requested name must resolve to a subdirectory of dir;
+// a name with no matching subdirectory is an error (guards against pointing --dir at the
+// compartment folder itself instead of its parent, which would otherwise match nothing).
 func discover(dir string, names []string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
+	subdirs := make(map[string]bool)
 	var dirs []string
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
-		if len(names) > 0 && !slices.Contains(names, e.Name()) {
-			continue
+		subdirs[e.Name()] = true
+		if len(names) == 0 {
+			dirs = append(dirs, filepath.Join(dir, e.Name()))
 		}
-		dirs = append(dirs, filepath.Join(dir, e.Name()))
+	}
+	if len(names) > 0 {
+		for _, name := range names {
+			if !subdirs[name] {
+				return nil, fmt.Errorf("compartment %q not found in %s", name, dir)
+			}
+			dirs = append(dirs, filepath.Join(dir, name))
+		}
 	}
 	return dirs, nil
 }
@@ -42,6 +53,10 @@ func cmdPlan(dir string, names []string, out io.Writer) int {
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1
+	}
+	if len(dirs) == 0 {
+		fmt.Fprintf(out, "no compartments found in %s\n", dir)
+		return 0
 	}
 	rc := 0
 	for _, d := range dirs {
@@ -84,6 +99,10 @@ func cmdApply(dir string, names []string, out io.Writer) int {
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1
+	}
+	if len(dirs) == 0 {
+		fmt.Fprintf(out, "no compartments found in %s\n", dir)
+		return 0
 	}
 	rc := 0
 	for _, d := range dirs {

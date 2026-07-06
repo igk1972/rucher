@@ -24,3 +24,88 @@ func TestCmdPlanPrintsUnits(t *testing.T) {
 		t.Fatalf("plan output = %q", out.String())
 	}
 }
+
+func TestCmdPlanNamedNotFound(t *testing.T) {
+	root := t.TempDir()
+	// No subdirectory named "web": pointing --dir at a folder that lacks it.
+	os.WriteFile(filepath.Join(root, "compartment.yml"), []byte("name: web\n"), 0o644)
+
+	var out bytes.Buffer
+	code := cmdPlan(root, []string{"web"}, &out)
+	if code == 0 {
+		t.Fatalf("code = 0, want non-zero; output = %q", out.String())
+	}
+	if !strings.Contains(out.String(), "not found") || !strings.Contains(out.String(), "web") {
+		t.Fatalf("plan output = %q, want mention of \"web\" not found", out.String())
+	}
+}
+
+func TestCmdApplyNamedNotFound(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "compartment.yml"), []byte("name: web\n"), 0o644)
+
+	var out bytes.Buffer
+	code := cmdApply(root, []string{"web"}, &out)
+	if code == 0 {
+		t.Fatalf("code = 0, want non-zero; output = %q", out.String())
+	}
+	if !strings.Contains(out.String(), "not found") || !strings.Contains(out.String(), "web") {
+		t.Fatalf("apply output = %q, want mention of \"web\" not found", out.String())
+	}
+}
+
+func TestCmdPlanEmptyDirNoNames(t *testing.T) {
+	root := t.TempDir()
+
+	var out bytes.Buffer
+	code := cmdPlan(root, nil, &out)
+	if code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if !strings.Contains(out.String(), "no compartments found") {
+		t.Fatalf("plan output = %q, want \"no compartments found\" notice", out.String())
+	}
+}
+
+func TestCmdApplyEmptyDirNoNames(t *testing.T) {
+	root := t.TempDir()
+
+	var out bytes.Buffer
+	code := cmdApply(root, nil, &out)
+	if code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if !strings.Contains(out.String(), "no compartments found") {
+		t.Fatalf("apply output = %q, want \"no compartments found\" notice", out.String())
+	}
+}
+
+func TestDiscover(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "web"), 0o755)
+	os.MkdirAll(filepath.Join(root, "db"), 0o755)
+	os.WriteFile(filepath.Join(root, "notes.txt"), []byte("x"), 0o644)
+
+	// Named present: returns the one matching path.
+	got, err := discover(root, []string{"web"})
+	if err != nil {
+		t.Fatalf("discover present: %v", err)
+	}
+	if len(got) != 1 || filepath.Base(got[0]) != "web" {
+		t.Fatalf("discover present = %v, want [.../web]", got)
+	}
+
+	// Named missing: returns an error.
+	if _, err := discover(root, []string{"missing"}); err == nil {
+		t.Fatalf("discover missing: err = nil, want error")
+	}
+
+	// No names: returns all subdirectories (files excluded).
+	all, err := discover(root, nil)
+	if err != nil {
+		t.Fatalf("discover all: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("discover all = %v, want 2 subdirs", all)
+	}
+}
