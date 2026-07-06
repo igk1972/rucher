@@ -36,17 +36,17 @@ func parseNetJoin(args []string) (nodeName, address string, jsonOut bool, err er
 		}
 	}
 	if nodeName == "" {
-		return "", "", false, fmt.Errorf("usage: ops ruches join <node> --address <addr>")
+		return "", "", false, fmt.Errorf("usage: ops nodes join <node> --address <addr>")
 	}
 	if !haveAddress {
-		return "", "", false, fmt.Errorf("ops ruches join requires --address")
+		return "", "", false, fmt.Errorf("ops nodes join requires --address")
 	}
 	// Trim surrounding whitespace: a padded value is cleaned before storing, and
 	// an all-whitespace value collapses to "" and is rejected below as a usage
 	// error rather than stored as a blank address.
 	address = strings.TrimSpace(address)
 	if address == "" {
-		return "", "", false, fmt.Errorf("ops ruches join requires a non-empty --address")
+		return "", "", false, fmt.Errorf("ops nodes join requires a non-empty --address")
 	}
 	return nodeName, address, jsonOut, nil
 }

@@ -62,7 +62,7 @@ func TestParseNetJoinErrors(t *testing.T) {
 
 func TestCmdNetJoinJSONOutput(t *testing.T) {
 	dir := t.TempDir()
-	// ops ruches join writes into an existing node directory; WriteNetwork does not
+	// ops nodes join writes into an existing node directory; WriteNetwork does not
 	// create parents, so set the node dir up first.
 	if err := os.MkdirAll(filepath.Join(dir, "web"), 0o755); err != nil {
 		t.Fatal(err)

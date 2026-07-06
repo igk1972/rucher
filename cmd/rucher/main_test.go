@@ -18,12 +18,12 @@ func TestRunNoArgsPrintsUsageAndFails(t *testing.T) {
 	}
 }
 
-func TestRuchesStatusJSONWiring(t *testing.T) {
+func TestNodesStatusJSONWiring(t *testing.T) {
 	// An empty hosts dir means no rows, so the --json wiring in run() should emit
 	// an empty JSON array (not null) and exit 0 since nothing is unreachable.
 	dir := t.TempDir()
 	var out bytes.Buffer
-	code := run([]string{"ops", "ruches", "--nodes", dir, "status", "--json"}, &out)
+	code := run([]string{"ops", "nodes", "--dir", dir, "status", "--json"}, &out)
 	if code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}

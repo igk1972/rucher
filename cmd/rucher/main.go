@@ -22,8 +22,8 @@ node — on the Linux node (runuser/systemctl/podman):
 
 ops — from the operator machine:
   ops plan [--dir DIR] [name...]
-  ops ruches [--nodes DIR] status [--live] [--json] [node...]
-  ops ruches [--nodes DIR] join <node> --address <addr> [--json]
+  ops nodes [--dir DIR] status [--live] [--json] [node...]
+  ops nodes [--dir DIR] join <node> --address <addr> [--json]
   ops key seal <name> --to <recipient> [--to <recipient> ...]
 `
 }
@@ -198,7 +198,7 @@ func runNodeCadre(args []string, stdout io.Writer) int {
 }
 
 // runOps dispatches the operator-side tree (cross-platform: local files, crypto,
-// and the SSH fleet plane).
+// and the SSH nodes plane).
 func runOps(args []string, stdout io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprint(stdout, usage())
@@ -218,24 +218,24 @@ func runOps(args []string, stdout io.Writer) int {
 			return 2
 		}
 		return cmdKeygen(args[2:], stdout)
-	case "ruches":
-		return runOpsRuches(args[1:], stdout)
+	case "nodes":
+		return runOpsNodes(args[1:], stdout)
 	default:
 		fmt.Fprintf(stdout, "unknown ops subcommand: %s\n\n%s", args[0], usage())
 		return 2
 	}
 }
 
-// runOpsRuches dispatches the fleet plane (`ops ruches [--nodes DIR] <status|join>`).
-// --nodes is accepted only before the subcommand, matching the other flag-first commands.
-func runOpsRuches(args []string, stdout io.Writer) int {
+// runOpsNodes dispatches the ops nodes plane (`ops nodes [--dir DIR] <status|join>`).
+// --dir is accepted only before the subcommand, matching the other flag-first commands.
+func runOpsNodes(args []string, stdout io.Writer) int {
 	nodesDir := "./nodes"
 	rest := args
-	if len(rest) >= 2 && rest[0] == "--nodes" {
+	if len(rest) >= 2 && rest[0] == "--dir" {
 		nodesDir, rest = rest[1], rest[2:]
 	}
 	if len(rest) == 0 {
-		fmt.Fprintln(stdout, "usage: ops ruches [--nodes DIR] status|join ...")
+		fmt.Fprintln(stdout, "usage: ops nodes [--dir DIR] status|join ...")
 		return 2
 	}
 	switch rest[0] {
@@ -256,7 +256,7 @@ func runOpsRuches(args []string, stdout io.Writer) int {
 	case "join":
 		return cmdNetJoin(nodesDir, rest[1:], stdout)
 	default:
-		fmt.Fprintf(stdout, "unknown ops ruches subcommand: %s\n", rest[0])
+		fmt.Fprintf(stdout, "unknown ops nodes subcommand: %s\n", rest[0])
 		return 2
 	}
 }

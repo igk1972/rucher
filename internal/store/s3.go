@@ -14,7 +14,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-// S3 syncs the fleet store from an S3-compatible bucket into a local checkout.
+// S3 syncs the store from an S3-compatible bucket into a local checkout.
 type S3 struct {
 	Endpoint  string // host:port, no scheme
 	Bucket    string
@@ -80,7 +80,7 @@ func (s S3) Sync(ctx context.Context) (string, string, error) {
 		objects = append(objects, objInfo{Key: obj.Key, ETag: obj.ETag})
 	}
 
-	// Small fleet store: a full re-download is the simplest correct sync.
+	// Small store: a full re-download is the simplest correct sync.
 	if err := os.RemoveAll(s.CachePath); err != nil {
 		return "", "", fmt.Errorf("s3 clear cache: %w", err)
 	}

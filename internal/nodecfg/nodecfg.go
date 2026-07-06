@@ -38,7 +38,7 @@ func Load(path string) (Config, error) {
 	return c, nil
 }
 
-// LoadMerged reads the fleet-global ./hosts/configuration.yml (if present) and the
+// LoadMerged reads the global ./nodes/configuration.yml (all nodes) (if present) and the
 // per-host ./hosts/<name>/configuration.yml, then deep-merges the per-host doc OVER
 // the global one (maps merge key-by-key; scalars and sequences are replaced) before
 // decoding into Config. The global file is optional; the per-host file is required.

@@ -67,13 +67,13 @@ func TestCollectAggregatesAndIsolates(t *testing.T) {
 
 func TestCollectInheritsGlobalConnection(t *testing.T) {
 	hosts := t.TempDir()
-	// Fleet-global default supplies the ssh user; the per-host file only has an address.
-	os.WriteFile(filepath.Join(hosts, "configuration.yml"), []byte("connection:\n  user: fleetuser\n"), 0o644)
+	// Global default supplies the ssh user; the per-host file only has an address.
+	os.WriteFile(filepath.Join(hosts, "configuration.yml"), []byte("connection:\n  user: globaluser\n"), 0o644)
 	writeHost(t, hosts, "a", "network: {address: 1.1.1.1}\n")
 
-	// Keying the fake by the fleetuser target proves the global connection default
+	// Keying the fake by the globaluser target proves the global connection default
 	// was merged in: without it Resolve would yield user "root" and the key would miss.
-	target := sshx.Target{Addr: "1.1.1.1:22", User: "fleetuser"}
+	target := sshx.Target{Addr: "1.1.1.1:22", User: "globaluser"}
 	catCmd := []string{"cat", statusPath}
 	statusJSON := `{"revision":"rev1","applied":[{"name":"web","ok":true}],"removed":[]}`
 	f := &sshx.Fake{Responses: map[string]sshx.Result{

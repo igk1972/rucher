@@ -40,7 +40,7 @@ func (g Git) auth() (transport.AuthMethod, error) {
 			return nil, err
 		}
 		if g.InsecureHostKey {
-			// Controlled fleets may spin up fresh nodes that never pre-seed
+			// Controlled deployments may spin up fresh nodes that never pre-seed
 			// known_hosts, so the default callback would fail the first clone.
 			pk.HostKeyCallback = gossh.InsecureIgnoreHostKey()
 		}

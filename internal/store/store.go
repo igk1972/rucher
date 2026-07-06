@@ -1,4 +1,4 @@
-// Package store fetches the fleet's desired state into a local checkout.
+// Package store fetches all nodes' desired state into a local checkout.
 package store
 
 import "context"

@@ -90,7 +90,7 @@ func TestS3SyncAgainstRclone(t *testing.T) {
 
 	// Build a source tree; rclone serve s3 exposes each top-level dir as a bucket.
 	src := t.TempDir()
-	bucket := filepath.Join(src, "fleet")
+	bucket := filepath.Join(src, "infrastructure")
 	if err := os.MkdirAll(filepath.Join(bucket, "compartments", "web"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestS3SyncAgainstRclone(t *testing.T) {
 
 	s := S3{
 		Endpoint:  addr,
-		Bucket:    "fleet",
+		Bucket:    "infrastructure",
 		AccessKey: "TESTKEY",
 		SecretKey: "TESTSECRET",
 		UseSSL:    false,

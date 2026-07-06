@@ -49,7 +49,7 @@ func TestList(t *testing.T) {
 
 func TestWriteNetworkPreservesOtherKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "configuration.yml")
-	os.WriteFile(path, []byte("# fleet host\nhostname: web\nconnection:\n  host: 10.0.0.5\n"), 0o644)
+	os.WriteFile(path, []byte("# global node config\nhostname: web\nconnection:\n  host: 10.0.0.5\n"), 0o644)
 	if err := WriteNetwork(path, Network{Address: "100.9.9.9"}); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestWriteNetworkPreservesOtherKeys(t *testing.T) {
 		t.Fatal("connection block was lost")
 	}
 	raw, _ := os.ReadFile(path)
-	if !strings.Contains(string(raw), "# fleet host") {
+	if !strings.Contains(string(raw), "# global node config") {
 		t.Fatal("comment was lost")
 	}
 	// Hosts no longer carry a network driver, so it must not be written.

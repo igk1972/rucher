@@ -12,7 +12,7 @@ func TestLoadAndNodeID(t *testing.T) {
 node: lima-essaim-01
 store:
   kind: git
-  url: git@example.com:org/fleet.git
+  url: git@example.com:org/infrastructure.git
   branch: main
   sshKey: /etc/rucher/deploy_key
 interval: 30s
@@ -21,7 +21,7 @@ interval: 30s
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Store.URL != "git@example.com:org/fleet.git" || c.Store.Branch != "main" {
+	if c.Store.URL != "git@example.com:org/infrastructure.git" || c.Store.Branch != "main" {
 		t.Fatalf("store = %+v", c.Store)
 	}
 	id, err := c.NodeID()
@@ -39,7 +39,7 @@ func TestLoadDefaults(t *testing.T) {
 	os.WriteFile(path, []byte(`
 node: lima-essaim-01
 store:
-  url: git@example.com:org/fleet.git
+  url: git@example.com:org/infrastructure.git
 `), 0o644)
 	c, err := Load(path)
 	if err != nil {
