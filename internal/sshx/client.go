@@ -125,10 +125,14 @@ func (c *Client) Run(t Target, cmd []string, stdin []byte) (Result, error) {
 // It reports the run error (nil on success) and whether the wait timed out;
 // both are decoupled from any real SSH server so the wait is unit-testable.
 func waitRun(done <-chan error, timeout time.Duration) (err error, timedOut bool) {
+	// NewTimer + Stop (rather than time.After) so the timer is released promptly
+	// on the common done-first path instead of lingering until it fires.
+	t := time.NewTimer(timeout)
+	defer t.Stop()
 	select {
 	case err = <-done:
 		return err, false
-	case <-time.After(timeout):
+	case <-t.C:
 		return nil, true
 	}
 }
