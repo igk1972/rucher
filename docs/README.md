@@ -25,6 +25,18 @@ connectivity between workloads across hosts.
 | [overlays.md](overlays.md) | Per-compartment overlay networking for cross-host L3 between workloads |
 | [host-requirements.md](host-requirements.md) | What each host in the fleet must provide |
 
+## Validation runbooks
+
+Manual end-to-end procedures run on Lima nodes (not part of `go test`); they also record what
+was verified on real hardware. See [`validation/`](validation/):
+
+| Runbook | Validates |
+|---------|-----------|
+| [integration-a.md](validation/integration-a.md) | Single-host core: new → apply → drift → idempotency → rm |
+| [integration-b.md](validation/integration-b.md) | GitOps agent: node key → seal → git store → `agent run` → removal |
+| [integration-c.md](validation/integration-c.md) | Operator plane: `hosts status`, `--live`, `net join` |
+| [integration-overlay.md](validation/integration-overlay.md) | Compartment overlay: kernel-mode sidecar, cross-host L3 |
+
 ## Terminology
 
 - **Compartment** — one workload group: a directory ([compartments.md](compartments.md))

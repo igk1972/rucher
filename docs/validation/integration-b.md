@@ -4,7 +4,7 @@ Validates the GitOps flow: node key → seal → git store → `agent run` → a
 `placement.yml`. **Validated on `lima-essaim-01`** (single-node: the node acts as both
 operator and worker, with the store in a local git repository — no SSH/network).
 
-Prerequisites: node is up; `podman`/`age`/`sops`/`git`/`uidmap` installed; `rucher` built
+Prerequisites: node is up; `podman`/`sops`/`git`/`uidmap` installed; `rucher` built
 for linux/arm64 and at `/usr/local/bin/rucher`. The store is a git repository reachable by the node: a local
 path (as here), a shared mount, or a remote URL. **For an SSH URL** go-git by default verifies the
 host against `~/.ssh/known_hosts` — it must be pre-populated, otherwise the first clone will fail.

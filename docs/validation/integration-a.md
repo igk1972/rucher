@@ -1,7 +1,7 @@
 # Integration run A on a Lima node
 
 Prerequisites: lima-essaim has brought up node `lima-essaim-01`; rucher installed podman;
-the node has `age`, `age-keygen`, `sops`. The binary is built: `GOOS=linux GOARCH=arm64 go build ./cmd/...`
+the node has `sops`. The binary is built: `GOOS=linux GOARCH=arm64 go build ./cmd/...`
 and copied to the node, run as root (`sudo`).
 
 Steps (all on the node):

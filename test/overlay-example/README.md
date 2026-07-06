@@ -41,4 +41,4 @@ rucher apply --dir . overlay-demo
 The host must have the `tun` module loaded and `/dev/net/tun` accessible to the compartment's
 user — that's the provisioning layer's job (see the runbook).
 
-For a detailed walkthrough and exactly what has been verified, see `test/integration-overlay.md`.
+For a detailed walkthrough and exactly what has been verified, see `docs/validation/integration-overlay.md`.
