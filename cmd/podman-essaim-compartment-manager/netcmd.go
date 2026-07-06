@@ -37,9 +37,11 @@ func parseNetJoin(args []string) (hostName, address string, err error) {
 	if !haveAddress {
 		return "", "", fmt.Errorf("net join requires --address")
 	}
-	// An explicit but empty (or whitespace-only) --address is a usage error, not
-	// a request to store a blank address.
-	if strings.TrimSpace(address) == "" {
+	// Trim surrounding whitespace: a padded value is cleaned before storing, and
+	// an all-whitespace value collapses to "" and is rejected below as a usage
+	// error rather than stored as a blank address.
+	address = strings.TrimSpace(address)
+	if address == "" {
 		return "", "", fmt.Errorf("net join requires a non-empty --address")
 	}
 	return hostName, address, nil

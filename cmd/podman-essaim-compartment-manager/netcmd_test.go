@@ -12,6 +12,16 @@ func TestParseNetJoin(t *testing.T) {
 	}
 }
 
+func TestParseNetJoinTrimsAddress(t *testing.T) {
+	_, a, err := parseNetJoin([]string{"web", "--address", " 1.2.3.4 "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a != "1.2.3.4" {
+		t.Fatalf("address = %q, want %q", a, "1.2.3.4")
+	}
+}
+
 func TestParseNetJoinErrors(t *testing.T) {
 	cases := map[string][]string{
 		"missing host":          {"--address", "1.2.3.4"},
