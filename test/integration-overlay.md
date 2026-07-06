@@ -1,110 +1,110 @@
-# Compartment overlay — прогон на Lima-нодах
+# Compartment overlay — run on Lima nodes
 
-Даёт рабочим нагрузкам compartment'а прозрачную L3-связность в тайнете между хостами. Форма —
-обычные «непрозрачные» квадлеты: оператор пишет tailscale-сайдкар + под как всегда, authkey
-едет через штатный `secrets.create`. **Код менеджера не меняется.** Пример целиком —
-`test/overlay-example/` (сам compartment лежит в подкаталоге `overlay-example/overlay-demo/`).
+Gives a compartment's workloads transparent L3 connectivity in the tailnet between hosts. The form is
+ordinary "opaque" quadlets: the operator writes a tailscale sidecar + pod as usual, and the authkey
+travels via the regular `secrets.create`. **The manager's code does not change.** The full example is
+`test/overlay-example/` (the compartment itself lives in the subdirectory `overlay-example/overlay-demo/`).
 
-**Валидировано контроллером** на Lima (Debian trixie, podman 5.8.4, настоящий тайнет):
-кросс-нодовая прозрачная связность из пода на lima-01 в nginx в поде на lima-02 по tailscale-IP,
-без правок нагрузки и без прокси; ядро маршрутизирует `dev tailscale0`. Ниже помечено, что
-проверено контроллером, а что остаётся шагом оператора.
+**Validated by the controller** on Lima (Debian trixie, podman 5.8.4, a real tailnet):
+cross-node transparent connectivity from a pod on lima-01 to nginx in a pod on lima-02 over the tailscale IP,
+without workload changes and without a proxy; the kernel routes `dev tailscale0`. Below it is marked what
+the controller verified and what remains an operator step.
 
-## Чем отличается от управляющей сети C
+## How it differs from control network C
 
-- **Управляющая сеть C** (`pecm net join <host> --address 100.64.0.1`) — это control-plane:
-  адрес самого хоста, по которому оператор/менеджер дотягивается до ноды. Пишется в
-  `./hosts/<host>/configuration.yml` как `network: {address}`. Уровень — хост.
-- **Compartment overlay** (этот прогон) — data-plane: членство в тайнете у конкретной
-  нагрузки. Сайдкар внутри пода compartment'а даёт этому compartment'у свой адрес `100.x`.
-  Уровень — рабочая нагрузка, привязано к одному compartment'у. Одно с другим не связано:
-  overlay работает, даже если хосты между собой видятся вообще без сети C.
+- **Control network C** (`pecm net join <host> --address 100.64.0.1`) is the control plane:
+  the host's own address, over which the operator/manager reaches the node. It is written to
+  `./hosts/<host>/configuration.yml` as `network: {address}`. Level — host.
+- **Compartment overlay** (this run) is the data plane: tailnet membership of a specific
+  workload. A sidecar inside the compartment's pod gives that compartment its own `100.x` address.
+  Level — the workload, tied to a single compartment. The two are unrelated:
+  the overlay works even if the hosts see each other with no C network at all.
 
-## Предпосылка на хосте (шаг провижининга, не менеджера)
+## Host prerequisite (a provisioning step, not the manager's)
 
-- Загружен модуль ядра `tun` и `/dev/net/tun` доступен пользователю compartment'а
-  (на нодах было `0666`). Проверка: `test -c /dev/net/tun && stat -c %a /dev/net/tun`.
-- Это НЕ делает менеджер — место этому в слое провижининга (`podman-essaim` / образ ноды).
-  Если устройства нет или прав не хватает — сайдкар с `TS_USERSPACE=false` не поднимет
+- The `tun` kernel module is loaded and `/dev/net/tun` is accessible to the compartment's user
+  (on the nodes it was `0666`). Check: `test -c /dev/net/tun && stat -c %a /dev/net/tun`.
+- The manager does NOT do this — it belongs in the provisioning layer (`podman-essaim` / node image).
+  If the device is missing or permissions are insufficient, a sidecar with `TS_USERSPACE=false` won't bring up
   `tailscale0`.
 
-## Почему `TS_USERSPACE=false` (критично)
+## Why `TS_USERSPACE=false` (critical)
 
-Образ `docker.io/tailscale/tailscale` **по умолчанию идёт в userspace-режиме** (SOCKS5/HTTP-
-прокси) — это НЕ прозрачно: нагрузке пришлось бы явно ходить через прокси. Нам нужен
-kernel-режим: `TS_USERSPACE=false` + `/dev/net/tun` + `NET_ADMIN`/`NET_RAW`. Тогда сайдкар
-создаёт настоящий интерфейс `tailscale0`, и ядро маршрутизирует трафик `dev tailscale0`
-прозрачно — приложение не знает, что ходит через тайнет.
+The `docker.io/tailscale/tailscale` image **defaults to userspace mode** (SOCKS5/HTTP
+proxy) — this is NOT transparent: the workload would have to explicitly go through the proxy. We need
+kernel mode: `TS_USERSPACE=false` + `/dev/net/tun` + `NET_ADMIN`/`NET_RAW`. Then the sidecar
+creates a real `tailscale0` interface, and the kernel routes traffic `dev tailscale0`
+transparently — the application has no idea it goes through the tailnet.
 
-## Членство по compartment'ам, привилегия в сайдкаре
+## Membership per compartment, privilege in the sidecar
 
-- Членство в тайнете — на уровень compartment'а: у каждого свой сайдкар и свой `100.x`.
-- Привилегия заперта в сайдкаре. `/dev/net/tun`, `NET_ADMIN`, `NET_RAW` держит только
-  `overlay-ts`. `overlay-app` — обычный непривилегированный контейнер (никаких device/cap),
-  но пользуется тем же `tailscale0`, потому что делит netns пода `overlay-demo`.
+- Tailnet membership is at the compartment level: each has its own sidecar and its own `100.x`.
+- Privilege is locked in the sidecar. `/dev/net/tun`, `NET_ADMIN`, `NET_RAW` are held only by
+  `overlay-ts`. `overlay-app` is an ordinary unprivileged container (no device/cap),
+  but uses the same `tailscale0` because it shares the `overlay-demo` pod's netns.
 
-## Authkey через `secrets.create`
+## Authkey via `secrets.create`
 
-- Ключ бери в админке tailscale (Settings -> Keys -> Auth keys; удобно reusable + pre-approved).
-- Зашифруй его на age-recipient ЭТОГО compartment'а в `secrets.sops.yaml`:
+- Get the key from the tailscale admin console (Settings -> Keys -> Auth keys; reusable + pre-approved is convenient).
+- Encrypt it to THIS compartment's age recipient in `secrets.sops.yaml`:
 
   ```bash
-  pecm age recipient overlay-demo                     # -> age1... recipient compartment'а
+  pecm age recipient overlay-demo                     # -> age1... the compartment's recipient
   printf 'ts-authkey: tskey-auth-XXXX\n' \
     | sops --encrypt --input-type yaml --output-type yaml --age <recipient> /dev/stdin \
     > test/overlay-example/overlay-demo/secrets.sops.yaml
   ```
 
-  (`--input-type yaml` обязателен — иначе sops завернёт всё в один ключ `data`; см. прогон B.
-  `secrets.sops.yaml` кладётся в подкаталог compartment'а, рядом с `compartment.yml`.)
-- В `compartment.yml`: `secrets.create: [ts-authkey]` — только этот ключ становится podman-
-  секретом. Сайдкар подхватывает его через `Secret=ts-authkey,type=env,target=TS_AUTHKEY`
-  (podman-секрет -> env `TS_AUTHKEY`). Настоящий ключ в plaintext НЕ коммить —
-  `secrets.sops.example.yaml` только образец формата.
+  (`--input-type yaml` is mandatory — otherwise sops wraps everything in a single `data` key; see run B.
+  `secrets.sops.yaml` goes into the compartment's subdirectory, next to `compartment.yml`.)
+- In `compartment.yml`: `secrets.create: [ts-authkey]` — only this key becomes a podman
+  secret. The sidecar picks it up via `Secret=ts-authkey,type=env,target=TS_AUTHKEY`
+  (podman secret -> env `TS_AUTHKEY`). Do NOT commit the real key in plaintext —
+  `secrets.sops.example.yaml` is only a format sample.
 
-## Применение через менеджер (шаг оператора)
+## Applying via the manager (an operator step)
 
-Разложить и запустить как обычный compartment — правок менеджера не требуется. `--dir` —
-это **родительский** каталог (тот, что содержит подкаталог-compartment `overlay-demo/`),
-а имя выбирает подкаталог; проверено контроллером через полный `pecm new` → `apply` → `rm`:
+Lay it out and run it as an ordinary compartment — no manager changes required. `--dir` is
+the **parent** directory (the one that contains the `overlay-demo/` compartment subdirectory),
+and the name selects the subdirectory; verified by the controller via a full `pecm new` → `apply` → `rm`:
 
 ```bash
-# локально/прямой apply на ноде (--dir = родитель, overlay-demo = подкаталог):
+# local/direct apply on the node (--dir = parent, overlay-demo = subdirectory):
 sudo pecm apply --dir ./test/overlay-example overlay-demo
 
-# либо через GitOps-агента (прогон B): закоммитить compartment в стор,
-# placement.yml -> overlay-demo: <нода>, затем `sudo pecm agent run`.
+# or via the GitOps agent (run B): commit the compartment into the store,
+# placement.yml -> overlay-demo: <node>, then `sudo pecm agent run`.
 ```
 
-Форма квадлетов, которую применяет менеджер, проверена контроллером через `systemctl --user`:
-под + сайдкар + app-юнит поднимаются, сайдкар получает адрес тайнета, authkey доставлен через
-podman-секрет -> env.
+The quadlet form the manager applies was verified by the controller via `systemctl --user`:
+pod + sidecar + app unit come up, the sidecar gets a tailnet address, the authkey is delivered via
+podman secret -> env.
 
-## Что именно проверено (контроллер)
+## What exactly was verified (controller)
 
-- Сайдкар в kernel-режиме зарегистрировался в тайнете и поднял `tailscale0` с IP `100.x`.
-- Непривилегированный `overlay-app` в том же поде прозрачно пользуется `tailscale0` (без
-  device, без cap).
-- App в поде на lima-01 достучался до nginx в поде на lima-02 по его tailscale-IP — без правок
-  приложения и без прокси; ядро маршрутизирует `dev tailscale0`.
+- The sidecar in kernel mode registered in the tailnet and brought up `tailscale0` with IP `100.x`.
+- The unprivileged `overlay-app` in the same pod transparently uses `tailscale0` (no
+  device, no cap).
+- The app in the pod on lima-01 reached nginx in the pod on lima-02 by its tailscale IP — without app changes
+  and without a proxy; the kernel routes `dev tailscale0`.
 
-Быстрые проверки на ноде:
+Quick checks on the node:
 
 ```bash
-# адрес сайдкара в тайнете:
+# the sidecar's tailnet address:
 podman exec overlay-ts tailscale ip -4
-# маршрут наружу идёт через tailscale0 (kernel-режим, а не userspace-прокси):
-podman exec overlay-app ip route get <tailscale-IP-на-другой-ноде>
-# сквозная связность из нагрузки без правок приложения:
-podman exec overlay-app wget -qO- http://<tailscale-IP-nginx-на-lima-02>/
+# the outbound route goes through tailscale0 (kernel mode, not a userspace proxy):
+podman exec overlay-app ip route get <tailscale-IP-on-another-node>
+# end-to-end connectivity from the workload without app changes:
+podman exec overlay-app wget -qO- http://<tailscale-IP-of-nginx-on-lima-02>/
 ```
 
-## Очистка
+## Cleanup
 
 ```bash
-sudo pecm rm overlay-demo --purge     # остановить юниты, снять с менеджмента, удалить юзера+данные
+sudo pecm rm overlay-demo --purge     # stop units, unmanage, remove user+data
 ```
 
-Нода уйдёт из тайнета сама, когда сайдкар остановлен (для ephemeral-authkey — сразу; иначе
-удали её вручную в админке tailscale). `TS_STATE_DIR=/tmp/tsstate` в сайдкаре живёт внутри
-контейнера, отдельного тома под состояние здесь нет.
+The node leaves the tailnet on its own once the sidecar is stopped (for an ephemeral authkey — immediately;
+otherwise delete it manually in the tailscale admin console). `TS_STATE_DIR=/tmp/tsstate` in the sidecar lives inside
+the container, there is no separate volume for state here.

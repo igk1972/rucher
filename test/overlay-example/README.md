@@ -1,43 +1,44 @@
-# Пример: compartment overlay (L3-mesh через tailscale-сайдкар)
+# Example: overlay compartment (L3 mesh via tailscale sidecar)
 
-Готовый compartment, который даёт своим рабочим нагрузкам прозрачную L3-связность в тайнете
-между хостами — без изменения кода менеджера. Это обычные «непрозрачные» квадлеты: менеджер
-раскладывает их как есть, а authkey едет через штатный механизм секретов (`secrets.create`
--> podman-секрет -> env сайдкара).
+A ready-made compartment that gives its workloads transparent L3 connectivity on the tailnet
+between hosts — without changing the manager's code. These are ordinary "opaque" quadlets: the
+manager lays them down as-is, and the authkey travels through the standard secrets mechanism
+(`secrets.create` -> podman secret -> sidecar env).
 
-## Что внутри
+## What's inside
 
-| Файл | Роль |
+| File | Role |
 |------|------|
-| `compartment.yml` | манифест; `secrets.create: [ts-authkey]` делает authkey podman-секретом |
-| `overlay-demo.pod` | под, общий netns для сайдкара и нагрузки |
-| `overlay-ts.container` | tailscale-сайдкар в **kernel-режиме** (`/dev/net/tun`, `NET_ADMIN`/`NET_RAW`, `TS_USERSPACE=false`) — поднимает `tailscale0` с адресом `100.x` |
-| `overlay-app.container` | реальная нагрузка (nginx); **без** device и capability — прозрачно ходит в тайнет через netns пода |
-| `secrets.sops.example.yaml` | PLAINTEXT-шаблон authkey; зашифруй в `secrets.sops.yaml`, реальный ключ не коммить |
+| `compartment.yml` | manifest; `secrets.create: [ts-authkey]` turns the authkey into a podman secret |
+| `overlay-demo.pod` | pod, shared netns for the sidecar and the workload |
+| `overlay-ts.container` | tailscale sidecar in **kernel mode** (`/dev/net/tun`, `NET_ADMIN`/`NET_RAW`, `TS_USERSPACE=false`) — brings up `tailscale0` with a `100.x` address |
+| `overlay-app.container` | the actual workload (nginx); **no** device or capability — transparently reaches the tailnet through the pod's netns |
+| `secrets.sops.example.yaml` | PLAINTEXT template for the authkey; encrypt it into `secrets.sops.yaml`, never commit the real key |
 
-Привилегия заперта в сайдкаре: только `overlay-ts` держит `/dev/net/tun` и capability,
-`overlay-app` — обычный непривилегированный контейнер, но пользуется тем же `tailscale0`,
-потому что делит netns пода.
+The privilege is locked inside the sidecar: only `overlay-ts` holds `/dev/net/tun` and the
+capabilities, while `overlay-app` is an ordinary unprivileged container that still uses the same
+`tailscale0`, because it shares the pod's netns.
 
-## Как применить
+## How to apply
 
-Файлы compartment'а лежат в подкаталоге `overlay-demo/`. `apply` берёт **родительский**
-каталог (`--dir`), а имя выбирает подкаталог — то есть `--dir` указывает на этот каталог
-(`test/overlay-example/`), а не на сам `overlay-demo/`. Команды ниже — из этого каталога:
+The compartment's files live in the `overlay-demo/` subdirectory. `apply` takes the **parent**
+directory (`--dir`) and the name selects the subdirectory — that is, `--dir` points at this
+directory (`test/overlay-example/`), not at `overlay-demo/` itself. The commands below are run
+from this directory:
 
 ```bash
-# 1. authkey из админки tailscale -> зашифровать на recipient этого compartment'а
-#    (в overlay-demo/secrets.sops.yaml, рядом с compartment.yml):
+# 1. authkey from the tailscale admin console -> encrypt it for this compartment's recipient
+#    (into overlay-demo/secrets.sops.yaml, next to compartment.yml):
 pecm age recipient overlay-demo                     # -> age1...
 printf 'ts-authkey: tskey-auth-XXXX\n' \
   | sops --encrypt --input-type yaml --output-type yaml --age <recipient> /dev/stdin \
   > overlay-demo/secrets.sops.yaml
 
-# 2. разложить и запустить (--dir = родитель, overlay-demo = подкаталог; или GitOps-агентом):
+# 2. lay down and start (--dir = parent, overlay-demo = subdirectory; or via a GitOps agent):
 pecm apply --dir . overlay-demo
 ```
 
-Хост должен иметь загруженный модуль `tun` и доступный `/dev/net/tun` для пользователя
-compartment'а — это задача слоя провижининга (см. runbook).
+The host must have the `tun` module loaded and `/dev/net/tun` accessible to the compartment's
+user — that's the provisioning layer's job (see the runbook).
 
-Подробный разбор и что именно проверено — `test/integration-overlay.md`.
+For a detailed walkthrough and exactly what has been verified, see `test/integration-overlay.md`.

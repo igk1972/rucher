@@ -1,7 +1,7 @@
-# compartment.yml — демо compartment overlay (L3-mesh через tailscale-сайдкар)
+# compartment.yml — overlay compartment demo (L3 mesh via tailscale sidecar)
 name: overlay-demo
 secrets:
-  from: secrets.sops.yaml   # ключи из этого SOPS-файла (по умолчанию secrets.sops.yaml)
+  from: secrets.sops.yaml   # keys from this SOPS file (defaults to secrets.sops.yaml)
   create:
-    - ts-authkey            # только этот ключ становится podman-секретом;
-                            # overlay-ts.container ссылается на него через Secret=ts-authkey
+    - ts-authkey            # only this key becomes a podman secret;
+                            # overlay-ts.container references it via Secret=ts-authkey
