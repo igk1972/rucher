@@ -201,11 +201,25 @@ func TestKeyDistinguishesUserAndIdentity(t *testing.T) {
 	}
 }
 
-func TestClientRunParsesBadKey(t *testing.T) {
+func TestClientRunMissingIdentity(t *testing.T) {
 	c := NewClient(filepath.Join(t.TempDir(), "known_hosts"), 0)
 	// Identity points at a nonexistent file: Run must error before dialing.
 	_, err := c.Run(Target{Addr: "127.0.0.1:0", User: "x", Identity: "/no/such/key"}, []string{"true"}, nil)
 	if err == nil {
 		t.Fatal("expected error for unreadable identity")
+	}
+}
+
+func TestClientRunMalformedIdentity(t *testing.T) {
+	keyPath := filepath.Join(t.TempDir(), "id_garbage")
+	if err := os.WriteFile(keyPath, []byte("this is not a private key"), 0o600); err != nil {
+		t.Fatalf("write garbage identity: %v", err)
+	}
+	c := NewClient(filepath.Join(t.TempDir(), "known_hosts"), 0)
+	// A readable but unparseable identity: ssh.ParsePrivateKey must fail and Run
+	// must error before dialing any real host.
+	_, err := c.Run(Target{Addr: "127.0.0.1:0", User: "x", Identity: keyPath}, []string{"true"}, nil)
+	if err == nil {
+		t.Fatal("expected error for malformed identity")
 	}
 }
