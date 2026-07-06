@@ -137,6 +137,14 @@ func setKey(m *yaml.Node, key string, val *yaml.Node) {
 
 // WriteNetwork inserts/updates the `network:` block, preserving other keys and comments.
 func WriteNetwork(path string, n Network) error {
+	// The host's config directory must already exist: net join records an address for
+	// a defined host, it does not create one. Surface a clear error instead of the raw
+	// "open ...: no such file or directory" the write below would otherwise return.
+	if dir := filepath.Dir(path); dir != "" {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			return fmt.Errorf("host directory does not exist: %s", dir)
+		}
+	}
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err

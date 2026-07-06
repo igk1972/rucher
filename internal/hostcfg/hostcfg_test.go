@@ -139,3 +139,15 @@ func TestWriteNetworkCreatesFile(t *testing.T) {
 		t.Fatalf("network = %+v", c.Network)
 	}
 }
+
+func TestWriteNetworkMissingDir(t *testing.T) {
+	// The host's config directory does not exist -> a clear error, not a raw open failure.
+	path := filepath.Join(t.TempDir(), "nope", "configuration.yml")
+	err := WriteNetwork(path, Network{Address: "1.2.3.4"})
+	if err == nil {
+		t.Fatal("expected an error when the host directory is missing")
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Fatalf("error should explain the missing directory, got: %v", err)
+	}
+}
