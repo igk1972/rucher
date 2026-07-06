@@ -11,7 +11,6 @@ import (
 )
 
 type Network struct {
-	Driver  string `yaml:"driver"`
 	Address string `yaml:"address"`
 }
 
@@ -97,7 +96,6 @@ func WriteNetwork(path string, n Network) error {
 		root.Kind, root.Tag, root.Content = yaml.MappingNode, "!!map", nil
 	}
 	netVal := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{
-		scalar("driver"), scalar(n.Driver),
 		scalar("address"), scalar(n.Address),
 	}}
 	setKey(root, "network", netVal)

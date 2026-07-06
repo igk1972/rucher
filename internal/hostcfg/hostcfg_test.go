@@ -24,7 +24,7 @@ connection:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Network.Driver != "tailscale" || c.Network.Address != "100.1.2.3" {
+	if c.Network.Address != "100.1.2.3" {
 		t.Fatalf("network = %+v", c.Network)
 	}
 	if c.Connection.Host != "10.0.0.5" || c.Connection.User != "admin" || c.Connection.Port != 2222 {
@@ -51,14 +51,14 @@ func TestList(t *testing.T) {
 func TestWriteNetworkPreservesOtherKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "configuration.yml")
 	os.WriteFile(path, []byte("# fleet host\nhostname: web\nconnection:\n  host: 10.0.0.5\n"), 0o644)
-	if err := WriteNetwork(path, Network{Driver: "tailscale", Address: "100.9.9.9"}); err != nil {
+	if err := WriteNetwork(path, Network{Address: "100.9.9.9"}); err != nil {
 		t.Fatal(err)
 	}
 	c, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Network.Driver != "tailscale" || c.Network.Address != "100.9.9.9" {
+	if c.Network.Address != "100.9.9.9" {
 		t.Fatalf("network not written: %+v", c.Network)
 	}
 	if c.Connection.Host != "10.0.0.5" {
@@ -68,12 +68,16 @@ func TestWriteNetworkPreservesOtherKeys(t *testing.T) {
 	if !strings.Contains(string(raw), "# fleet host") {
 		t.Fatal("comment was lost")
 	}
+	// Hosts no longer carry a network driver, so it must not be written.
+	if strings.Contains(string(raw), "driver") {
+		t.Fatal("driver key should no longer be written")
+	}
 }
 
 func TestWriteNetworkCreatesFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sub", "configuration.yml")
 	os.MkdirAll(filepath.Dir(path), 0o755)
-	if err := WriteNetwork(path, Network{Driver: "ssh", Address: "1.2.3.4"}); err != nil {
+	if err := WriteNetwork(path, Network{Address: "1.2.3.4"}); err != nil {
 		t.Fatal(err)
 	}
 	c, _ := Load(path)

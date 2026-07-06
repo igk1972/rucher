@@ -140,7 +140,7 @@ func run(args []string, stdout io.Writer) int {
 		if len(rest) >= 1 && rest[0] == "join" {
 			return cmdNetJoin(hostsDir, rest[1:], stdout)
 		}
-		fmt.Fprintln(stdout, "usage: net [--hosts DIR] join <host> ...")
+		fmt.Fprintln(stdout, "usage: net [--hosts DIR] join <host> --address <addr>")
 		return 2
 	case "hosts":
 		hostsDir := "./hosts"

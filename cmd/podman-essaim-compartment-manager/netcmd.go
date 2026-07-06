@@ -6,77 +6,52 @@ import (
 	"path/filepath"
 	"strings"
 
-	"podman-essaim-compartment-manager/internal/host"
 	"podman-essaim-compartment-manager/internal/hostcfg"
-	pnet "podman-essaim-compartment-manager/internal/net"
 )
 
-func parseNetJoin(args []string) (hostName, driver, overlayName, address string, err error) {
-	driver = "tailscale"
+// parseNetJoin reads a single positional <host> and a required --address <addr>.
+func parseNetJoin(args []string) (hostName, address string, err error) {
+	haveAddress := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
-		case "--driver":
-			if i+1 >= len(args) {
-				return "", "", "", "", fmt.Errorf("--driver needs a value")
-			}
-			driver, i = args[i+1], i+1
-		case "--overlay-name":
-			if i+1 >= len(args) {
-				return "", "", "", "", fmt.Errorf("--overlay-name needs a value")
-			}
-			overlayName, i = args[i+1], i+1
 		case "--address":
 			if i+1 >= len(args) {
-				return "", "", "", "", fmt.Errorf("--address needs a value")
+				return "", "", fmt.Errorf("--address needs a value")
 			}
-			address, i = args[i+1], i+1
+			address, haveAddress, i = args[i+1], true, i+1
 		default:
 			// A real host name never starts with "-", so an unknown flag-looking
 			// token is a typo, not the host (e.g. --drivr silently becoming a name).
 			if strings.HasPrefix(args[i], "-") {
-				return "", "", "", "", fmt.Errorf("unknown flag %q", args[i])
+				return "", "", fmt.Errorf("unknown flag %q", args[i])
 			}
 			if hostName != "" {
-				return "", "", "", "", fmt.Errorf("unexpected argument %q", args[i])
+				return "", "", fmt.Errorf("unexpected argument %q", args[i])
 			}
 			hostName = args[i]
 		}
 	}
 	if hostName == "" {
-		return "", "", "", "", fmt.Errorf("usage: net join <host> [--driver ssh|tailscale] [--overlay-name N] [--address A]")
+		return "", "", fmt.Errorf("usage: net join <host> --address <addr>")
 	}
-	if driver != "ssh" && driver != "tailscale" {
-		return "", "", "", "", fmt.Errorf("unknown driver %q (want ssh|tailscale)", driver)
+	if !haveAddress {
+		return "", "", fmt.Errorf("net join requires --address")
 	}
-	if overlayName == "" {
-		overlayName = hostName
-	}
-	return hostName, driver, overlayName, address, nil
+	return hostName, address, nil
 }
 
-// cmdNetJoin resolves a host's overlay address and records it in its host config.
+// cmdNetJoin records a host's static management address in its host config.
 func cmdNetJoin(hostsDir string, args []string, out io.Writer) int {
-	name, driver, overlayName, address, err := parseNetJoin(args)
+	name, address, err := parseNetJoin(args)
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 2
 	}
-	if address == "" {
-		d, err := pnet.DriverFor(driver, host.NewExec())
-		if err != nil {
-			fmt.Fprintln(out, "error:", err)
-			return 1
-		}
-		if address, err = d.ResolveAddress(overlayName); err != nil {
-			fmt.Fprintln(out, "error:", err)
-			return 1
-		}
-	}
 	path := filepath.Join(hostsDir, name, "configuration.yml")
-	if err := hostcfg.WriteNetwork(path, hostcfg.Network{Driver: driver, Address: address}); err != nil {
+	if err := hostcfg.WriteNetwork(path, hostcfg.Network{Address: address}); err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1
 	}
-	fmt.Fprintf(out, "%s: network %s %s\n", name, driver, address)
+	fmt.Fprintf(out, "%s: network %s\n", name, address)
 	return 0
 }
