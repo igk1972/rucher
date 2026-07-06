@@ -65,6 +65,32 @@ func TestCollectAggregatesAndIsolates(t *testing.T) {
 	}
 }
 
+func TestCollectInheritsGlobalConnection(t *testing.T) {
+	hosts := t.TempDir()
+	// Fleet-global default supplies the ssh user; the per-host file only has an address.
+	os.WriteFile(filepath.Join(hosts, "configuration.yml"), []byte("connection:\n  user: fleetuser\n"), 0o644)
+	writeHost(t, hosts, "a", "network: {address: 1.1.1.1}\n")
+
+	// Keying the fake by the fleetuser target proves the global connection default
+	// was merged in: without it Resolve would yield user "root" and the key would miss.
+	target := sshx.Target{Addr: "1.1.1.1:22", User: "fleetuser"}
+	catCmd := []string{"cat", statusPath}
+	statusJSON := `{"revision":"rev1","applied":[{"name":"web","ok":true}],"removed":[]}`
+	f := &sshx.Fake{Responses: map[string]sshx.Result{
+		sshx.Key(target, catCmd): {Stdout: statusJSON},
+	}}
+	rows, err := Collect(f, hosts, "/nonexistent", nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d", len(rows))
+	}
+	if !rows[0].Reachable || rows[0].Revision != "rev1" {
+		t.Fatalf("global connection.user not inherited: %+v", rows[0])
+	}
+}
+
 func TestCollectCapturesTransportError(t *testing.T) {
 	hosts := t.TempDir()
 	writeHost(t, hosts, "c", "network: {address: 3.3.3.3}\n")

@@ -73,6 +73,61 @@ func TestWriteNetworkPreservesOtherKeys(t *testing.T) {
 	}
 }
 
+func TestLoadMergedInheritsGlobal(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "configuration.yml"), []byte("connection:\n  user: admin\n  port: 22\n"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "web"), 0o755)
+	os.WriteFile(filepath.Join(dir, "web", "configuration.yml"), []byte("connection:\n  port: 2222\nnetwork:\n  address: 1.2.3.4\n"), 0o644)
+	c, err := LoadMerged(dir, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Connection.User != "admin" {
+		t.Fatalf("user not inherited: %+v", c.Connection)
+	}
+	if c.Connection.Port != 2222 {
+		t.Fatalf("port not overridden: %+v", c.Connection)
+	}
+	if c.Network.Address != "1.2.3.4" {
+		t.Fatalf("network = %+v", c.Network)
+	}
+}
+
+func TestLoadMergedNoGlobal(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "web"), 0o755)
+	os.WriteFile(filepath.Join(dir, "web", "configuration.yml"), []byte("network:\n  address: 9.9.9.9\n"), 0o644)
+	c, err := LoadMerged(dir, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Network.Address != "9.9.9.9" {
+		t.Fatalf("network = %+v", c.Network)
+	}
+}
+
+func TestLoadMergedPerHostWinsScalar(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "configuration.yml"), []byte("network:\n  address: 9.9.9.9\n"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "web"), 0o755)
+	os.WriteFile(filepath.Join(dir, "web", "configuration.yml"), []byte("network:\n  address: 1.1.1.1\n"), 0o644)
+	c, err := LoadMerged(dir, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Network.Address != "1.1.1.1" {
+		t.Fatalf("per-host scalar should win: %+v", c.Network)
+	}
+}
+
+func TestLoadMergedMissingPerHost(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "configuration.yml"), []byte("connection:\n  user: admin\n"), 0o644)
+	if _, err := LoadMerged(dir, "web"); err == nil {
+		t.Fatal("expected error for missing per-host configuration.yml")
+	}
+}
+
 func TestWriteNetworkCreatesFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sub", "configuration.yml")
 	os.MkdirAll(filepath.Dir(path), 0o755)

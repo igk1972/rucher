@@ -38,6 +38,69 @@ func Load(path string) (Config, error) {
 	return c, nil
 }
 
+// LoadMerged reads the fleet-global ./hosts/configuration.yml (if present) and the
+// per-host ./hosts/<name>/configuration.yml, then deep-merges the per-host doc OVER
+// the global one (maps merge key-by-key; scalars and sequences are replaced) before
+// decoding into Config. The global file is optional; the per-host file is required.
+func LoadMerged(hostsDir, name string) (Config, error) {
+	globalPath := filepath.Join(hostsDir, "configuration.yml")
+	global, err := readYAMLMap(globalPath)
+	if err != nil && !os.IsNotExist(err) {
+		return Config{}, err
+	}
+
+	hostPath := filepath.Join(hostsDir, name, "configuration.yml")
+	host, err := readYAMLMap(hostPath)
+	if err != nil {
+		return Config{}, err
+	}
+
+	merged := deepMerge(global, host)
+	out, err := yaml.Marshal(merged)
+	if err != nil {
+		return Config{}, err
+	}
+	var c Config
+	if err := yaml.Unmarshal(out, &c); err != nil {
+		return Config{}, fmt.Errorf("parse merged %s: %w", hostPath, err)
+	}
+	return c, nil
+}
+
+// readYAMLMap reads a YAML file into a map. An empty file yields a nil map.
+func readYAMLMap(path string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]any
+	if err := yaml.Unmarshal(data, &m); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return m, nil
+}
+
+// deepMerge returns base with over applied on top: when both values at a key are
+// maps they merge recursively; otherwise over's value replaces base's.
+func deepMerge(base, over map[string]any) map[string]any {
+	out := make(map[string]any, len(base)+len(over))
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, ov := range over {
+		if bv, ok := out[k]; ok {
+			bm, bok := bv.(map[string]any)
+			om, ook := ov.(map[string]any)
+			if bok && ook {
+				out[k] = deepMerge(bm, om)
+				continue
+			}
+		}
+		out[k] = ov
+	}
+	return out
+}
+
 // List returns the names of host subdirectories that contain a configuration.yml.
 func List(hostsDir string) ([]string, error) {
 	entries, err := os.ReadDir(hostsDir)

@@ -4,7 +4,6 @@ package hoststatus
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"podman-essaim-compartment-manager/internal/agent"
@@ -37,7 +36,7 @@ func Collect(r sshx.Runner, hostsDir, limaDir string, names []string, live bool)
 	var rows []Row
 	for _, name := range names {
 		row := Row{Host: name}
-		cfg, err := hostcfg.Load(filepath.Join(hostsDir, name, "configuration.yml"))
+		cfg, err := hostcfg.LoadMerged(hostsDir, name)
 		if err != nil {
 			row.Errors = []string{err.Error()}
 			rows = append(rows, row)
