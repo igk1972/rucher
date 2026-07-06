@@ -12,7 +12,7 @@ the controller verified and what remains an operator step.
 
 ## How it differs from control network C
 
-- **Control network C** (`rucher ops ruches join <node> --address 100.64.0.1`) is the control plane:
+- **Control network C** (`rucher ops nodes join <node> --address 100.64.0.1`) is the control plane:
   the node's own address, over which the operator/manager reaches the node. It is written to
   `./nodes/<node>/configuration.yml` as `network: {address}`. Level — node.
 - **Compartment overlay** (this run) is the data plane: tailnet membership of a specific

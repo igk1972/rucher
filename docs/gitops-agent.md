@@ -7,7 +7,7 @@ unmanages the rest.
 
 ## The store
 
-The store holds the whole fleet's desired state:
+The store holds all nodes' desired state:
 
 ```
 <store root>/
@@ -100,7 +100,7 @@ interval: 30s              # how often the installed timer fires (default 30s)
 store:
   kind: git                # "git" (default) | "s3"
   # --- git fields ---
-  url: git@example.com:fleet/store.git
+  url: git@example.com:infrastructure/store.git
   branch: main             # default "main"
   sshKey: /etc/rucher/store_ed25519   # optional (git-over-ssh)
   token: ""                # optional (https basic auth)
@@ -108,7 +108,7 @@ store:
   insecureHostKey: false   # skip SSH host-key verification for the git remote
   # --- s3 fields (kind: s3) ---
   endpoint: s3.example.com:9000   # host:port, no scheme
-  bucket: fleet
+  bucket: infrastructure
   prefix: store/           # key prefix within the bucket ("" = bucket root)
   accessKey: ""
   secretKey: ""

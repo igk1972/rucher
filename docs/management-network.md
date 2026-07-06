@@ -1,19 +1,19 @@
 # Management network (operator plane)
 
-The operator plane lets an engineer see and manage the fleet from one machine. It reaches
+The operator plane lets an engineer see and manage the nodes from one machine. It reaches
 each node over SSH, reads the node's agent status file, and aggregates the results. It is
 separate from [compartment overlays](overlays.md), which are a per-workload data plane.
 
 ## Node config directory
 
 Each node is described by `<nodes-dir>/<node>/configuration.yml` (default nodes dir
-`./nodes`, overridable with `--nodes`). An optional fleet-global `<nodes-dir>/configuration.yml`
+`./nodes`, overridable with `--dir`). An optional global `<nodes-dir>/configuration.yml`
 is deep-merged **under** each per-node file (maps merge key-by-key; scalars and sequences are
 replaced). The schema:
 
 ```yaml
 network:
-  address: 100.64.0.1     # the node's reachability address (set by `rucher ops ruches join`)
+  address: 100.64.0.1     # the node's reachability address (set by `rucher ops nodes join`)
 connection:
   host: 203.0.113.7       # explicit SSH host
   port: 22                # default 22
@@ -21,24 +21,24 @@ connection:
   identity: /path/to/key  # private key for SSH (optional)
 ```
 
-## `rucher ops ruches join <node> --address <addr>`
+## `rucher ops nodes join <node> --address <addr>`
 
 Records `<node>`'s static management address into its `configuration.yml` as
 `network: {address: <addr>}`, preserving other keys and comments. It updates an existing
-node's config (the node directory must already exist — `ops ruches join` records an address, it does
+node's config (the node directory must already exist — `ops nodes join` records an address, it does
 not create a node). `--address` is required and trimmed; an empty value is rejected. `--json`
 switches the success line to `{"node":…,"address":…}`.
 
 ```bash
-rucher ops ruches join node-a --address 100.64.0.1
-rucher ops ruches join node-a --address 100.64.0.1 --json
+rucher ops nodes join node-a --address 100.64.0.1
+rucher ops nodes join node-a --address 100.64.0.1 --json
 ```
 
-A repeated `ops ruches join` with a different address simply updates the value.
+A repeated `ops nodes join` with a different address simply updates the value.
 
-## `rucher ops ruches status [--live] [--json] [node...]`
+## `rucher ops nodes status [--live] [--json] [node...]`
 
-For each node (all nodes under `--nodes` when none are named), the tool:
+For each node (all nodes under `--dir` when none are named), the tool:
 
 1. loads and merges the node config;
 2. resolves an SSH target (see precedence below);
@@ -63,9 +63,9 @@ that connects but fails records the reason under `errors:` so a transport/config
 distinguishable from a plain "node down"; the exit code is 1 if any node is unreachable.
 
 ```bash
-rucher ops ruches status
-rucher ops ruches status --live node-a
-rucher ops ruches status --json > status.json
+rucher ops nodes status
+rucher ops nodes status --live node-a
+rucher ops nodes status --json > status.json
 ```
 
 ## Native SSH client and TOFU host keys
@@ -92,7 +92,7 @@ If a node is rebuilt with a new key on the same address, remove its line from
 `sshresolve.Resolve` turns a node's config into an SSH target using the first source that
 applies, in this order:
 
-1. **`network.address`** (set by `ops ruches join`) — SSH on port 22, user from `connection.user`
+1. **`network.address`** (set by `ops nodes join`) — SSH on port 22, user from `connection.user`
    (default `root`), identity from `connection.identity`.
 2. **A locally-generated per-node SSH config**, if one exists for the node (used for
    locally-provisioned development VMs) — the host, port, user and identity file are taken

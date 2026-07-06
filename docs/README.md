@@ -21,9 +21,9 @@ connectivity between workloads across nodes.
 | [compartments.md](compartments.md) | Compartment directory layout, manifest schema, the per-user rootless model, and how `plan`/`apply` reconcile |
 | [secrets.md](secrets.md) | The SOPS/age secret model: per-compartment identity, encryption, podman secrets, decryption at apply |
 | [gitops-agent.md](gitops-agent.md) | Pull-based reconcile: git/S3 store backends, `placement.yml`, node and sealed compartment identities, `node agent run`/`install` |
-| [management-network.md](management-network.md) | `ops ruches join`, `ops ruches status`, the native Go SSH client with TOFU host-key pinning, address resolution |
+| [management-network.md](management-network.md) | `ops nodes join`, `ops nodes status`, the native Go SSH client with TOFU host-key pinning, address resolution |
 | [overlays.md](overlays.md) | Per-compartment overlay networking for cross-node L3 between workloads |
-| [node-requirements.md](node-requirements.md) | What each node in the fleet must provide |
+| [node-requirements.md](node-requirements.md) | What each node must provide |
 
 ## Validation runbooks
 
@@ -34,15 +34,15 @@ was verified on real hardware. See [`validation/`](validation/):
 |---------|-----------|
 | [integration-a.md](validation/integration-a.md) | Single-node core: new → apply → drift → idempotency → rm |
 | [integration-b.md](validation/integration-b.md) | GitOps agent: node key → seal → git store → `node agent run` → removal |
-| [integration-c.md](validation/integration-c.md) | Operator plane: `ops ruches status`, `--live`, `ops ruches join` |
+| [integration-c.md](validation/integration-c.md) | Operator plane: `ops nodes status`, `--live`, `ops nodes join` |
 | [integration-overlay.md](validation/integration-overlay.md) | Compartment overlay: kernel-mode sidecar, cross-node L3 |
 
 ## Terminology
 
 - **Compartment** — one workload group: a directory ([compartments.md](compartments.md))
   reconciled into a dedicated Linux user's rootless-podman environment.
-- **Node** — a Linux machine in the fleet that runs compartments. Reached over SSH
+- **Node** — a Linux machine that runs compartments. Reached over SSH
   by the operator plane; a node runs the GitOps agent to reconcile itself.
-- **Operator** — the machine an engineer drives `rucher` from to query and manage the fleet.
+- **Operator** — the machine an engineer drives `rucher` from to query and manage the nodes.
 - **Store** — the git or S3 source of truth the GitOps agent pulls
   ([gitops-agent.md](gitops-agent.md)).

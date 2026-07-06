@@ -3,9 +3,9 @@
 The system has one core and three optional layers built on top of it.
 
 ```
-              operator machine                          node in the fleet
+              operator machine                          managed node
        ┌───────────────────────────┐            ┌──────────────────────────────┐
-       │ rucher ops ruches status/join│  SSH       │ sshd                          │
+       │ rucher ops nodes status/join│  SSH       │ sshd                          │
        │ (native Go SSH client,     │──────────► │                               │
        │  TOFU known_hosts)         │            │  rucher node agent run (timer)  │
        └───────────────────────────┘            │      │ pulls                   │
@@ -63,9 +63,9 @@ status summary is written to `/var/lib/rucher/agent-status.json`. See
 
 ## 5. Management network (operator status plane)
 
-`rucher ops ruches status` reaches every node over SSH (a native Go client with TOFU host-key
+`rucher ops nodes status` reaches every node over SSH (a native Go client with TOFU host-key
 pinning — no system `ssh` binary required), reads each node's agent status file, and prints
-an aggregated table or JSON. `rucher ops ruches join` records a node's reachability address into its
+an aggregated table or JSON. `rucher ops nodes join` records a node's reachability address into its
 node config so the status plane can find it. See [management-network.md](management-network.md).
 
 ## 6. Compartment overlays (workload data plane)

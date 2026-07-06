@@ -3,7 +3,7 @@
 A compartment can give its workloads **transparent L3 connectivity across nodes** — a private
 mesh where an app on one node reaches an app on another by a stable overlay IP, with no proxy
 and no application changes. This is a per-workload data plane, distinct from the operator
-[management network](management-network.md) (`ops ruches join`, which sets a *node's* management
+[management network](management-network.md) (`ops nodes join`, which sets a *node's* management
 address).
 
 ## How it fits the model — no manager change

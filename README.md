@@ -37,7 +37,7 @@ Runs as **root** on the target node (it creates users, manages linger/subuids, a
 each user's systemd). Requires Go ≥ 1.23 to build; dependencies (age, go-git, minio-go,
 `golang.org/x/crypto`, yaml) are pulled as Go modules. `GOOS=linux` cross-compiles to Linux
 from any host; `GOARCH` defaults to your machine's — set it explicitly (e.g. `GOARCH=amd64`)
-when the fleet's architecture differs. `-trimpath` and `-ldflags="-s -w"` strip filesystem
+when the nodes' architecture differs. `-trimpath` and `-ldflags="-s -w"` strip filesystem
 paths and the symbol/DWARF tables for a smaller, reproducible binary (~⅓ smaller).
 
 ## Node prerequisites
@@ -88,8 +88,8 @@ rucher node cadre rm <name> [--purge]         # stop + unmanage; --purge also de
 rucher node key init|show                     # this node's age key (GitOps)
 rucher ops key seal <name> --to <node-rcpt>   # seal a compartment identity to node(s)
 rucher node agent run|install [--config P]    # pull-based reconcile from a git/S3 store
-rucher ops ruches [--nodes DIR] join <node> --address <addr>  # record a node's management address
-rucher ops ruches [--nodes DIR] status [--live] [--json]  # fleet status over SSH
+rucher ops nodes [--dir DIR] join <node> --address <addr>  # record a node's management address
+rucher ops nodes [--dir DIR] status [--live] [--json]  # nodes status over SSH
 ```
 
 No `--dir` defaults to `./compartments`; no names means all compartments. Full reference:
@@ -125,7 +125,7 @@ Each compartment user gets a unique, non-overlapping subuid/subgid block (alloca
 
 ## Host keys
 
-`rucher ops ruches status` (and the rest of the operator control plane) reaches nodes with a
+`rucher ops nodes status` (and the rest of the operator control plane) reaches nodes with a
 built-in Go SSH client — no system `ssh` binary is required. Host keys are trusted
 **TOFU**: an unknown node is accepted and pinned on first contact into
 `~/.config/rucher/known_hosts` (created mode 0600); a later key **change** for the
@@ -144,7 +144,7 @@ without any manager code change. It fits the opaque-Quadlet model: the operator 
 kernel-mode Tailscale sidecar plus the app in one pod, and the auth key rides the existing
 `secrets.create` machinery (podman secret → sidecar env). Privilege stays confined to the
 sidecar; the unprivileged app shares the pod netns and reaches the tailnet transparently.
-This is distinct from the operator control-plane network (`rucher ops ruches join`, which sets a
+This is distinct from the operator control-plane network (`rucher ops nodes join`, which sets a
 *node's* management address). See the runbook
 [`docs/validation/integration-overlay.md`](docs/validation/integration-overlay.md) and the
 ready example in [`test/overlay-example/`](test/overlay-example/).

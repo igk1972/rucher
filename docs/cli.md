@@ -5,7 +5,7 @@ two top-level groups:
 
 ```
 node   on the Linux node — cadre lifecycle, the node's own key, and the GitOps agent (run as root)
-ops    from the operator machine — plan, seal cadre keys, manage the ruches over SSH (any OS)
+ops    from the operator machine — plan, seal cadre keys, manage the nodes over SSH (any OS)
 ```
 
 The `node` group shells out on the node (`runuser`/`systemctl`/`podman`) and its cadre lifecycle
@@ -35,8 +35,8 @@ rucher <group> <command> [args]
 │       └─ install [--config PATH]                     [node]   write + enable the systemd service + timer
 └─ ops                                                 from the operator machine
     ├─ plan   [--dir DIR] [name...]                    [local]  dry-run: what apply would change
-    ├─ ruches [--nodes DIR]
-    │   ├─ status [--live] [--json] [node...]          [ssh]    gather ruches status over SSH
+    ├─ nodes [--dir DIR]
+    │   ├─ status [--live] [--json] [node...]          [ssh]    gather nodes status over SSH
     │   └─ join <node> --address <addr> [--json]       [local]  record a node's management address
     └─ key
         └─ seal <name> --to <rcpt> [--to <rcpt> ...]   [local]  seal a cadre identity to node(s)
@@ -44,12 +44,12 @@ rucher <group> <command> [args]
 
 Execution side: `[node]` shells out on the local machine (`runuser`/`systemctl`/`podman`) — the
 machine must be a Linux node; `[local]` touches only local files/crypto — any OS; `[ssh]` reaches
-remote nodes (the client is cross-platform). Defaults: `--dir ./compartments`, `--nodes ./nodes`,
+remote nodes (the client is cross-platform). Defaults: `--dir ./compartments`, `--dir ./nodes`,
 `--config /etc/rucher/agent.yml`. Exit codes: `0` ok, `1` runtime error, `2` usage/parse error.
 
 ## Shared conventions
 
-### `--dir DIR` (node apply, node cadre apply, ops plan)
+### `--dir DIR` for compartments (node apply, node cadre apply, ops plan)
 
 `--dir` is the **parent** directory whose immediate subdirectories are compartments; the
 subdirectory name is the compartment name. It defaults to `./compartments`. `node apply` and
@@ -63,13 +63,14 @@ rucher node cadre apply --dir ./compartments web   # reconcile ./compartments/we
 rucher node apply --dir .                            # reconcile every compartment under .
 ```
 
-### `--nodes DIR` (ops ruches)
+### `--dir DIR` for node configs (ops nodes)
 
-`--nodes` points at the directory of per-node config folders (`<DIR>/<node>/configuration.yml`).
+For `ops nodes`, `--dir` points at the directory of per-node config folders
+(`<DIR>/<node>/configuration.yml`).
 It defaults to `./nodes`. See [management-network.md](management-network.md).
 
 ```bash
-rucher ops ruches --nodes ./nodes status
+rucher ops nodes --dir ./nodes status
 ```
 
 ---
@@ -181,7 +182,7 @@ sudo rucher node agent install
 ## ops
 
 Runs from the operator machine (any OS). `plan` is a read-only dry run; `key seal` seals a
-compartment identity to node(s); `ruches` manages the fleet of nodes over SSH.
+compartment identity to node(s); `nodes` reaches every node over SSH.
 
 ### `rucher ops plan [--dir DIR] [name...]`
 
@@ -205,7 +206,7 @@ de-duplicated. This is an operator-side command used when building the store. Se
 rucher ops key seal web --to age1nodeA... --to age1nodeB...   # -> web's recipient
 ```
 
-### `rucher ops ruches [--nodes DIR] join <node> --address <addr> [--json]`
+### `rucher ops nodes [--dir DIR] join <node> --address <addr> [--json]`
 
 Record `<node>`'s static management address into `<nodes-dir>/<node>/configuration.yml` as a
 `network: {address: <addr>}` block, preserving other keys and comments. The node directory
@@ -213,21 +214,21 @@ must already exist. `--address` is required and non-empty; `--json` switches the
 output to a compact JSON object. See [management-network.md](management-network.md).
 
 ```bash
-rucher ops ruches join node-a --address 100.64.0.1
-rucher ops ruches join node-a --address 100.64.0.1 --json
+rucher ops nodes join node-a --address 100.64.0.1
+rucher ops nodes join node-a --address 100.64.0.1 --json
 ```
 
-### `rucher ops ruches [--nodes DIR] status [--live] [--json] [node...]`
+### `rucher ops nodes [--dir DIR] status [--live] [--json] [node...]`
 
 Gather each node's agent status over SSH and print it. Default output is a table
 (`NODE ADDRESS REACHABLE REVISION APPLIED REMOVED ERRORS`) followed by an errors detail
 block; `--json` emits a JSON array instead. `--live` additionally runs `rucher node cadre status`
 on each reachable node and appends the live per-unit output. With no node names, every node under
-`--nodes` that has a `configuration.yml` is queried. Exit code is 1 if any node is
+`--dir` that has a `configuration.yml` is queried. Exit code is 1 if any node is
 unreachable. See [management-network.md](management-network.md).
 
 ```bash
-rucher ops ruches status
-rucher ops ruches status --live node-a
-rucher ops ruches status --json
+rucher ops nodes status
+rucher ops nodes status --live node-a
+rucher ops nodes status --json
 ```

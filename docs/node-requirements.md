@@ -1,6 +1,6 @@
 # Node requirements
 
-Each node in the fleet runs the `rucher` binary as **root** and runs compartments as rootless
+Each node runs the `rucher` binary as **root** and runs compartments as rootless
 podman under per-user systemd. The requirements below are prerequisites that the provisioning
 tooling ensures on every node; the manager assumes they are present.
 
@@ -46,7 +46,7 @@ podman secret store and a running user systemd manager (see [compartments.md](co
 ## SSH reachability (operator plane)
 
 - Nodes are reached from the operator over SSH by the manager's built-in Go SSH client, so a
-  node only needs a standard **sshd** and a reachable address (recorded via `rucher ops ruches join`).
+  node only needs a standard **sshd** and a reachable address (recorded via `rucher ops nodes join`).
   No `ssh` binary is required on the operator machine. See
   [management-network.md](management-network.md).
 

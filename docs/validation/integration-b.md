@@ -11,7 +11,7 @@ host against `~/.ssh/known_hosts` — it must be pre-populated, otherwise the fi
 
 1. `sudo rucher node key init` → node recipient `$NODE_R` (the private key is born on the node,
    `/etc/rucher/node/identity.txt`, 0600).
-2. Operator — in the store checkout (here `/root/fleet`, `git init -b master`):
+2. Operator — in the store checkout (here `/root/infrastructure`, `git init -b master`):
    - `rucher ops key seal web --to $NODE_R` → writes `compartments/web/identity.age` (the compartment's
      identity, sealed to the node's recipient), prints the compartment's recipient `$WEB_R`;
    - `printf 'db_password: s3cr3t\n' | sops --encrypt --input-type yaml --output-type yaml --age $WEB_R /dev/stdin > compartments/web/secrets.sops.yaml`
@@ -22,7 +22,7 @@ host against `~/.ssh/known_hosts` — it must be pre-populated, otherwise the fi
      `app.env`;
    - `placement.yml`: `placements:\n  web: lima-essaim-01`;
    - `git add -A && git commit`.
-3. `/etc/rucher/agent.yml` (`node: lima-essaim-01`, `store: {kind: git, url: /root/fleet,
+3. `/etc/rucher/agent.yml` (`node: lima-essaim-01`, `store: {kind: git, url: /root/infrastructure,
    branch: master}`), then `sudo rucher node agent run`.
    → exit 0, `applied=1`; `web.service` active; container `systemd-web` Up; `DB_PASSWORD=s3cr3t`,
    `GREETING` from `app.env`.
