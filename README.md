@@ -6,8 +6,10 @@ compartment is an isolated environment backed by a dedicated Linux system user, 
 podman secret and registry-credential store, its own age identity, and (optionally) a
 systemd resource slice.
 
-This is **sub-project A** of a larger orchestrator (multi-node placement + Tailscale
-networking come in later sub-projects). A is standalone and does everything on one host.
+On top of this single-host core there are optional layers — a pull-based GitOps agent (each
+node reconciles the compartments a `placement.yml` assigns it, from a git or S3 store), an
+operator status plane that queries every host over SSH, and per-compartment overlay
+networking. See [`docs/`](docs/) for the full reference.
 
 ## What it does
 
@@ -32,14 +34,14 @@ GOOS=linux GOARCH=arm64 go build -o rucher ./cmd/rucher
 ```
 
 Runs as **root** on the target host (it creates users, manages linger/subuids, and drives
-each user's systemd). Requires Go ≥ 1.23 to build; the only dependency is
-`gopkg.in/yaml.v3`.
+each user's systemd). Requires Go ≥ 1.23 to build; dependencies (age, go-git, minio-go,
+`golang.org/x/crypto`, yaml) are pulled as Go modules.
 
 ## Host prerequisites
 
-Debian (arm64/amd64) with: `podman` (rootless-capable), `age`/`age-keygen`, `sops`,
-`uidmap` (`newuidmap`/`newgidmap`), and systemd with `loginctl`/`runuser`. Run as root (or
-via passwordless sudo).
+Debian (arm64/amd64) with: `podman` (rootless-capable), `sops`, `uidmap`
+(`newuidmap`/`newgidmap`), and systemd with `loginctl`/`runuser`. Run as root (or via
+passwordless sudo). age identities are generated in-process — no age CLI is required.
 
 ## Compartment layout
 
@@ -79,9 +81,15 @@ rucher apply [--dir DIR] [name...]    # reconcile compartments onto the host
 rucher status [name...]               # per-unit ActiveState/SubState
 rucher logs <name> <unit>             # journalctl --user for one unit
 rucher rm <name> [--purge]            # stop + unmanage; --purge also deletes the user + data
+rucher node init|recipient            # this node's age key (GitOps)
+rucher keygen <name> --to <node-rcpt> # seal a compartment identity to node(s)
+rucher agent run|install [--config P] # pull-based reconcile from a git/S3 store
+rucher net [--hosts DIR] join <host> --address <addr>  # record a host's management address
+rucher hosts [--hosts DIR] status [--live] [--json]    # fleet status over SSH
 ```
 
-No `--dir` defaults to `./compartments`; no names means all compartments.
+No `--dir` defaults to `./compartments`; no names means all compartments. Full reference:
+[`docs/cli.md`](docs/cli.md).
 
 ## Secret workflow
 
@@ -134,11 +142,14 @@ kernel-mode Tailscale sidecar plus the app in one pod, and the auth key rides th
 sidecar; the unprivileged app shares the pod netns and reaches the tailnet transparently.
 This is distinct from the operator control-plane network (`rucher net join`, which sets a
 *host's* management address). See the runbook
-[`test/integration-overlay.md`](test/integration-overlay.md) and the ready example in
-[`test/overlay-example/`](test/overlay-example/).
+[`docs/validation/integration-overlay.md`](docs/validation/integration-overlay.md) and the
+ready example in [`test/overlay-example/`](test/overlay-example/).
 
 ## Testing
 
 Pure logic and the shell-out layer are unit-tested with a fake command runner
-(`go test ./...`). End-to-end behavior on a real host is exercised by
-[`test/integration.md`](test/integration.md) on a Lima node.
+(`go test ./...`). End-to-end behavior on a real host is exercised by the manual runbooks
+under [`docs/validation/`](docs/validation/): [integration-a](docs/validation/integration-a.md)
+(single-host core), [integration-b](docs/validation/integration-b.md) (GitOps agent),
+[integration-c](docs/validation/integration-c.md) (operator plane), and
+[integration-overlay](docs/validation/integration-overlay.md), on Lima nodes.
