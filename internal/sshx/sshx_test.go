@@ -4,12 +4,14 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -155,6 +157,32 @@ func TestFakeRunKeyed(t *testing.T) {
 	}
 	if miss != (Result{}) {
 		t.Fatalf("missing key should give zero Result, got %+v", miss)
+	}
+}
+
+func TestWaitRunReturnsResult(t *testing.T) {
+	sentinel := errors.New("remote failed")
+	done := make(chan error, 1)
+	done <- sentinel // available immediately
+
+	err, timedOut := waitRun(done, time.Second)
+	if timedOut {
+		t.Fatal("should not time out when done receives")
+	}
+	if err != sentinel {
+		t.Fatalf("err = %v, want %v", err, sentinel)
+	}
+}
+
+func TestWaitRunTimesOut(t *testing.T) {
+	done := make(chan error) // never receives
+
+	err, timedOut := waitRun(done, 20*time.Millisecond)
+	if !timedOut {
+		t.Fatal("should time out when done never receives")
+	}
+	if err != nil {
+		t.Fatalf("timeout err should be nil, got %v", err)
 	}
 }
 

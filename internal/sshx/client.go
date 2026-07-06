@@ -13,10 +13,16 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+// defaultExecTimeout bounds a single remote command when Client.ExecTimeout is
+// left unset, so a host that connects but stalls mid-command cannot hang a whole
+// status sweep.
+const defaultExecTimeout = 30 * time.Second
+
 // Client is the real SSH Runner.
 type Client struct {
-	KnownHosts string        // path to a known_hosts file (TOFU accept-new); created if missing
-	Timeout    time.Duration // dial + handshake timeout
+	KnownHosts  string        // path to a known_hosts file (TOFU accept-new); created if missing
+	Timeout     time.Duration // dial + handshake timeout
+	ExecTimeout time.Duration // per-command run timeout; zero -> defaultExecTimeout
 }
 
 func NewClient(knownHosts string, timeout time.Duration) *Client {
@@ -82,9 +88,29 @@ func (c *Client) Run(t Target, cmd []string, stdin []byte) (Result, error) {
 	session.Stdout = &out
 	session.Stderr = &errb
 
+	execTO := c.ExecTimeout
+	if execTO <= 0 {
+		execTO = defaultExecTimeout
+	}
+
 	// The remote shell splits the joined string; this matches how the old
-	// system-ssh path passed the joined argv.
-	err = session.Run(strings.Join(cmd, " "))
+	// system-ssh path passed the joined argv. Run it in a goroutine so a host
+	// that connects but never returns cannot block indefinitely.
+	done := make(chan error, 1)
+	go func() {
+		done <- session.Run(strings.Join(cmd, " "))
+	}()
+
+	err, timedOut := waitRun(done, execTO)
+	if timedOut {
+		// Close the session and connection to unblock the pending session.Run;
+		// the timeout is a transport-style failure (non-nil error) so callers
+		// treat the host as unreachable.
+		session.Close()
+		conn.Close()
+		return Result{}, fmt.Errorf("command timed out after %s", execTO)
+	}
+
 	res := Result{Stdout: out.String(), Stderr: errb.String()}
 
 	var ee *ssh.ExitError
@@ -93,6 +119,18 @@ func (c *Client) Run(t Target, cmd []string, stdin []byte) (Result, error) {
 		return res, nil // non-zero remote exit is not a Go error
 	}
 	return res, err
+}
+
+// waitRun waits for a remote command to finish or for the timeout to elapse.
+// It reports the run error (nil on success) and whether the wait timed out;
+// both are decoupled from any real SSH server so the wait is unit-testable.
+func waitRun(done <-chan error, timeout time.Duration) (err error, timedOut bool) {
+	select {
+	case err = <-done:
+		return err, false
+	case <-time.After(timeout):
+		return nil, true
+	}
 }
 
 func loadIdentity(path string) (ssh.Signer, error) {
