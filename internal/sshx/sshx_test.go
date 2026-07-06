@@ -208,6 +208,10 @@ func TestClientRunMissingIdentity(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unreadable identity")
 	}
+	// Pin the failure to the read-identity path (before dial), not any error.
+	if !strings.Contains(err.Error(), "read identity") {
+		t.Fatalf("err = %v, want it to mention the read-identity wrap", err)
+	}
 }
 
 func TestClientRunMalformedIdentity(t *testing.T) {
@@ -221,5 +225,9 @@ func TestClientRunMalformedIdentity(t *testing.T) {
 	_, err := c.Run(Target{Addr: "127.0.0.1:0", User: "x", Identity: keyPath}, []string{"true"}, nil)
 	if err == nil {
 		t.Fatal("expected error for malformed identity")
+	}
+	// Pin the failure to the parse-identity path (before dial), not any error.
+	if !strings.Contains(err.Error(), "parse identity") {
+		t.Fatalf("err = %v, want it to mention the parse-identity wrap", err)
 	}
 }
