@@ -24,7 +24,7 @@ func Extract(unitContent []byte) Refs {
 	var r Refs
 	seenF := map[string]bool{}
 	addFile := func(raw string) {
-		// keep only compartment-local basenames; drop container-side/opts parts
+		// keep only cadre-local basenames; drop container-side/opts parts
 		raw = strings.TrimSpace(raw)
 		raw = strings.SplitN(raw, ":", 2)[0] // "host:container:opts" -> host for Volume/Mount source
 		if src := mountSource(raw); src != "" {

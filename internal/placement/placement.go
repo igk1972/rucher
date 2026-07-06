@@ -1,4 +1,4 @@
-// Package placement resolves which compartments are assigned to a node.
+// Package placement resolves which cadres are assigned to a node.
 package placement
 
 import (
@@ -33,7 +33,7 @@ type file struct {
 func Assigned(data []byte, nodeID string) ([]string, error) {
 	var f file
 	// Strict decode: a typo like `placement:` (singular) must error rather than silently
-	// parse to zero placements and unmanage every compartment on the node.
+	// parse to zero placements and unmanage every cadre on the node.
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&f); err != nil {

@@ -1,4 +1,4 @@
-// Package state persists the last-applied state of a compartment (hashes only).
+// Package state persists the last-applied state of a cadre (hashes only).
 package state
 
 import (

@@ -1,5 +1,5 @@
 // Package agent runs one GitOps reconcile pass: fetch the store, apply this node's
-// assigned compartments (installing their unsealed identity first), remove the rest.
+// assigned cadres (installing their unsealed identity first), remove the rest.
 package agent
 
 import (
@@ -11,7 +11,7 @@ import (
 	"slices"
 
 	"rucher/internal/age"
-	"rucher/internal/compartment"
+	"rucher/internal/cadre"
 	"rucher/internal/node"
 	"rucher/internal/placement"
 	"rucher/internal/provision"
@@ -57,7 +57,7 @@ func Run(ctx context.Context, r node.Runner, s store.Store, nodeID, nodeIdentity
 		st.Applied = append(st.Applied, Result{Name: name, OK: true})
 	}
 
-	// remove compartments managed on this node but no longer assigned
+	// remove cadres managed on this node but no longer assigned
 	managed, err := reconcile.List()
 	if err != nil {
 		return st, err
@@ -70,15 +70,15 @@ func Run(ctx context.Context, r node.Runner, s store.Store, nodeID, nodeIdentity
 	}
 
 	if failed {
-		return st, fmt.Errorf("one or more compartments failed to apply")
+		return st, fmt.Errorf("one or more cadres failed to apply")
 	}
 	return st, nil
 }
 
 func applyOne(r node.Runner, checkout, name, nodeIdentity string) error {
-	dir := filepath.Join(checkout, "compartments", name)
+	dir := filepath.Join(checkout, "cadres", name)
 
-	// ensure the user exists, then install the unsealed compartment identity so Apply can decrypt.
+	// ensure the user exists, then install the unsealed cadre identity so Apply can decrypt.
 	uid, err := provision.EnsureUser(r, name)
 	if err != nil {
 		return err
@@ -87,7 +87,7 @@ func applyOne(r node.Runner, checkout, name, nodeIdentity string) error {
 		return err
 	}
 
-	c, err := compartment.Load(dir)
+	c, err := cadre.Load(dir)
 	if err != nil {
 		return err
 	}
@@ -96,14 +96,14 @@ func applyOne(r node.Runner, checkout, name, nodeIdentity string) error {
 }
 
 // installIdentity unseals identity[.<node>].age with the node key and writes it to the
-// compartment's age identity path (as the compartment user). No-op if there is no sealed file.
+// cadre's age identity path (as the cadre user). No-op if there is no sealed file.
 func installIdentity(r node.Runner, name string, uid int, dir, nodeIdentity string) error {
 	sealed, err := readSealed(dir)
 	if err != nil {
 		return err
 	}
 	if sealed == nil {
-		return nil // no secrets for this compartment
+		return nil // no secrets for this cadre
 	}
 	identity, err := age.Unseal(nodeIdentity, sealed)
 	if err != nil {

@@ -4,16 +4,16 @@ import (
 	"slices"
 	"testing"
 
-	"rucher/internal/compartment"
+	"rucher/internal/cadre"
 	"rucher/internal/fileset"
 	"rucher/internal/manifest"
 	"rucher/internal/state"
 )
 
-func comp(files map[string]string) compartment.Compartment {
-	c := compartment.Compartment{Name: "web", Manifest: manifest.Manifest{Name: "web"}}
+func comp(files map[string]string) cadre.Cadre {
+	c := cadre.Cadre{Name: "web", Manifest: manifest.Manifest{Name: "web"}}
 	for name, body := range files {
-		c.Files = append(c.Files, compartment.File{
+		c.Files = append(c.Files, cadre.File{
 			Name: name, Content: []byte(body), Hash: fileset.Hash([]byte(body)),
 			IsUnit: fileset.IsUnitFile(name),
 		})

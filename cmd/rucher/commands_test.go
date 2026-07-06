@@ -12,7 +12,7 @@ func TestCmdPlanPrintsUnits(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "web")
 	os.MkdirAll(dir, 0o755)
-	os.WriteFile(filepath.Join(dir, "compartment.yml"), []byte("name: web\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "rucher.yml"), []byte("name: web\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, "web.container"), []byte("[Container]\nImage=nginx\n"), 0o644)
 
 	var out bytes.Buffer
@@ -28,7 +28,7 @@ func TestCmdPlanPrintsUnits(t *testing.T) {
 func TestCmdPlanNamedNotFound(t *testing.T) {
 	root := t.TempDir()
 	// No subdirectory named "web": pointing --dir at a folder that lacks it.
-	os.WriteFile(filepath.Join(root, "compartment.yml"), []byte("name: web\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "rucher.yml"), []byte("name: web\n"), 0o644)
 
 	var out bytes.Buffer
 	code := cmdPlan(root, []string{"web"}, &out)
@@ -42,7 +42,7 @@ func TestCmdPlanNamedNotFound(t *testing.T) {
 
 func TestCmdApplyNamedNotFound(t *testing.T) {
 	root := t.TempDir()
-	os.WriteFile(filepath.Join(root, "compartment.yml"), []byte("name: web\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "rucher.yml"), []byte("name: web\n"), 0o644)
 
 	var out bytes.Buffer
 	code := cmdApply(root, []string{"web"}, &out)
@@ -62,8 +62,8 @@ func TestCmdPlanEmptyDirNoNames(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if !strings.Contains(out.String(), "no compartments found") {
-		t.Fatalf("plan output = %q, want \"no compartments found\" notice", out.String())
+	if !strings.Contains(out.String(), "no cadres found") {
+		t.Fatalf("plan output = %q, want \"no cadres found\" notice", out.String())
 	}
 }
 
@@ -75,8 +75,8 @@ func TestCmdApplyEmptyDirNoNames(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	if !strings.Contains(out.String(), "no compartments found") {
-		t.Fatalf("apply output = %q, want \"no compartments found\" notice", out.String())
+	if !strings.Contains(out.String(), "no cadres found") {
+		t.Fatalf("apply output = %q, want \"no cadres found\" notice", out.String())
 	}
 }
 
@@ -100,7 +100,7 @@ func TestDiscover(t *testing.T) {
 		t.Fatalf("discover missing: err = nil, want error")
 	}
 
-	// A repeated name resolves to the compartment once, not twice.
+	// A repeated name resolves to the cadre once, not twice.
 	dup, err := discover(root, []string{"web", "web"})
 	if err != nil {
 		t.Fatalf("discover dup: %v", err)

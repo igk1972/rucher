@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"rucher/internal/compartment"
+	"rucher/internal/cadre"
 	"rucher/internal/manifest"
 	"rucher/internal/quadletref"
 	"rucher/internal/state"
@@ -13,7 +13,7 @@ import (
 
 type Plan struct {
 	Name          string
-	WriteFiles    []compartment.File
+	WriteFiles    []cadre.File
 	RemoveFiles   []string
 	CreateSecrets []string
 	RemoveSecrets []string
@@ -31,10 +31,10 @@ func (p Plan) Empty() bool {
 		len(p.StartUnits) == 0 && len(p.RestartUnits) == 0 && len(p.StopUnits) == 0
 }
 
-func Compute(c compartment.Compartment, secretHashes map[string]string, prior state.State) Plan {
+func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) Plan {
 	p := Plan{Name: c.Name}
 
-	desiredFiles := map[string]compartment.File{}
+	desiredFiles := map[string]cadre.File{}
 	for _, f := range c.Files {
 		desiredFiles[f.Name] = f
 	}
@@ -123,7 +123,7 @@ func Compute(c compartment.Compartment, secretHashes map[string]string, prior st
 		}
 	}
 
-	slices.SortFunc(p.WriteFiles, func(a, b compartment.File) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(p.WriteFiles, func(a, b cadre.File) int { return strings.Compare(a.Name, b.Name) })
 	slices.Sort(p.StartUnits)
 	slices.Sort(p.RestartUnits)
 	slices.Sort(p.StopUnits)
@@ -161,7 +161,7 @@ func isUnitName(name string) bool {
 }
 
 // orphanChanged reports whether a changed support file is referenced by no unit.
-func orphanChanged(changedSupport map[string]bool, files []compartment.File) bool {
+func orphanChanged(changedSupport map[string]bool, files []cadre.File) bool {
 	if len(changedSupport) == 0 {
 		return false
 	}

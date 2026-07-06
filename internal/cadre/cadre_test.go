@@ -1,4 +1,4 @@
-package compartment
+package cadre
 
 import (
 	"os"
@@ -14,7 +14,7 @@ func writeDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 	files := map[string]string{
-		"compartment.yml":   "name: web\nsecrets:\n  from: secrets.sops.yaml\n",
+		"rucher.yml":        "name: web\nsecrets:\n  from: secrets.sops.yaml\n",
 		"secrets.sops.yaml": "db_password: ENC[...]\n",
 		".sops.yaml":        "creation_rules: []\n",
 		"web.container":     "[Container]\nImage=nginx\n",
@@ -52,7 +52,7 @@ func TestLoadClassifiesFiles(t *testing.T) {
 }
 
 func TestLoadExcludesSealedIdentity(t *testing.T) {
-	dir := writeDir(t) // existing helper: builds a valid "web" compartment
+	dir := writeDir(t) // existing helper: builds a valid "web" cadre
 	os.WriteFile(filepath.Join(dir, "identity.age"), []byte("-----BEGIN AGE-----\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, "identity.lima-essaim-01.age"), []byte("-----BEGIN AGE-----\n"), 0o644)
 	c, err := Load(dir)
@@ -68,22 +68,22 @@ func TestLoadExcludesSealedIdentity(t *testing.T) {
 
 func TestLoadRejectsNameMismatch(t *testing.T) {
 	dir := writeDir(t)
-	os.WriteFile(filepath.Join(dir, "compartment.yml"), []byte("name: other\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "rucher.yml"), []byte("name: other\n"), 0o644)
 	if _, err := Load(dir); err == nil {
 		t.Fatal("expected name/dir mismatch error")
 	}
 }
 
-// writeCompartment lays down a minimal valid compartment plus the given extra
+// writeCadre lays down a minimal valid cadre plus the given extra
 // files, letting a test override or add unit/support files.
-func writeCompartment(t *testing.T, extra map[string]string) string {
+func writeCadre(t *testing.T, extra map[string]string) string {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "web")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	files := map[string]string{
-		"compartment.yml":   "name: web\nsecrets:\n  from: secrets.sops.yaml\n",
+		"rucher.yml":        "name: web\nsecrets:\n  from: secrets.sops.yaml\n",
 		"secrets.sops.yaml": "db_password: ENC[...]\n",
 	}
 	for name, body := range extra {
@@ -98,7 +98,7 @@ func writeCompartment(t *testing.T, extra map[string]string) string {
 }
 
 func TestLoadRejectsMissingEnvironmentFile(t *testing.T) {
-	dir := writeCompartment(t, map[string]string{
+	dir := writeCadre(t, map[string]string{
 		"web.container": "[Container]\nImage=nginx\nEnvironmentFile=%h/.config/containers/systemd/app.env\n",
 	})
 	if _, err := Load(dir); err == nil {
@@ -107,7 +107,7 @@ func TestLoadRejectsMissingEnvironmentFile(t *testing.T) {
 }
 
 func TestLoadAcceptsPresentEnvironmentFile(t *testing.T) {
-	dir := writeCompartment(t, map[string]string{
+	dir := writeCadre(t, map[string]string{
 		"web.container": "[Container]\nImage=nginx\nEnvironmentFile=%h/.config/containers/systemd/app.env\n",
 		"app.env":       "A=1\n",
 	})
@@ -117,22 +117,22 @@ func TestLoadAcceptsPresentEnvironmentFile(t *testing.T) {
 }
 
 func TestLoadRejectsEmptyUnit(t *testing.T) {
-	dir := writeCompartment(t, map[string]string{"web.container": ""})
+	dir := writeCadre(t, map[string]string{"web.container": ""})
 	if _, err := Load(dir); err == nil {
 		t.Fatal("expected error for empty unit file")
 	}
 }
 
 func TestLoadRejectsUnitWithoutSection(t *testing.T) {
-	dir := writeCompartment(t, map[string]string{"web.container": "Image=nginx\n"})
+	dir := writeCadre(t, map[string]string{"web.container": "Image=nginx\n"})
 	if _, err := Load(dir); err == nil {
 		t.Fatal("expected error for unit without a [Section] header")
 	}
 }
 
 func TestLoadIgnoresVolumeReference(t *testing.T) {
-	// A named volume is not a compartment-local file and must not be validated.
-	dir := writeCompartment(t, map[string]string{
+	// A named volume is not a cadre-local file and must not be validated.
+	dir := writeCadre(t, map[string]string{
 		"web.container": "[Container]\nImage=nginx\nVolume=data:/v\n",
 	})
 	if _, err := Load(dir); err != nil {

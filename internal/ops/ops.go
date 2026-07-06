@@ -1,4 +1,4 @@
-// Package ops wraps per-compartment systemd, podman, secret and age operations.
+// Package ops wraps per-cadre systemd, podman, secret and age operations.
 package ops
 
 import (
@@ -50,8 +50,8 @@ func (o Ops) Login(reg, user string, password []byte, insecure bool) error {
 	return wrap(res, err, argv)
 }
 
-// GenerateAgeKey creates the compartment's age identity in-process and writes it to
-// identityPath as the compartment user, returning the corresponding recipient. Writing
+// GenerateAgeKey creates the cadre's age identity in-process and writes it to
+// identityPath as the cadre user, returning the corresponding recipient. Writing
 // as the user (mkdir/tee/chmod) mirrors agent.installIdentity; tee honors the user's
 // umask, so the private key is tightened to 0600.
 func (o Ops) GenerateAgeKey(identityPath string) (string, error) {

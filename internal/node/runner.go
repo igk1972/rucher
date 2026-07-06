@@ -1,4 +1,4 @@
-// Package node runs commands as root or as a compartment user (shell-out).
+// Package node runs commands as root or as a cadre user (shell-out).
 package node
 
 import (
@@ -43,7 +43,7 @@ func userEnvArgv(uid int, argv []string) []string {
 
 func runExec(argv []string, stdin []byte) (Result, error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
-	// Run from a world-accessible directory so a command dropped to a compartment
+	// Run from a world-accessible directory so a command dropped to a cadre
 	// user (via runuser) never inherits a caller CWD it cannot chdir into (e.g. the
 	// agent launched from a root-only store checkout).
 	cmd.Dir = "/"

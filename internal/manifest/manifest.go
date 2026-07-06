@@ -1,4 +1,4 @@
-// Package manifest parses and validates a compartment.yml manifest.
+// Package manifest parses and validates a rucher.yml manifest.
 package manifest
 
 import (
@@ -45,7 +45,7 @@ func Load(data []byte) (Manifest, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&m); err != nil {
-		return Manifest{}, fmt.Errorf("parse compartment.yml: %w", err)
+		return Manifest{}, fmt.Errorf("parse rucher.yml: %w", err)
 	}
 	if m.Secrets.From == "" {
 		m.Secrets.From = defaultSecretsFile

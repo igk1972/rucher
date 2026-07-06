@@ -1,4 +1,4 @@
-// Package reconcile applies a compartment's desired state to the host.
+// Package reconcile applies a cadre's desired state to the host.
 package reconcile
 
 import (
@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"rucher/internal/compartment"
+	"rucher/internal/cadre"
 	"rucher/internal/node"
 	"rucher/internal/ops"
 	"rucher/internal/plan"
@@ -18,7 +18,7 @@ import (
 	"rucher/internal/state"
 )
 
-// stateBaseDir is where per-compartment state files live. RUCHER_STATE_DIR overrides the
+// stateBaseDir is where per-cadre state files live. RUCHER_STATE_DIR overrides the
 // default (useful for tests and alternative layouts); empty falls back to provision.BaseDir.
 func stateBaseDir() string {
 	if d := os.Getenv("RUCHER_STATE_DIR"); d != "" {
@@ -42,7 +42,7 @@ func ageDir(name string) string {
 func IdentityPath(name string) string  { return ageDir(name) + "/identity.txt" }
 func recipientPath(name string) string { return ageDir(name) + "/recipient.txt" }
 
-// New ensures the compartment's OS user and age identity exist and returns its age recipient.
+// New ensures the cadre's OS user and age identity exist and returns its age recipient.
 func New(r node.Runner, name string) (string, error) {
 	uid, err := provision.EnsureUser(r, name)
 	if err != nil {
@@ -66,7 +66,7 @@ func New(r node.Runner, name string) (string, error) {
 	return Recipient(r, name)
 }
 
-// Recipient returns the compartment's stored age recipient (root reads the user's file).
+// Recipient returns the cadre's stored age recipient (root reads the user's file).
 func Recipient(r node.Runner, name string) (string, error) {
 	res, err := r.Root([]string{"cat", recipientPath(name)}, nil)
 	if err != nil {
@@ -78,7 +78,7 @@ func Recipient(r node.Runner, name string) (string, error) {
 	return strings.TrimSpace(res.Stdout), nil
 }
 
-// List returns the names of compartments that have a persisted state file.
+// List returns the names of cadres that have a persisted state file.
 func List() ([]string, error) {
 	dir := filepath.Join(stateBaseDir(), "state")
 	entries, err := os.ReadDir(dir)
@@ -100,10 +100,10 @@ func List() ([]string, error) {
 	return names, nil
 }
 
-// UnitStatus is the runtime state of one of a compartment's units.
+// UnitStatus is the runtime state of one of a cadre's units.
 type UnitStatus struct{ Unit, Active, Sub string }
 
-// Status reports the ActiveState/SubState of each unit in the compartment's last-applied state.
+// Status reports the ActiveState/SubState of each unit in the cadre's last-applied state.
 func Status(r node.Runner, name string) ([]UnitStatus, error) {
 	prior, err := state.Load(statePath(name))
 	if err != nil {
@@ -131,7 +131,7 @@ func Status(r node.Runner, name string) ([]UnitStatus, error) {
 	return out, nil
 }
 
-// Remove unmanages a compartment: it stops the workloads and deletes their unit files
+// Remove unmanages a cadre: it stops the workloads and deletes their unit files
 // (so nothing restarts on boot), then drops the state file. The user, its podman
 // secrets/volumes and the age identity are kept. With purge it additionally tears down
 // the OS user and its home.
@@ -142,7 +142,7 @@ func Remove(r node.Runner, name string, purge bool) error {
 	if prior.UID != 0 {
 		o := ops.Ops{R: r, User: user, UID: prior.UID}
 		// Stop workloads and remove their unit files so they don't come back on boot.
-		// Best-effort: a compartment with no live manager makes these no-ops.
+		// Best-effort: a cadre with no live manager makes these no-ops.
 		for _, u := range prior.Units {
 			o.Stop(u)
 		}
@@ -150,7 +150,7 @@ func Remove(r node.Runner, name string, purge bool) error {
 		o.DaemonReload()
 	}
 
-	// The compartment is no longer managed once its state file is gone.
+	// The cadre is no longer managed once its state file is gone.
 	r.Root([]string{"rm", "-f", statePath(name)}, nil)
 
 	if !purge {
@@ -179,7 +179,7 @@ func Remove(r node.Runner, name string, purge bool) error {
 	return nil
 }
 
-func Apply(r node.Runner, c compartment.Compartment) (plan.Plan, error) {
+func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	uid, err := provision.EnsureUser(r, c.Name)
 	if err != nil {
 		return plan.Plan{}, err
@@ -191,7 +191,7 @@ func Apply(r node.Runner, c compartment.Compartment) (plan.Plan, error) {
 	if c.SopsPath != "" {
 		secretValues, err = secrets.Decrypt(r, IdentityPath(c.Name), c.SopsPath)
 		if err != nil {
-			return plan.Plan{}, fmt.Errorf("compartment %s: %w", c.Name, err)
+			return plan.Plan{}, fmt.Errorf("cadre %s: %w", c.Name, err)
 		}
 		// Which decrypted keys become podman secrets: all of them, or exactly the allowlist.
 		forCreate := secretValues
@@ -200,7 +200,7 @@ func Apply(r node.Runner, c compartment.Compartment) (plan.Plan, error) {
 			for _, k := range create {
 				v, ok := secretValues[k]
 				if !ok {
-					return plan.Plan{}, fmt.Errorf("compartment %s: secrets.create lists %q, absent from %s", c.Name, k, c.SopsPath)
+					return plan.Plan{}, fmt.Errorf("cadre %s: secrets.create lists %q, absent from %s", c.Name, k, c.SopsPath)
 				}
 				forCreate[k] = v
 			}
@@ -225,7 +225,7 @@ func Apply(r node.Runner, c compartment.Compartment) (plan.Plan, error) {
 	for _, u := range p.StopUnits {
 		o.Stop(u)
 	}
-	// 3. write/remove files (as the compartment user, into the systemd dir)
+	// 3. write/remove files (as the cadre user, into the systemd dir)
 	dir := systemdDir(c.Name)
 	r.User(o.User, uid, []string{"mkdir", "-p", dir}, nil)
 	for _, f := range p.WriteFiles {
@@ -249,7 +249,7 @@ func Apply(r node.Runner, c compartment.Compartment) (plan.Plan, error) {
 	for _, l := range c.Manifest.Registries.Login {
 		pw, ok := secretValues[l.PasswordKey]
 		if !ok {
-			return p, fmt.Errorf("compartment %s: registry %s: passwordKey %q not in secrets", c.Name, l.Registry, l.PasswordKey)
+			return p, fmt.Errorf("cadre %s: registry %s: passwordKey %q not in secrets", c.Name, l.Registry, l.PasswordKey)
 		}
 		if err := o.Login(l.Registry, l.Username, []byte(pw), l.Insecure); err != nil {
 			return p, err
@@ -280,7 +280,7 @@ func Apply(r node.Runner, c compartment.Compartment) (plan.Plan, error) {
 	return p, nil
 }
 
-func nextState(c compartment.Compartment, uid int, secretHashes map[string]string) state.State {
+func nextState(c cadre.Cadre, uid int, secretHashes map[string]string) state.State {
 	s := state.State{
 		Name:         c.Name,
 		UID:          uid,

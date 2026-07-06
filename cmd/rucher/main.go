@@ -10,9 +10,9 @@ func usage() string {
 	return `rucher <node|ops> ...
 
 node — on the Linux node (runuser/systemctl/podman):
-  node apply [--dir DIR]                        reconcile all compartments under --dir
+  node apply [--dir DIR]                        reconcile all cadres under --dir
   node cadre new <name>
-  node cadre apply [--dir DIR] <name...>        reconcile the named compartment(s)
+  node cadre apply [--dir DIR] <name...>        reconcile the named cadre(s)
   node cadre status [name...]
   node cadre logs <name> <unit>
   node cadre rm <name> [--purge]
@@ -29,9 +29,9 @@ ops — from the operator machine:
 }
 
 // parseDir pulls an optional `--dir <value>` out of args wherever it appears
-// (default ./compartments); the remaining positional args are compartment names.
+// (default ./cadres); the remaining positional args are cadre names.
 func parseDir(args []string) (dir string, names []string, err error) {
-	dir = "./compartments"
+	dir = "./cadres"
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--dir" {
 			if i+1 >= len(args) {
@@ -47,7 +47,7 @@ func parseDir(args []string) (dir string, names []string, err error) {
 }
 
 // parseRm extracts a `--purge` flag from anywhere in args; the single remaining
-// non-flag argument is the compartment name.
+// non-flag argument is the cadre name.
 func parseRm(args []string) (name string, purge bool, err error) {
 	for _, a := range args {
 		if a == "--purge" {
@@ -55,12 +55,12 @@ func parseRm(args []string) (name string, purge bool, err error) {
 			continue
 		}
 		if name != "" {
-			return "", false, fmt.Errorf("rm takes a single compartment name")
+			return "", false, fmt.Errorf("rm takes a single cadre name")
 		}
 		name = a
 	}
 	if name == "" {
-		return "", false, fmt.Errorf("rm requires a compartment name")
+		return "", false, fmt.Errorf("rm requires a cadre name")
 	}
 	return name, purge, nil
 }
@@ -93,15 +93,15 @@ func runNode(args []string, stdout io.Writer) int {
 	}
 	switch args[0] {
 	case "apply":
-		// `node apply` reconciles the whole node (all compartments); a specific
-		// compartment is `node cadre apply <name>`, so positional names are rejected here.
+		// `node apply` reconciles the whole node (all cadres); a specific
+		// cadre is `node cadre apply <name>`, so positional names are rejected here.
 		dir, names, err := parseDir(args[1:])
 		if err != nil {
 			fmt.Fprintln(stdout, "error:", err)
 			return 2
 		}
 		if len(names) > 0 {
-			fmt.Fprintln(stdout, "error: `node apply` reconciles all compartments; use `node cadre apply <name>` for one")
+			fmt.Fprintln(stdout, "error: `node apply` reconciles all cadres; use `node cadre apply <name>` for one")
 			return 2
 		}
 		return cmdApply(dir, nil, stdout)
@@ -146,7 +146,7 @@ func runNode(args []string, stdout io.Writer) int {
 	}
 }
 
-// runNodeCadre dispatches per-compartment operations (`node cadre <verb> ...`).
+// runNodeCadre dispatches per-cadre operations (`node cadre <verb> ...`).
 func runNodeCadre(args []string, stdout io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintln(stdout, "usage: node cadre <new|apply|status|logs|rm|recipient> ...")
@@ -166,7 +166,7 @@ func runNodeCadre(args []string, stdout io.Writer) int {
 			return 2
 		}
 		if len(names) == 0 {
-			fmt.Fprintln(stdout, "error: `node cadre apply` needs a compartment name; use `node apply` for all")
+			fmt.Fprintln(stdout, "error: `node cadre apply` needs a cadre name; use `node apply` for all")
 			return 2
 		}
 		return cmdApply(dir, names, stdout)

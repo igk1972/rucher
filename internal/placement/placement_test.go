@@ -33,7 +33,7 @@ func TestAssignedNoneForNode(t *testing.T) {
 
 func TestAssignedRejectsUnknownKey(t *testing.T) {
 	// `placement:` (singular) is a typo; strict decoding must reject it rather than
-	// silently unmanaging every compartment.
+	// silently unmanaging every cadre.
 	_, err := Assigned([]byte("placement: {web: a}\n"), "a")
 	if err == nil {
 		t.Fatal("expected an error for an unknown top-level key")

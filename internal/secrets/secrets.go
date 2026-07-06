@@ -11,8 +11,8 @@ import (
 
 func Decrypt(r node.Runner, identityPath, sopsPath string) (map[string]string, error) {
 	// Decrypt as root (the agent): root can read both the root-owned source file and
-	// the compartment user's age identity. Plaintext stays in the agent's memory and
-	// is fed to podman via stdin. The per-compartment identity scopes at-rest access
+	// the cadre user's age identity. Plaintext stays in the agent's memory and
+	// is fed to podman via stdin. The per-cadre identity scopes at-rest access
 	// in the store, not runtime access on the host (root already sees all secrets).
 	argv := []string{
 		"env", "SOPS_AGE_KEY_FILE=" + identityPath,

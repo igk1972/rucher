@@ -17,7 +17,7 @@ import (
 const agentStatusPath = "/var/lib/rucher/agent-status.json"
 const storeCachePath = "/var/lib/rucher/store"
 
-// parseKeygen collects the compartment name and every repeatable --to recipient, so
+// parseKeygen collects the cadre name and every repeatable --to recipient, so
 // the identity can be sealed to all target nodes at once.
 func parseKeygen(args []string) (name string, recipients []string, err error) {
 	seen := map[string]bool{}
@@ -46,8 +46,8 @@ func parseKeygen(args []string) (name string, recipients []string, err error) {
 	return name, recipients, nil
 }
 
-// cmdKeygen generates a compartment keypair, seals its identity to every node recipient,
-// writes identity.age to ./compartments/<name>/, and prints the compartment recipient.
+// cmdKeygen generates a cadre keypair, seals its identity to every node recipient,
+// writes identity.age to ./cadres/<name>/, and prints the cadre recipient.
 func cmdKeygen(args []string, out io.Writer) int {
 	name, recipients, err := parseKeygen(args)
 	if err != nil {
@@ -64,7 +64,7 @@ func cmdKeygen(args []string, out io.Writer) int {
 		fmt.Fprintln(out, "error:", err)
 		return 1
 	}
-	dir := "compartments/" + name
+	dir := "cadres/" + name
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1

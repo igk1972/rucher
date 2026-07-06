@@ -14,18 +14,18 @@ import (
 	"rucher/internal/store"
 )
 
-func TestRunAppliesAssignedCompartment(t *testing.T) {
-	// node key + a compartment identity sealed to it
+func TestRunAppliesAssignedCadre(t *testing.T) {
+	// node key + a cadre identity sealed to it
 	nodeID, nodeRcpt, _ := age.GenerateIdentity()
 	compID, _, _ := age.GenerateIdentity()
 	sealed, _ := age.Seal(nodeRcpt, []byte(compID))
 
-	// build a fake checkout: placement + one compartment assigned to this node
+	// build a fake checkout: placement + one cadre assigned to this node
 	co := t.TempDir()
 	os.WriteFile(filepath.Join(co, "placement.yml"), []byte("placements: {web: node-a}\n"), 0o644)
-	cdir := filepath.Join(co, "compartments", "web")
+	cdir := filepath.Join(co, "cadres", "web")
 	os.MkdirAll(cdir, 0o755)
-	os.WriteFile(filepath.Join(cdir, "compartment.yml"), []byte("name: web\n"), 0o644)
+	os.WriteFile(filepath.Join(cdir, "rucher.yml"), []byte("name: web\n"), 0o644)
 	os.WriteFile(filepath.Join(cdir, "web.container"), []byte("[Container]\nImage=nginx\n"), 0o644)
 	os.WriteFile(filepath.Join(cdir, "identity.age"), sealed, 0o644)
 
@@ -41,7 +41,7 @@ func TestRunAppliesAssignedCompartment(t *testing.T) {
 	if st.Revision != "rev1" || len(st.Applied) != 1 || !st.Applied[0].OK {
 		t.Fatalf("status = %+v", st)
 	}
-	// the unsealed identity must have been written to the compartment's identity path via the user
+	// the unsealed identity must have been written to the cadre's identity path via the user
 	var wroteIdentity, chmodIdentity bool
 	for _, c := range f.Calls {
 		if len(c.Argv) >= 2 && c.Argv[0] == "tee" && strings.HasSuffix(c.Argv[1], "/age/identity.txt") && string(c.Stdin) == compID {
@@ -53,14 +53,14 @@ func TestRunAppliesAssignedCompartment(t *testing.T) {
 		}
 	}
 	if !wroteIdentity {
-		t.Fatal("unsealed compartment identity was not installed")
+		t.Fatal("unsealed cadre identity was not installed")
 	}
 	if !chmodIdentity {
-		t.Fatal("unsealed compartment identity was not chmod 600")
+		t.Fatal("unsealed cadre identity was not chmod 600")
 	}
 }
 
-// TestRunRemovesUnassignedManaged covers the removal branch: a compartment with a
+// TestRunRemovesUnassignedManaged covers the removal branch: a cadre with a
 // persisted state file that the placement no longer assigns to this node must be
 // unmanaged (its units stopped) and reported in Status.Removed.
 func TestRunRemovesUnassignedManaged(t *testing.T) {
@@ -98,18 +98,18 @@ func TestRunRemovesUnassignedManaged(t *testing.T) {
 	}
 }
 
-// TestRunFailsCompartmentIsolated covers the failure path: a compartment whose sealed
-// identity is corrupt fails to apply, but the failure is isolated to that compartment's
+// TestRunFailsCadreIsolated covers the failure path: a cadre whose sealed
+// identity is corrupt fails to apply, but the failure is isolated to that cadre's
 // Result and Run still returns a non-nil error while propagating the store revision.
-func TestRunFailsCompartmentIsolated(t *testing.T) {
-	// node key: valid, but the compartment's identity.age is not real age ciphertext
+func TestRunFailsCadreIsolated(t *testing.T) {
+	// node key: valid, but the cadre's identity.age is not real age ciphertext
 	nodeID, _, _ := age.GenerateIdentity()
 
 	co := t.TempDir()
 	os.WriteFile(filepath.Join(co, "placement.yml"), []byte("placements: {web: node-a}\n"), 0o644)
-	cdir := filepath.Join(co, "compartments", "web")
+	cdir := filepath.Join(co, "cadres", "web")
 	os.MkdirAll(cdir, 0o755)
-	os.WriteFile(filepath.Join(cdir, "compartment.yml"), []byte("name: web\n"), 0o644)
+	os.WriteFile(filepath.Join(cdir, "rucher.yml"), []byte("name: web\n"), 0o644)
 	os.WriteFile(filepath.Join(cdir, "web.container"), []byte("[Container]\nImage=nginx\n"), 0o644)
 	os.WriteFile(filepath.Join(cdir, "secrets.sops.yaml"), []byte("data: ENC[age]\n"), 0o644)
 	os.WriteFile(filepath.Join(cdir, "identity.age"), []byte("not-valid-age-ciphertext"), 0o644)
@@ -122,7 +122,7 @@ func TestRunFailsCompartmentIsolated(t *testing.T) {
 
 	st, err := Run(context.Background(), f, fs, "node-a", nodeID)
 	if err == nil {
-		t.Fatal("Run returned nil error, want a failure for the corrupt compartment")
+		t.Fatal("Run returned nil error, want a failure for the corrupt cadre")
 	}
 	if st.Revision != "rev1" {
 		t.Fatalf("Revision = %q, want propagated %q", st.Revision, "rev1")
@@ -134,7 +134,7 @@ func TestRunFailsCompartmentIsolated(t *testing.T) {
 		t.Fatalf("Applied[0].Name = %q, want %q", st.Applied[0].Name, "web")
 	}
 	if st.Applied[0].OK {
-		t.Fatal("compartment Result.OK = true, want false for the failed apply")
+		t.Fatal("cadre Result.OK = true, want false for the failed apply")
 	}
 	// Pin the failure CAUSE: it must be the identity unseal, not some earlier step.
 	if !strings.Contains(st.Applied[0].Error, "unseal") {

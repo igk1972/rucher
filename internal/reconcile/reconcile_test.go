@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"rucher/internal/age"
-	"rucher/internal/compartment"
+	"rucher/internal/cadre"
 	"rucher/internal/fileset"
 	"rucher/internal/manifest"
 	"rucher/internal/node"
@@ -15,9 +15,9 @@ import (
 )
 
 func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
-	c := compartment.Compartment{Name: "web", Manifest: manifest.Manifest{Name: "web"}}
+	c := cadre.Cadre{Name: "web", Manifest: manifest.Manifest{Name: "web"}}
 	body := "[Container]\nImage=nginx\n"
-	c.Files = []compartment.File{{Name: "web.container", Content: []byte(body), Hash: fileset.Hash([]byte(body)), IsUnit: true}}
+	c.Files = []cadre.File{{Name: "web.container", Content: []byte(body), Hash: fileset.Hash([]byte(body)), IsUnit: true}}
 
 	f := &node.Fake{Responses: map[string]node.Result{
 		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
@@ -107,7 +107,7 @@ func TestStatusReportsUnitStates(t *testing.T) {
 	}
 }
 
-func TestListReturnsCompartmentsWithState(t *testing.T) {
+func TestListReturnsCadresWithState(t *testing.T) {
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 	if err := state.Save(statePath("web"), state.State{Name: "web"}); err != nil {
 		t.Fatal(err)
@@ -223,7 +223,7 @@ func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 		"root:env SOPS_AGE_KEY_FILE=" + idp + " sops -d --output-type json " + sopsPath: {Stdout: decrypted},
 	}}
 
-	c := compartment.Compartment{
+	c := cadre.Cadre{
 		Name:     "web",
 		SopsPath: sopsPath,
 		Manifest: manifest.Manifest{
@@ -264,7 +264,7 @@ func TestApplyErrorsOnMissingLoginPasswordKey(t *testing.T) {
 		"root:env SOPS_AGE_KEY_FILE=" + idp + " sops -d --output-type json " + sopsPath: {Stdout: decrypted},
 	}}
 
-	c := compartment.Compartment{
+	c := cadre.Cadre{
 		Name:     "web",
 		SopsPath: sopsPath,
 		Manifest: manifest.Manifest{

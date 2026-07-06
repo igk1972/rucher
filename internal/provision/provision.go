@@ -1,4 +1,4 @@
-// Package provision ensures the OS user and resource limits for a compartment.
+// Package provision ensures the OS user and resource limits for a cadre.
 package provision
 
 import (
@@ -10,7 +10,7 @@ import (
 	"rucher/internal/node"
 )
 
-const BaseDir = "/var/lib/rucher/compartments"
+const BaseDir = "/var/lib/rucher/cadres"
 
 const (
 	subidCount = 65536
@@ -68,7 +68,7 @@ func EnsureUser(r node.Runner, name string) (int, error) {
 	if _, err := r.Root([]string{"loginctl", "enable-linger", user}, nil); err != nil {
 		return 0, err
 	}
-	// Allocate a unique, non-overlapping subuid/subgid block per compartment user.
+	// Allocate a unique, non-overlapping subuid/subgid block per cadre user.
 	subuidRes, err := r.Root([]string{"cat", "/etc/subuid"}, nil)
 	if err != nil {
 		return 0, err

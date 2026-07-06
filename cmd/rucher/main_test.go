@@ -38,8 +38,8 @@ func TestParseDir(t *testing.T) {
 		wantDir  string
 		wantName []string
 	}{
-		{nil, "./compartments", nil},
-		{[]string{"web"}, "./compartments", []string{"web"}},
+		{nil, "./cadres", nil},
+		{[]string{"web"}, "./cadres", []string{"web"}},
 		{[]string{"--dir", "/c", "web"}, "/c", []string{"web"}},
 		{[]string{"web", "--dir", "/c"}, "/c", []string{"web"}},               // flag after name
 		{[]string{"web", "--dir", "/c", "api"}, "/c", []string{"web", "api"}}, // flag between names
@@ -86,7 +86,7 @@ func TestParseRm(t *testing.T) {
 }
 
 func TestNodeApplyRejectsPositionalNames(t *testing.T) {
-	// `node apply` reconciles the whole node; a named compartment must go through
+	// `node apply` reconciles the whole node; a named cadre must go through
 	// `node cadre apply`, so a positional name here is a usage error with guidance.
 	var out bytes.Buffer
 	code := run([]string{"node", "apply", "web"}, &out)

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"rucher/internal/compartment"
+	"rucher/internal/cadre"
 	"rucher/internal/node"
 	"rucher/internal/ops"
 	"rucher/internal/plan"
@@ -17,10 +17,10 @@ import (
 	"rucher/internal/state"
 )
 
-// discover returns compartment directories under dir, optionally filtered by names.
+// discover returns cadre directories under dir, optionally filtered by names.
 // When names is non-empty, every requested name must resolve to a subdirectory of dir;
 // a name with no matching subdirectory is an error (guards against pointing --dir at the
-// compartment folder itself instead of its parent, which would otherwise match nothing).
+// cadre folder itself instead of its parent, which would otherwise match nothing).
 func discover(dir string, names []string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -41,10 +41,10 @@ func discover(dir string, names []string) ([]string, error) {
 		seen := make(map[string]bool)
 		for _, name := range names {
 			if !subdirs[name] {
-				return nil, fmt.Errorf("compartment %q not found in %s", name, dir)
+				return nil, fmt.Errorf("cadre %q not found in %s", name, dir)
 			}
 			if seen[name] {
-				continue // a repeated name reconciles the compartment once, not twice
+				continue // a repeated name reconciles the cadre once, not twice
 			}
 			seen[name] = true
 			dirs = append(dirs, filepath.Join(dir, name))
@@ -60,12 +60,12 @@ func cmdPlan(dir string, names []string, out io.Writer) int {
 		return 1
 	}
 	if len(dirs) == 0 {
-		fmt.Fprintf(out, "no compartments found in %s\n", dir)
+		fmt.Fprintf(out, "no cadres found in %s\n", dir)
 		return 0
 	}
 	rc := 0
 	for _, d := range dirs {
-		c, err := compartment.Load(d)
+		c, err := cadre.Load(d)
 		if err != nil {
 			fmt.Fprintf(out, "%s: ERROR %v\n", filepath.Base(d), err)
 			rc = 1
@@ -73,7 +73,7 @@ func cmdPlan(dir string, names []string, out io.Writer) int {
 		}
 		// dry-run: diff against empty prior state so the user sees the full intended change
 		p := plan.Compute(c, nil, state.State{})
-		fmt.Fprintf(out, "compartment %s:\n", c.Name)
+		fmt.Fprintf(out, "cadre %s:\n", c.Name)
 		for _, u := range p.StartUnits {
 			fmt.Fprintf(out, "  start   %s\n", u)
 		}
@@ -87,7 +87,7 @@ func cmdPlan(dir string, names []string, out io.Writer) int {
 	return rc
 }
 
-// cmdNew provisions a compartment's OS user and age identity, printing its recipient.
+// cmdNew provisions a cadre's OS user and age identity, printing its recipient.
 func cmdNew(name string, out io.Writer) int {
 	rec, err := reconcile.New(node.NewExec(), name)
 	if err != nil {
@@ -98,7 +98,7 @@ func cmdNew(name string, out io.Writer) int {
 	return 0
 }
 
-// cmdApply reconciles each discovered compartment against the host.
+// cmdApply reconciles each discovered cadre against the host.
 func cmdApply(dir string, names []string, out io.Writer) int {
 	dirs, err := discover(dir, names)
 	if err != nil {
@@ -106,12 +106,12 @@ func cmdApply(dir string, names []string, out io.Writer) int {
 		return 1
 	}
 	if len(dirs) == 0 {
-		fmt.Fprintf(out, "no compartments found in %s\n", dir)
+		fmt.Fprintf(out, "no cadres found in %s\n", dir)
 		return 0
 	}
 	rc := 0
 	for _, d := range dirs {
-		c, err := compartment.Load(d)
+		c, err := cadre.Load(d)
 		if err != nil {
 			fmt.Fprintf(out, "%s: ERROR %v\n", filepath.Base(d), err)
 			rc = 1
@@ -128,7 +128,7 @@ func cmdApply(dir string, names []string, out io.Writer) int {
 	return rc
 }
 
-// cmdAgeRecipient prints the compartment's stored age recipient.
+// cmdAgeRecipient prints the cadre's stored age recipient.
 func cmdAgeRecipient(name string, out io.Writer) int {
 	rec, err := reconcile.Recipient(node.NewExec(), name)
 	if err != nil {
@@ -139,8 +139,8 @@ func cmdAgeRecipient(name string, out io.Writer) int {
 	return 0
 }
 
-// cmdStatus prints the runtime state of each compartment's units.
-// With no names it reports every compartment that has a persisted state file.
+// cmdStatus prints the runtime state of each cadre's units.
+// With no names it reports every cadre that has a persisted state file.
 func cmdStatus(names []string, out io.Writer) int {
 	if len(names) == 0 {
 		listed, err := reconcile.List()
@@ -152,7 +152,7 @@ func cmdStatus(names []string, out io.Writer) int {
 	}
 	r := node.NewExec()
 	tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "COMPARTMENT\tUNIT\tACTIVE\tSUB")
+	fmt.Fprintln(tw, "CADRE\tUNIT\tACTIVE\tSUB")
 	rc := 0
 	for _, name := range names {
 		units, err := reconcile.Status(r, name)
@@ -169,14 +169,14 @@ func cmdStatus(names []string, out io.Writer) int {
 	return rc
 }
 
-// cmdLogs prints the last 200 journal lines for one of a compartment's units.
+// cmdLogs prints the last 200 journal lines for one of a cadre's units.
 // A system user's own `journalctl --user` cannot open the journal, so the entries
 // are read as root filtered to the user's unit (_SYSTEMD_USER_UNIT + _UID).
 func cmdLogs(name, unit string, out io.Writer) int {
 	r := node.NewExec()
 	res, err := r.Root([]string{"id", "-u", provision.UserName(name)}, nil)
 	if err != nil || res.Code != 0 {
-		fmt.Fprintf(out, "error: unknown compartment %s\n", name)
+		fmt.Fprintf(out, "error: unknown cadre %s\n", name)
 		return 1
 	}
 	uid := strings.TrimSpace(res.Stdout)
@@ -197,7 +197,7 @@ func cmdLogs(name, unit string, out io.Writer) int {
 	return 0
 }
 
-// cmdRm stops a compartment's units; with purge it also removes its OS user.
+// cmdRm stops a cadre's units; with purge it also removes its OS user.
 func cmdRm(name string, purge bool, out io.Writer) int {
 	if err := reconcile.Remove(node.NewExec(), name, purge); err != nil {
 		fmt.Fprintf(out, "error: %v\n", err)

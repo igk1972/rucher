@@ -14,7 +14,7 @@ func TestGenerateSealUnsealRoundTrip(t *testing.T) {
 	if !strings.HasPrefix(id, "AGE-SECRET-KEY-") || !strings.HasPrefix(rcpt, "age1") {
 		t.Fatalf("bad key formats: id=%q rcpt=%q", id, rcpt)
 	}
-	msg := []byte("the compartment identity")
+	msg := []byte("the cadre identity")
 	ct, err := Seal(rcpt, msg)
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +53,7 @@ func TestSealToMultipleRecipients(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	msg := []byte("the shared compartment identity")
+	msg := []byte("the shared cadre identity")
 	ct, err := SealTo([]string{rcptA, rcptB}, msg)
 	if err != nil {
 		t.Fatal(err)

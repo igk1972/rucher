@@ -1,5 +1,5 @@
-// Package compartment loads a compartment definition from a directory.
-package compartment
+// Package cadre loads a cadre definition from a directory.
+package cadre
 
 import (
 	"bufio"
@@ -20,7 +20,7 @@ type File struct {
 	IsUnit  bool
 }
 
-type Compartment struct {
+type Cadre struct {
 	Name     string
 	Dir      string
 	Manifest manifest.Manifest
@@ -28,38 +28,38 @@ type Compartment struct {
 	SopsPath string
 }
 
-func Load(dir string) (Compartment, error) {
-	mdata, err := os.ReadFile(filepath.Join(dir, "compartment.yml"))
+func Load(dir string) (Cadre, error) {
+	mdata, err := os.ReadFile(filepath.Join(dir, "rucher.yml"))
 	if err != nil {
-		return Compartment{}, fmt.Errorf("read manifest: %w", err)
+		return Cadre{}, fmt.Errorf("read manifest: %w", err)
 	}
 	m, err := manifest.Load(mdata)
 	if err != nil {
-		return Compartment{}, err
+		return Cadre{}, err
 	}
 	if err := m.Validate(); err != nil {
-		return Compartment{}, err
+		return Cadre{}, err
 	}
 	if base := filepath.Base(dir); m.Name != base {
-		return Compartment{}, fmt.Errorf("manifest name %q != directory %q", m.Name, base)
+		return Cadre{}, fmt.Errorf("manifest name %q != directory %q", m.Name, base)
 	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return Compartment{}, err
+		return Cadre{}, err
 	}
-	// service files that must never be materialized into the compartment
+	// service files that must never be materialized into the cadre
 	service := map[string]bool{
-		"compartment.yml": true,
-		m.Secrets.From:    true,
-		".sops.yaml":      true,
+		"rucher.yml":   true,
+		m.Secrets.From: true,
+		".sops.yaml":   true,
 	}
 	// sealed age identities (identity.age / identity.<node>.age) are B service
 	// files, not support files, so they must never be materialized either
 	isSealedIdentity := func(name string) bool {
 		return strings.HasPrefix(name, "identity.") && strings.HasSuffix(name, ".age")
 	}
-	c := Compartment{Name: m.Name, Dir: dir, Manifest: m}
+	c := Cadre{Name: m.Name, Dir: dir, Manifest: m}
 	for _, e := range entries {
 		if e.IsDir() || service[e.Name()] || isSealedIdentity(e.Name()) {
 			if e.Name() == m.Secrets.From {
@@ -69,7 +69,7 @@ func Load(dir string) (Compartment, error) {
 		}
 		content, err := os.ReadFile(filepath.Join(dir, e.Name()))
 		if err != nil {
-			return Compartment{}, err
+			return Cadre{}, err
 		}
 		c.Files = append(c.Files, File{
 			Name:    e.Name(),
@@ -79,21 +79,21 @@ func Load(dir string) (Compartment, error) {
 		})
 	}
 	if err := c.Validate(); err != nil {
-		return Compartment{}, err
+		return Cadre{}, err
 	}
 	return c, nil
 }
 
-// systemdUnitDir is the per-user Quadlet drop-in directory that a compartment's
+// systemdUnitDir is the per-user Quadlet drop-in directory that a cadre's
 // support files are materialized into; an EnvironmentFile value under this
-// prefix must resolve to a file the compartment ships.
+// prefix must resolve to a file the cadre ships.
 const systemdUnitDir = "%h/.config/containers/systemd/"
 
 // Validate rejects only the subset of problems that cannot false-positive:
-// a broken unit file, or an EnvironmentFile referencing a compartment-local
+// a broken unit file, or an EnvironmentFile referencing a cadre-local
 // file that is not present. It deliberately does not check secret keys (need
 // decrypted secrets) or resource-limit formats (systemd accepts many forms).
-func (c Compartment) Validate() error {
+func (c Cadre) Validate() error {
 	have := map[string]bool{}
 	for _, f := range c.Files {
 		have[f.Name] = true
@@ -135,9 +135,9 @@ func validateUnit(f File, have map[string]bool) error {
 	return nil
 }
 
-// localEnvFile resolves an EnvironmentFile value to a compartment-local
+// localEnvFile resolves an EnvironmentFile value to a cadre-local
 // basename. It reports false when the value cannot be validated: an optional
-// ("-"-prefixed) reference, or a path outside the compartment's unit dir.
+// ("-"-prefixed) reference, or a path outside the cadre's unit dir.
 func localEnvFile(val string) (string, bool) {
 	if val == "" || strings.HasPrefix(val, "-") {
 		return "", false

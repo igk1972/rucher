@@ -19,7 +19,7 @@ func TestDecryptParsesJSON(t *testing.T) {
 	if got["db_password"] != "s3cr3t" || got["ghcr_token"] != "tok" {
 		t.Fatalf("decoded = %v", got)
 	}
-	// decryption runs as root, with the compartment identity via SOPS_AGE_KEY_FILE
+	// decryption runs as root, with the cadre identity via SOPS_AGE_KEY_FILE
 	rootOK, envOK := false, false
 	for _, c := range f.Calls {
 		if c.Root {

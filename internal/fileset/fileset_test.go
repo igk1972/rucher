@@ -18,7 +18,7 @@ func TestIsUnitFile(t *testing.T) {
 			t.Fatalf("%q should be a unit file", n)
 		}
 	}
-	for _, n := range []string{"nginx.conf", "app.env", "compartment.yml"} {
+	for _, n := range []string{"nginx.conf", "app.env", "rucher.yml"} {
 		if IsUnitFile(n) {
 			t.Fatalf("%q should NOT be a unit file", n)
 		}

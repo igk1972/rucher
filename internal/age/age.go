@@ -1,4 +1,4 @@
-// Package age wraps filippo.io/age for the node/compartment key operations B needs:
+// Package age wraps filippo.io/age for the node/cadre key operations B needs:
 // generating identities, sealing (encrypting to a recipient) and unsealing.
 package age
 
@@ -32,7 +32,7 @@ func Seal(recipient string, plaintext []byte) ([]byte, error) {
 }
 
 // SealTo encrypts plaintext to every recipient so any one of their identities can
-// unseal it: age writes a stanza per recipient. Used when a compartment lives on
+// unseal it: age writes a stanza per recipient. Used when a cadre lives on
 // multiple nodes and its identity.age must be readable by each node's key.
 func SealTo(recipients []string, plaintext []byte) ([]byte, error) {
 	if len(recipients) == 0 {

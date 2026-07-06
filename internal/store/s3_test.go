@@ -14,11 +14,11 @@ import (
 func TestRevisionOf(t *testing.T) {
 	a := []objInfo{
 		{Key: "placement.yml", ETag: "aaa"},
-		{Key: "compartments/web/compartment.yml", ETag: "bbb"},
+		{Key: "cadres/web/rucher.yml", ETag: "bbb"},
 	}
 	// Same set in a different order must hash to the same revision.
 	b := []objInfo{
-		{Key: "compartments/web/compartment.yml", ETag: "bbb"},
+		{Key: "cadres/web/rucher.yml", ETag: "bbb"},
 		{Key: "placement.yml", ETag: "aaa"},
 	}
 	if revisionOf(a) != revisionOf(b) {
@@ -28,7 +28,7 @@ func TestRevisionOf(t *testing.T) {
 	// A changed ETag must change the revision.
 	c := []objInfo{
 		{Key: "placement.yml", ETag: "zzz"},
-		{Key: "compartments/web/compartment.yml", ETag: "bbb"},
+		{Key: "cadres/web/rucher.yml", ETag: "bbb"},
 	}
 	if revisionOf(a) == revisionOf(c) {
 		t.Fatal("revisionOf unchanged after an ETag change")
@@ -43,11 +43,11 @@ func TestResolveDest(t *testing.T) {
 	base := filepath.Join(t.TempDir(), "cache")
 
 	// A normal nested key resolves under base.
-	got, err := resolveDest(base, filepath.Join("compartments", "web", "compartment.yml"))
+	got, err := resolveDest(base, filepath.Join("cadres", "web", "rucher.yml"))
 	if err != nil {
 		t.Fatalf("nested key: unexpected error: %v", err)
 	}
-	if want := filepath.Join(base, "compartments", "web", "compartment.yml"); got != want {
+	if want := filepath.Join(base, "cadres", "web", "rucher.yml"); got != want {
 		t.Fatalf("nested key = %q, want %q", got, want)
 	}
 
@@ -91,13 +91,13 @@ func TestS3SyncAgainstRclone(t *testing.T) {
 	// Build a source tree; rclone serve s3 exposes each top-level dir as a bucket.
 	src := t.TempDir()
 	bucket := filepath.Join(src, "infrastructure")
-	if err := os.MkdirAll(filepath.Join(bucket, "compartments", "web"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(bucket, "cadres", "web"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(bucket, "placement.yml"), []byte("placements: {web: node-a}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bucket, "compartments", "web", "compartment.yml"), []byte("name: web\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(bucket, "cadres", "web", "rucher.yml"), []byte("name: web\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -159,11 +159,11 @@ func TestS3SyncAgainstRclone(t *testing.T) {
 		t.Fatalf("placement.yml = %q", got)
 	}
 
-	got, err = os.ReadFile(filepath.Join(co, "compartments", "web", "compartment.yml"))
+	got, err = os.ReadFile(filepath.Join(co, "cadres", "web", "rucher.yml"))
 	if err != nil {
-		t.Fatalf("read compartment.yml: %v", err)
+		t.Fatalf("read rucher.yml: %v", err)
 	}
 	if string(got) != "name: web\n" {
-		t.Fatalf("compartment.yml = %q", got)
+		t.Fatalf("rucher.yml = %q", got)
 	}
 }
