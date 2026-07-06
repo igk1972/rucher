@@ -3,7 +3,7 @@
 Даёт рабочим нагрузкам compartment'а прозрачную L3-связность в тайнете между хостами. Форма —
 обычные «непрозрачные» квадлеты: оператор пишет tailscale-сайдкар + под как всегда, authkey
 едет через штатный `secrets.create`. **Код менеджера не меняется.** Пример целиком —
-`test/overlay-example/`.
+`test/overlay-example/` (сам compartment лежит в подкаталоге `overlay-example/overlay-demo/`).
 
 **Валидировано контроллером** на Lima (Debian trixie, podman 5.8.4, настоящий тайнет):
 кросс-нодовая прозрачная связность из пода на lima-01 в nginx в поде на lima-02 по tailscale-IP,
@@ -52,10 +52,11 @@ kernel-режим: `TS_USERSPACE=false` + `/dev/net/tun` + `NET_ADMIN`/`NET_RAW`
   pecm age recipient overlay-demo                     # -> age1... recipient compartment'а
   printf 'ts-authkey: tskey-auth-XXXX\n' \
     | sops --encrypt --input-type yaml --output-type yaml --age <recipient> /dev/stdin \
-    > test/overlay-example/secrets.sops.yaml
+    > test/overlay-example/overlay-demo/secrets.sops.yaml
   ```
 
-  (`--input-type yaml` обязателен — иначе sops завернёт всё в один ключ `data`; см. прогон B.)
+  (`--input-type yaml` обязателен — иначе sops завернёт всё в один ключ `data`; см. прогон B.
+  `secrets.sops.yaml` кладётся в подкаталог compartment'а, рядом с `compartment.yml`.)
 - В `compartment.yml`: `secrets.create: [ts-authkey]` — только этот ключ становится podman-
   секретом. Сайдкар подхватывает его через `Secret=ts-authkey,type=env,target=TS_AUTHKEY`
   (podman-секрет -> env `TS_AUTHKEY`). Настоящий ключ в plaintext НЕ коммить —
@@ -63,10 +64,12 @@ kernel-режим: `TS_USERSPACE=false` + `/dev/net/tun` + `NET_ADMIN`/`NET_RAW`
 
 ## Применение через менеджер (шаг оператора)
 
-Разложить и запустить как обычный compartment — правок менеджера не требуется:
+Разложить и запустить как обычный compartment — правок менеджера не требуется. `--dir` —
+это **родительский** каталог (тот, что содержит подкаталог-compartment `overlay-demo/`),
+а имя выбирает подкаталог; проверено контроллером через полный `pecm new` → `apply` → `rm`:
 
 ```bash
-# локально/прямой apply на ноде:
+# локально/прямой apply на ноде (--dir = родитель, overlay-demo = подкаталог):
 sudo pecm apply --dir ./test/overlay-example overlay-demo
 
 # либо через GitOps-агента (прогон B): закоммитить compartment в стор,

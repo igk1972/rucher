@@ -21,14 +21,19 @@
 
 ## Как применить
 
+Файлы compartment'а лежат в подкаталоге `overlay-demo/`. `apply` берёт **родительский**
+каталог (`--dir`), а имя выбирает подкаталог — то есть `--dir` указывает на этот каталог
+(`test/overlay-example/`), а не на сам `overlay-demo/`. Команды ниже — из этого каталога:
+
 ```bash
-# 1. authkey из админки tailscale -> зашифровать на recipient этого compartment'а:
+# 1. authkey из админки tailscale -> зашифровать на recipient этого compartment'а
+#    (в overlay-demo/secrets.sops.yaml, рядом с compartment.yml):
 pecm age recipient overlay-demo                     # -> age1...
 printf 'ts-authkey: tskey-auth-XXXX\n' \
   | sops --encrypt --input-type yaml --output-type yaml --age <recipient> /dev/stdin \
-  > secrets.sops.yaml
+  > overlay-demo/secrets.sops.yaml
 
-# 2. разложить и запустить (или через GitOps-агента):
+# 2. разложить и запустить (--dir = родитель, overlay-demo = подкаталог; или GitOps-агентом):
 pecm apply --dir . overlay-demo
 ```
 
