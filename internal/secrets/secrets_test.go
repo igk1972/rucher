@@ -3,11 +3,11 @@ package secrets
 import (
 	"testing"
 
-	"rucher/internal/host"
+	"rucher/internal/node"
 )
 
 func TestDecryptParsesJSON(t *testing.T) {
-	f := &host.Fake{Responses: map[string]host.Result{
+	f := &node.Fake{Responses: map[string]node.Result{
 		"root:env SOPS_AGE_KEY_FILE=/id.txt sops -d --output-type json /c/secrets.sops.yaml": {
 			Stdout: `{"db_password":"s3cr3t","ghcr_token":"tok"}`,
 		},

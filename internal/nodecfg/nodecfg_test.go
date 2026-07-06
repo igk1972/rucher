@@ -1,4 +1,4 @@
-package hostcfg
+package nodecfg
 
 import (
 	"os"

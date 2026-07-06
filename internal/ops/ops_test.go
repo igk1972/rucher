@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"rucher/internal/age"
-	"rucher/internal/host"
+	"rucher/internal/node"
 )
 
 func TestUnitService(t *testing.T) {
@@ -27,7 +27,7 @@ func TestStartStopUseStartStopNotEnableDisable(t *testing.T) {
 	// systemd refuses to enable/disable generator-produced (Quadlet) units, so
 	// Start/Stop must issue plain start/stop; boot-persistence comes from the
 	// unit's [Install] section + linger.
-	f := &host.Fake{Responses: map[string]host.Result{}}
+	f := &node.Fake{Responses: map[string]node.Result{}}
 	o := Ops{R: f, User: "rucher-web", UID: 1234}
 
 	if err := o.Start("web.container"); err != nil {
@@ -70,7 +70,7 @@ func equalArgv(a, b []string) bool {
 }
 
 func TestGenerateAgeKey(t *testing.T) {
-	f := &host.Fake{Responses: map[string]host.Result{}}
+	f := &node.Fake{Responses: map[string]node.Result{}}
 	o := Ops{R: f, User: "rucher-web", UID: 1500}
 
 	recipient, err := o.GenerateAgeKey("/id/identity.txt")
@@ -83,7 +83,7 @@ func TestGenerateAgeKey(t *testing.T) {
 
 	// The key is random, so we prove correctness by capturing the identity written to
 	// disk and back-deriving its recipient: it must equal the returned one.
-	var teed *host.Call
+	var teed *node.Call
 	var sawChmod bool
 	for i := range f.Calls {
 		c := &f.Calls[i]
@@ -114,12 +114,12 @@ func TestGenerateAgeKey(t *testing.T) {
 }
 
 func TestSecretCreatePassesValueViaStdin(t *testing.T) {
-	f := &host.Fake{Responses: map[string]host.Result{}}
+	f := &node.Fake{Responses: map[string]node.Result{}}
 	o := Ops{R: f, User: "rucher-web", UID: 1234}
 	if err := o.SecretCreate("db_password", []byte("s3cr3t")); err != nil {
 		t.Fatal(err)
 	}
-	var createCall *host.Call
+	var createCall *node.Call
 	for i := range f.Calls {
 		if strings.Contains(strings.Join(f.Calls[i].Argv, " "), "secret create") {
 			createCall = &f.Calls[i]

@@ -5,12 +5,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"rucher/internal/hostcfg"
+	"rucher/internal/nodecfg"
 	"rucher/internal/sshx"
 )
 
 func TestResolveNetworkAddress(t *testing.T) {
-	cfg := hostcfg.Config{Network: hostcfg.Network{Address: "100.1.1.1"}}
+	cfg := nodecfg.Config{Network: nodecfg.Network{Address: "100.1.1.1"}}
 	got, err := Resolve("web", cfg, "/nonexistent")
 	if err != nil {
 		t.Fatal(err)
@@ -26,7 +26,7 @@ func TestResolveLima(t *testing.T) {
 	os.MkdirAll(filepath.Join(lima, "web"), 0o755)
 	os.WriteFile(filepath.Join(lima, "web", "ssh.config"),
 		[]byte("Host lima-web\n  HostName 127.0.0.1\n  Port 2222\n  User alice\n  IdentityFile /k\n"), 0o644)
-	got, err := Resolve("web", hostcfg.Config{}, lima)
+	got, err := Resolve("web", nodecfg.Config{}, lima)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestResolveLima(t *testing.T) {
 }
 
 func TestResolveConnection(t *testing.T) {
-	cfg := hostcfg.Config{Connection: hostcfg.Connection{Host: "10.0.0.5", User: "admin", Port: 2222, Identity: "/k"}}
+	cfg := nodecfg.Config{Connection: nodecfg.Connection{Host: "10.0.0.5", User: "admin", Port: 2222, Identity: "/k"}}
 	got, err := Resolve("web", cfg, "/nonexistent")
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +49,7 @@ func TestResolveConnection(t *testing.T) {
 }
 
 func TestResolveError(t *testing.T) {
-	if _, err := Resolve("web", hostcfg.Config{}, "/nonexistent"); err == nil {
+	if _, err := Resolve("web", nodecfg.Config{}, "/nonexistent"); err == nil {
 		t.Fatal("expected error when no address is resolvable")
 	}
 }

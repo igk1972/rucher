@@ -22,8 +22,8 @@ node — on the Linux node (runuser/systemctl/podman):
 
 ops — from the operator machine:
   ops plan [--dir DIR] [name...]
-  ops ruches [--hosts DIR] status [--live] [--json] [host...]
-  ops ruches [--hosts DIR] join <host> --address <addr> [--json]
+  ops ruches [--nodes DIR] status [--live] [--json] [node...]
+  ops ruches [--nodes DIR] join <node> --address <addr> [--json]
   ops key seal <name> --to <recipient> [--to <recipient> ...]
 `
 }
@@ -226,16 +226,16 @@ func runOps(args []string, stdout io.Writer) int {
 	}
 }
 
-// runOpsRuches dispatches the fleet plane (`ops ruches [--hosts DIR] <status|join>`).
-// --hosts is accepted only before the subcommand, matching the other flag-first commands.
+// runOpsRuches dispatches the fleet plane (`ops ruches [--nodes DIR] <status|join>`).
+// --nodes is accepted only before the subcommand, matching the other flag-first commands.
 func runOpsRuches(args []string, stdout io.Writer) int {
-	hostsDir := "./hosts"
+	nodesDir := "./nodes"
 	rest := args
-	if len(rest) >= 2 && rest[0] == "--hosts" {
-		hostsDir, rest = rest[1], rest[2:]
+	if len(rest) >= 2 && rest[0] == "--nodes" {
+		nodesDir, rest = rest[1], rest[2:]
 	}
 	if len(rest) == 0 {
-		fmt.Fprintln(stdout, "usage: ops ruches [--hosts DIR] status|join ...")
+		fmt.Fprintln(stdout, "usage: ops ruches [--nodes DIR] status|join ...")
 		return 2
 	}
 	switch rest[0] {
@@ -252,9 +252,9 @@ func runOpsRuches(args []string, stdout io.Writer) int {
 				names = append(names, a)
 			}
 		}
-		return cmdHostsStatus(hostsDir, names, live, jsonOut, stdout)
+		return cmdNodesStatus(nodesDir, names, live, jsonOut, stdout)
 	case "join":
-		return cmdNetJoin(hostsDir, rest[1:], stdout)
+		return cmdNetJoin(nodesDir, rest[1:], stdout)
 	default:
 		fmt.Fprintf(stdout, "unknown ops ruches subcommand: %s\n", rest[0])
 		return 2

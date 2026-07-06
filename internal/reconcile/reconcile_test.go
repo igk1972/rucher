@@ -8,8 +8,8 @@ import (
 	"rucher/internal/age"
 	"rucher/internal/compartment"
 	"rucher/internal/fileset"
-	"rucher/internal/host"
 	"rucher/internal/manifest"
+	"rucher/internal/node"
 	"rucher/internal/provision"
 	"rucher/internal/state"
 )
@@ -19,7 +19,7 @@ func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
 	body := "[Container]\nImage=nginx\n"
 	c.Files = []compartment.File{{Name: "web.container", Content: []byte(body), Hash: fileset.Hash([]byte(body)), IsUnit: true}}
 
-	f := &host.Fake{Responses: map[string]host.Result{
+	f := &node.Fake{Responses: map[string]node.Result{
 		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
 	}}
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
@@ -43,8 +43,8 @@ func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
 func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 	idp := provision.HomeDir("web") + "/.config/rucher/age/identity.txt"
 	recp := provision.HomeDir("web") + "/.config/rucher/age/recipient.txt"
-	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u rucher-web":      {Stdout: "1500"},
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web":    {Stdout: "1500"},
 		"root:cat /etc/subuid":     {},
 		"root:cat /etc/subgid":     {},
 		"user:1500:test -f " + idp: {Code: 1}, // force generation
@@ -59,7 +59,7 @@ func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 		t.Fatalf("recipient = %q, want a valid age1 recipient", rec)
 	}
 
-	var idCall, teed *host.Call
+	var idCall, teed *node.Call
 	for i := range f.Calls {
 		c := &f.Calls[i]
 		if len(c.Argv) == 2 && c.Argv[0] == "tee" && c.Argv[1] == idp {
@@ -94,7 +94,7 @@ func TestStatusReportsUnitStates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f := &host.Fake{Responses: map[string]host.Result{
+	f := &node.Fake{Responses: map[string]node.Result{
 		"user:1234:systemctl --user show web.service -p ActiveState -p SubState --value": {Stdout: "active\nrunning\n"},
 	}}
 	got, err := Status(f, "web")
@@ -137,7 +137,7 @@ func TestListEmptyWhenNoStateDir(t *testing.T) {
 
 func TestStatusEmptyWhenNoState(t *testing.T) {
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
-	f := &host.Fake{Responses: map[string]host.Result{}}
+	f := &node.Fake{Responses: map[string]node.Result{}}
 	got, err := Status(f, "web")
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +153,7 @@ func TestRemoveStopsUnitsAndFilesWithoutPurge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f := &host.Fake{Responses: map[string]host.Result{}}
+	f := &node.Fake{Responses: map[string]node.Result{}}
 	if err := Remove(f, "web", false); err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestRemovePurgeDeletesUser(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f := &host.Fake{Responses: map[string]host.Result{}}
+	f := &node.Fake{Responses: map[string]node.Result{}}
 	if err := Remove(f, "web", true); err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +218,7 @@ func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 	sopsPath := "/etc/rucher/web/secrets.sops.yaml"
 	idp := IdentityPath("web")
 	decrypted := `{"db_password":"pw1","ghcr_token":"tok"}`
-	f := &host.Fake{Responses: map[string]host.Result{
+	f := &node.Fake{Responses: map[string]node.Result{
 		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
 		"root:env SOPS_AGE_KEY_FILE=" + idp + " sops -d --output-type json " + sopsPath: {Stdout: decrypted},
 	}}
@@ -259,7 +259,7 @@ func TestApplyErrorsOnMissingLoginPasswordKey(t *testing.T) {
 	sopsPath := "/etc/rucher/web/secrets.sops.yaml"
 	idp := IdentityPath("web")
 	decrypted := `{"db_password":"pw1"}`
-	f := &host.Fake{Responses: map[string]host.Result{
+	f := &node.Fake{Responses: map[string]node.Result{
 		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
 		"root:env SOPS_AGE_KEY_FILE=" + idp + " sops -d --output-type json " + sopsPath: {Stdout: decrypted},
 	}}
@@ -286,7 +286,7 @@ func TestApplyErrorsOnMissingLoginPasswordKey(t *testing.T) {
 
 func TestRecipientReadsFile(t *testing.T) {
 	recp := provision.HomeDir("web") + "/.config/rucher/age/recipient.txt"
-	f := &host.Fake{Responses: map[string]host.Result{
+	f := &node.Fake{Responses: map[string]node.Result{
 		"root:cat " + recp: {Stdout: "age1abc\n"},
 	}}
 	rec, err := Recipient(f, "web")

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"rucher/internal/age"
-	"rucher/internal/host"
+	"rucher/internal/node"
 	"rucher/internal/state"
 	"rucher/internal/store"
 )
@@ -29,7 +29,7 @@ func TestRunAppliesAssignedCompartment(t *testing.T) {
 	os.WriteFile(filepath.Join(cdir, "web.container"), []byte("[Container]\nImage=nginx\n"), 0o644)
 	os.WriteFile(filepath.Join(cdir, "identity.age"), sealed, 0o644)
 
-	f := &host.Fake{Responses: map[string]host.Result{
+	f := &node.Fake{Responses: map[string]node.Result{
 		"root:id -u rucher-web": {Stdout: "1234"},
 	}}
 	fs := &store.Fake{Checkout: co, Revision: "rev1"}
@@ -74,7 +74,7 @@ func TestRunRemovesUnassignedManaged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f := &host.Fake{}
+	f := &node.Fake{}
 	fs := &store.Fake{Checkout: co, Revision: "rev1"}
 
 	st, err := Run(context.Background(), f, fs, "node-a", "node-key-unused")
@@ -115,7 +115,7 @@ func TestRunFailsCompartmentIsolated(t *testing.T) {
 	os.WriteFile(filepath.Join(cdir, "identity.age"), []byte("not-valid-age-ciphertext"), 0o644)
 
 	// EnsureUser must succeed so the failure lands in age.Unseal, not user setup
-	f := &host.Fake{Responses: map[string]host.Result{
+	f := &node.Fake{Responses: map[string]node.Result{
 		"root:id -u rucher-web": {Stdout: "1234"},
 	}}
 	fs := &store.Fake{Checkout: co, Revision: "rev1"}

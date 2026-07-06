@@ -12,7 +12,7 @@ import (
 
 	"rucher/internal/age"
 	"rucher/internal/compartment"
-	"rucher/internal/host"
+	"rucher/internal/node"
 	"rucher/internal/placement"
 	"rucher/internal/provision"
 	"rucher/internal/reconcile"
@@ -31,7 +31,7 @@ type Status struct {
 	Removed  []string `json:"removed"`
 }
 
-func Run(ctx context.Context, r host.Runner, s store.Store, nodeID, nodeIdentity string) (Status, error) {
+func Run(ctx context.Context, r node.Runner, s store.Store, nodeID, nodeIdentity string) (Status, error) {
 	co, rev, err := s.Sync(ctx)
 	if err != nil {
 		return Status{}, fmt.Errorf("store sync: %w", err)
@@ -75,7 +75,7 @@ func Run(ctx context.Context, r host.Runner, s store.Store, nodeID, nodeIdentity
 	return st, nil
 }
 
-func applyOne(r host.Runner, checkout, name, nodeIdentity string) error {
+func applyOne(r node.Runner, checkout, name, nodeIdentity string) error {
 	dir := filepath.Join(checkout, "compartments", name)
 
 	// ensure the user exists, then install the unsealed compartment identity so Apply can decrypt.
@@ -97,7 +97,7 @@ func applyOne(r host.Runner, checkout, name, nodeIdentity string) error {
 
 // installIdentity unseals identity[.<node>].age with the node key and writes it to the
 // compartment's age identity path (as the compartment user). No-op if there is no sealed file.
-func installIdentity(r host.Runner, name string, uid int, dir, nodeIdentity string) error {
+func installIdentity(r node.Runner, name string, uid int, dir, nodeIdentity string) error {
 	sealed, err := readSealed(dir)
 	if err != nil {
 		return err

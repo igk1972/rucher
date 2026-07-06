@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"rucher/internal/host"
 	"rucher/internal/manifest"
+	"rucher/internal/node"
 )
 
 const BaseDir = "/var/lib/rucher/compartments"
@@ -53,7 +53,7 @@ func hasSubid(subuid, user string) bool {
 	return false
 }
 
-func EnsureUser(r host.Runner, name string) (int, error) {
+func EnsureUser(r node.Runner, name string) (int, error) {
 	user := UserName(name)
 	if res, _ := r.Root([]string{"id", "-u", user}, nil); res.Code != 0 {
 		home := HomeDir(name)
@@ -104,7 +104,7 @@ func EnsureUser(r host.Runner, name string) (int, error) {
 	return uid, nil
 }
 
-func ApplyResources(r host.Runner, uid int, res manifest.Resources) error {
+func ApplyResources(r node.Runner, uid int, res manifest.Resources) error {
 	dir := fmt.Sprintf("/etc/systemd/system/user-%d.slice.d", uid)
 	if _, err := r.Root([]string{"mkdir", "-p", dir}, nil); err != nil {
 		return err

@@ -1,5 +1,5 @@
-// Package hoststatus collects agent status from every host over ssh and aggregates it.
-package hoststatus
+// Package nodestatus collects agent status from every node over ssh and aggregates it.
+package nodestatus
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"rucher/internal/agent"
-	"rucher/internal/hostcfg"
+	"rucher/internal/nodecfg"
 	"rucher/internal/sshresolve"
 	"rucher/internal/sshx"
 )
@@ -15,7 +15,7 @@ import (
 const statusPath = "/var/lib/rucher/agent-status.json"
 
 type Row struct {
-	Host      string   `json:"host"`
+	Node      string   `json:"node"`
 	Address   string   `json:"address"`
 	Reachable bool     `json:"reachable"`
 	Revision  string   `json:"revision"`
@@ -25,9 +25,9 @@ type Row struct {
 	Live      string   `json:"live,omitempty"`
 }
 
-func Collect(r sshx.Runner, hostsDir, limaDir string, names []string, live bool) ([]Row, error) {
+func Collect(r sshx.Runner, nodesDir, limaDir string, names []string, live bool) ([]Row, error) {
 	if len(names) == 0 {
-		listed, err := hostcfg.List(hostsDir)
+		listed, err := nodecfg.List(nodesDir)
 		if err != nil {
 			return nil, err
 		}
@@ -35,8 +35,8 @@ func Collect(r sshx.Runner, hostsDir, limaDir string, names []string, live bool)
 	}
 	var rows []Row
 	for _, name := range names {
-		row := Row{Host: name}
-		cfg, err := hostcfg.LoadMerged(hostsDir, name)
+		row := Row{Node: name}
+		cfg, err := nodecfg.LoadMerged(nodesDir, name)
 		if err != nil {
 			row.Errors = []string{err.Error()}
 			rows = append(rows, row)

@@ -9,8 +9,8 @@ import (
 	"rucher/internal/age"
 	"rucher/internal/agent"
 	"rucher/internal/agentcfg"
-	"rucher/internal/host"
 	"rucher/internal/node"
+	"rucher/internal/nodekey"
 	"rucher/internal/store"
 )
 
@@ -78,7 +78,7 @@ func cmdKeygen(args []string, out io.Writer) int {
 }
 
 func cmdNodeInit(out io.Writer) int {
-	rcpt, err := node.EnsureIdentity(node.IdentityPath)
+	rcpt, err := nodekey.EnsureIdentity(nodekey.IdentityPath)
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1
@@ -88,7 +88,7 @@ func cmdNodeInit(out io.Writer) int {
 }
 
 func cmdNodeRecipient(out io.Writer) int {
-	rcpt, err := node.Recipient(node.IdentityPath)
+	rcpt, err := nodekey.Recipient(nodekey.IdentityPath)
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1
@@ -108,7 +108,7 @@ func cmdAgentRun(configPath string, out io.Writer) int {
 		fmt.Fprintln(out, "error:", err)
 		return 1
 	}
-	nodeIdentity, err := node.Identity(node.IdentityPath)
+	nodeIdentity, err := nodekey.Identity(nodekey.IdentityPath)
 	if err != nil {
 		fmt.Fprintln(out, "error: node key missing (run `rucher node key init`):", err)
 		return 1
@@ -117,13 +117,13 @@ func cmdAgentRun(configPath string, out io.Writer) int {
 	var runErr error
 	switch cfg.Store.Kind {
 	case "git":
-		st, runErr = agent.Run(context.Background(), host.NewExec(), store.Git{
+		st, runErr = agent.Run(context.Background(), node.NewExec(), store.Git{
 			URL: cfg.Store.URL, Branch: cfg.Store.Branch, CachePath: storeCachePath,
 			SSHKey: cfg.Store.SSHKey, Token: cfg.Store.Token,
 			User: cfg.Store.User, InsecureHostKey: cfg.Store.InsecureHostKey,
 		}, nodeID, nodeIdentity)
 	case "s3":
-		st, runErr = agent.Run(context.Background(), host.NewExec(), store.S3{
+		st, runErr = agent.Run(context.Background(), node.NewExec(), store.S3{
 			Endpoint: cfg.Store.Endpoint, Bucket: cfg.Store.Bucket, Prefix: cfg.Store.Prefix,
 			AccessKey: cfg.Store.AccessKey, SecretKey: cfg.Store.SecretKey,
 			UseSSL: cfg.Store.UseSSL, Region: cfg.Store.Region, CachePath: storeCachePath,
@@ -160,7 +160,7 @@ func cmdAgentInstall(configPath string, out io.Writer) int {
 		fmt.Fprintln(out, "error:", err)
 		return 1
 	}
-	r := host.NewExec()
+	r := node.NewExec()
 	service := "[Unit]\nDescription=rucher GitOps agent (one pass)\n\n" +
 		"[Service]\nType=oneshot\nExecStart=/usr/local/bin/rucher node agent run --config " + configPath + "\n"
 	timer := agentTimerUnit(cfg.Interval)

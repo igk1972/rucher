@@ -1,5 +1,5 @@
-// Package hostcfg reads and updates ./hosts/<name>/configuration.yml (network/connection).
-package hostcfg
+// Package nodecfg reads and updates ./hosts/<name>/configuration.yml (network/connection).
+package nodecfg
 
 import (
 	"fmt"

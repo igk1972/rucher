@@ -7,16 +7,16 @@ import (
 	"strings"
 	"testing"
 
-	"rucher/internal/hoststatus"
+	"rucher/internal/nodestatus"
 )
 
 func TestRenderHostsJSON(t *testing.T) {
-	rows := []hoststatus.Row{
-		{Host: "a", Reachable: true, Revision: "r1", Applied: 2, Removed: 1, Errors: []string{"db: boom"}},
-		{Host: "b", Reachable: false, Errors: []string{"conn refused"}},
+	rows := []nodestatus.Row{
+		{Node: "a", Reachable: true, Revision: "r1", Applied: 2, Removed: 1, Errors: []string{"db: boom"}},
+		{Node: "b", Reachable: false, Errors: []string{"conn refused"}},
 	}
 	var buf bytes.Buffer
-	rc := renderHostsJSON(&buf, rows)
+	rc := renderNodesJSON(&buf, rows)
 	if rc != 1 {
 		t.Fatalf("rc = %d, want 1 (b unreachable)", rc)
 	}
@@ -24,7 +24,7 @@ func TestRenderHostsJSON(t *testing.T) {
 	if !strings.HasPrefix(out, "[") {
 		t.Fatalf("output should be a JSON array, got: %q", out)
 	}
-	var got []hoststatus.Row
+	var got []nodestatus.Row
 	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestRenderHostsJSON(t *testing.T) {
 
 func TestRenderHostsJSONEmpty(t *testing.T) {
 	var buf bytes.Buffer
-	rc := renderHostsJSON(&buf, nil)
+	rc := renderNodesJSON(&buf, nil)
 	if rc != 0 {
 		t.Fatalf("rc = %d, want 0", rc)
 	}
@@ -58,21 +58,21 @@ func TestRenderHostsJSONEmpty(t *testing.T) {
 }
 
 func TestRenderHostsTableRC(t *testing.T) {
-	unreachable := []hoststatus.Row{
-		{Host: "a", Reachable: true},
-		{Host: "b", Reachable: false},
+	unreachable := []nodestatus.Row{
+		{Node: "a", Reachable: true},
+		{Node: "b", Reachable: false},
 	}
 	var buf bytes.Buffer
-	if rc := renderHostsTable(&buf, unreachable, false); rc != 1 {
+	if rc := renderNodesTable(&buf, unreachable, false); rc != 1 {
 		t.Fatalf("rc = %d, want 1 when a row is unreachable", rc)
 	}
 
-	allReachable := []hoststatus.Row{
-		{Host: "a", Reachable: true},
-		{Host: "b", Reachable: true},
+	allReachable := []nodestatus.Row{
+		{Node: "a", Reachable: true},
+		{Node: "b", Reachable: true},
 	}
 	buf.Reset()
-	if rc := renderHostsTable(&buf, allReachable, false); rc != 0 {
+	if rc := renderNodesTable(&buf, allReachable, false); rc != 0 {
 		t.Fatalf("rc = %d, want 0 when all rows reachable", rc)
 	}
 }

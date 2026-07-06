@@ -1,5 +1,5 @@
-// Package host runs commands as root or as a compartment user (shell-out).
-package host
+// Package node runs commands as root or as a compartment user (shell-out).
+package node
 
 import (
 	"bytes"

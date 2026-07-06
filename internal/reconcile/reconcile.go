@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"rucher/internal/compartment"
-	"rucher/internal/host"
+	"rucher/internal/node"
 	"rucher/internal/ops"
 	"rucher/internal/plan"
 	"rucher/internal/provision"
@@ -43,7 +43,7 @@ func IdentityPath(name string) string  { return ageDir(name) + "/identity.txt" }
 func recipientPath(name string) string { return ageDir(name) + "/recipient.txt" }
 
 // New ensures the compartment's OS user and age identity exist and returns its age recipient.
-func New(r host.Runner, name string) (string, error) {
+func New(r node.Runner, name string) (string, error) {
 	uid, err := provision.EnsureUser(r, name)
 	if err != nil {
 		return "", err
@@ -67,7 +67,7 @@ func New(r host.Runner, name string) (string, error) {
 }
 
 // Recipient returns the compartment's stored age recipient (root reads the user's file).
-func Recipient(r host.Runner, name string) (string, error) {
+func Recipient(r node.Runner, name string) (string, error) {
 	res, err := r.Root([]string{"cat", recipientPath(name)}, nil)
 	if err != nil {
 		return "", err
@@ -104,7 +104,7 @@ func List() ([]string, error) {
 type UnitStatus struct{ Unit, Active, Sub string }
 
 // Status reports the ActiveState/SubState of each unit in the compartment's last-applied state.
-func Status(r host.Runner, name string) ([]UnitStatus, error) {
+func Status(r node.Runner, name string) ([]UnitStatus, error) {
 	prior, err := state.Load(statePath(name))
 	if err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func Status(r host.Runner, name string) ([]UnitStatus, error) {
 // (so nothing restarts on boot), then drops the state file. The user, its podman
 // secrets/volumes and the age identity are kept. With purge it additionally tears down
 // the OS user and its home.
-func Remove(r host.Runner, name string, purge bool) error {
+func Remove(r node.Runner, name string, purge bool) error {
 	prior, _ := state.Load(statePath(name))
 	user := provision.UserName(name)
 
@@ -179,7 +179,7 @@ func Remove(r host.Runner, name string, purge bool) error {
 	return nil
 }
 
-func Apply(r host.Runner, c compartment.Compartment) (plan.Plan, error) {
+func Apply(r node.Runner, c compartment.Compartment) (plan.Plan, error) {
 	uid, err := provision.EnsureUser(r, c.Name)
 	if err != nil {
 		return plan.Plan{}, err

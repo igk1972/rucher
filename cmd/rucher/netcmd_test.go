@@ -62,8 +62,8 @@ func TestParseNetJoinErrors(t *testing.T) {
 
 func TestCmdNetJoinJSONOutput(t *testing.T) {
 	dir := t.TempDir()
-	// net join writes into an existing host directory; WriteNetwork does not
-	// create parents, so set the host dir up first.
+	// ops ruches join writes into an existing node directory; WriteNetwork does not
+	// create parents, so set the node dir up first.
 	if err := os.MkdirAll(filepath.Join(dir, "web"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -72,11 +72,11 @@ func TestCmdNetJoinJSONOutput(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0", code)
 	}
-	want := `{"host":"web","address":"1.2.3.4"}` + "\n"
+	want := `{"node":"web","address":"1.2.3.4"}` + "\n"
 	if out.String() != want {
 		t.Fatalf("output = %q, want %q", out.String(), want)
 	}
-	// The config file must still be written next to the host directory.
+	// The config file must still be written next to the node directory.
 	if _, err := os.ReadFile(filepath.Join(dir, "web", "configuration.yml")); err != nil {
 		t.Fatalf("config not written: %v", err)
 	}

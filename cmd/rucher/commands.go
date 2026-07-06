@@ -9,7 +9,7 @@ import (
 	"text/tabwriter"
 
 	"rucher/internal/compartment"
-	"rucher/internal/host"
+	"rucher/internal/node"
 	"rucher/internal/ops"
 	"rucher/internal/plan"
 	"rucher/internal/provision"
@@ -89,7 +89,7 @@ func cmdPlan(dir string, names []string, out io.Writer) int {
 
 // cmdNew provisions a compartment's OS user and age identity, printing its recipient.
 func cmdNew(name string, out io.Writer) int {
-	rec, err := reconcile.New(host.NewExec(), name)
+	rec, err := reconcile.New(node.NewExec(), name)
 	if err != nil {
 		fmt.Fprintf(out, "error: %v\n", err)
 		return 1
@@ -117,7 +117,7 @@ func cmdApply(dir string, names []string, out io.Writer) int {
 			rc = 1
 			continue
 		}
-		p, err := reconcile.Apply(host.NewExec(), c)
+		p, err := reconcile.Apply(node.NewExec(), c)
 		if err != nil {
 			fmt.Fprintf(out, "%s: ERROR %v\n", c.Name, err)
 			rc = 1
@@ -130,7 +130,7 @@ func cmdApply(dir string, names []string, out io.Writer) int {
 
 // cmdAgeRecipient prints the compartment's stored age recipient.
 func cmdAgeRecipient(name string, out io.Writer) int {
-	rec, err := reconcile.Recipient(host.NewExec(), name)
+	rec, err := reconcile.Recipient(node.NewExec(), name)
 	if err != nil {
 		fmt.Fprintf(out, "error: %v\n", err)
 		return 1
@@ -150,7 +150,7 @@ func cmdStatus(names []string, out io.Writer) int {
 		}
 		names = listed
 	}
-	r := host.NewExec()
+	r := node.NewExec()
 	tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "COMPARTMENT\tUNIT\tACTIVE\tSUB")
 	rc := 0
@@ -173,7 +173,7 @@ func cmdStatus(names []string, out io.Writer) int {
 // A system user's own `journalctl --user` cannot open the journal, so the entries
 // are read as root filtered to the user's unit (_SYSTEMD_USER_UNIT + _UID).
 func cmdLogs(name, unit string, out io.Writer) int {
-	r := host.NewExec()
+	r := node.NewExec()
 	res, err := r.Root([]string{"id", "-u", provision.UserName(name)}, nil)
 	if err != nil || res.Code != 0 {
 		fmt.Fprintf(out, "error: unknown compartment %s\n", name)
@@ -199,7 +199,7 @@ func cmdLogs(name, unit string, out io.Writer) int {
 
 // cmdRm stops a compartment's units; with purge it also removes its OS user.
 func cmdRm(name string, purge bool, out io.Writer) int {
-	if err := reconcile.Remove(host.NewExec(), name, purge); err != nil {
+	if err := reconcile.Remove(node.NewExec(), name, purge); err != nil {
 		fmt.Fprintf(out, "error: %v\n", err)
 		return 1
 	}

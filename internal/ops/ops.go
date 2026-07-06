@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"rucher/internal/age"
-	"rucher/internal/host"
+	"rucher/internal/node"
 )
 
 type Ops struct {
-	R    host.Runner
+	R    node.Runner
 	User string
 	UID  int
 }
@@ -93,7 +93,7 @@ func UnitService(unit string) string {
 	}
 }
 
-func wrap(res host.Result, err error, argv []string) error {
+func wrap(res node.Result, err error, argv []string) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", argv[0], err)
 	}

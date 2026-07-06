@@ -12,7 +12,7 @@ import (
 
 	"github.com/kevinburke/ssh_config"
 
-	"rucher/internal/hostcfg"
+	"rucher/internal/nodecfg"
 	"rucher/internal/sshx"
 )
 
@@ -25,7 +25,7 @@ func userOr(u, def string) string {
 
 // Resolve turns a host config into a native sshx.Target.
 // Precedence: network.address -> lima ssh.config -> connection block.
-func Resolve(name string, cfg hostcfg.Config, limaDir string) (sshx.Target, error) {
+func Resolve(name string, cfg nodecfg.Config, limaDir string) (sshx.Target, error) {
 	if cfg.Network.Address != "" {
 		return sshx.Target{
 			Addr:     net.JoinHostPort(cfg.Network.Address, "22"),

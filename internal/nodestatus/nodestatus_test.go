@@ -1,4 +1,4 @@
-package hoststatus
+package nodestatus
 
 import (
 	"errors"
@@ -42,7 +42,7 @@ func TestCollectAggregatesAndIsolates(t *testing.T) {
 	}
 	var a, b Row
 	for _, r := range rows {
-		if r.Host == "a" {
+		if r.Node == "a" {
 			a = r
 		} else {
 			b = r

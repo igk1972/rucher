@@ -1,5 +1,5 @@
-// Package node manages the node's own age key (born on the node, private key never leaves).
-package node
+// Package nodekey manages the node's own age key (born on the node, private key never leaves).
+package nodekey
 
 import (
 	"errors"

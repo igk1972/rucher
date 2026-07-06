@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"rucher/internal/host"
 	"rucher/internal/manifest"
+	"rucher/internal/node"
 )
 
 func TestUserNameAndHome(t *testing.T) {
@@ -18,7 +18,7 @@ func TestUserNameAndHome(t *testing.T) {
 }
 
 func TestEnsureUserCreatesWhenMissing(t *testing.T) {
-	f := &host.Fake{Responses: map[string]host.Result{
+	f := &node.Fake{Responses: map[string]node.Result{
 		// id -u for a missing user: non-zero exit
 		"root:id -u rucher-web": {Code: 1},
 		// after creation, id -u returns the uid (call recorded again below)
@@ -60,10 +60,10 @@ func TestHasSubid(t *testing.T) {
 }
 
 func TestEnsureUserAllocatesFreeBlock(t *testing.T) {
-	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u rucher-web":  {Stdout: "1500"},
-		"root:cat /etc/subuid": {Stdout: "existing:100000:65536\n"},
-		"root:cat /etc/subgid": {Stdout: "existing:100000:65536\n"},
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web": {Stdout: "1500"},
+		"root:cat /etc/subuid":  {Stdout: "existing:100000:65536\n"},
+		"root:cat /etc/subgid":  {Stdout: "existing:100000:65536\n"},
 	}}
 	uid, err := EnsureUser(f, "web")
 	if err != nil {
@@ -85,9 +85,9 @@ func TestEnsureUserAllocatesFreeBlock(t *testing.T) {
 }
 
 func TestEnsureUserSkipsSubidWhenPresent(t *testing.T) {
-	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u rucher-web":  {Stdout: "1500"},
-		"root:cat /etc/subuid": {Stdout: "rucher-web:300000:65536\n"},
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web": {Stdout: "1500"},
+		"root:cat /etc/subuid":  {Stdout: "rucher-web:300000:65536\n"},
 	}}
 	if _, err := EnsureUser(f, "web"); err != nil {
 		t.Fatal(err)
@@ -102,7 +102,7 @@ func TestEnsureUserSkipsSubidWhenPresent(t *testing.T) {
 }
 
 func TestApplyResourcesWritesDropInAndReloads(t *testing.T) {
-	f := &host.Fake{Responses: map[string]host.Result{}}
+	f := &node.Fake{Responses: map[string]node.Result{}}
 	if err := ApplyResources(f, 1234, manifest.Resources{MemoryMax: "512M", CPUQuota: "50%"}); err != nil {
 		t.Fatal(err)
 	}

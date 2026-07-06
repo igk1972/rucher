@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"rucher/internal/hostcfg"
+	"rucher/internal/nodecfg"
 )
 
-// parseNetJoin reads a single positional <host>, a required --address <addr> and
+// parseNetJoin reads a single positional <node>, a required --address <addr> and
 // an optional --json flag that switches the success output to a JSON object.
-func parseNetJoin(args []string) (hostName, address string, jsonOut bool, err error) {
+func parseNetJoin(args []string) (nodeName, address string, jsonOut bool, err error) {
 	haveAddress := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -24,51 +24,51 @@ func parseNetJoin(args []string) (hostName, address string, jsonOut bool, err er
 		case "--json":
 			jsonOut = true
 		default:
-			// A real host name never starts with "-", so an unknown flag-looking
-			// token is a typo, not the host (e.g. --drivr silently becoming a name).
+			// A real node name never starts with "-", so an unknown flag-looking
+			// token is a typo, not the node (e.g. --drivr silently becoming a name).
 			if strings.HasPrefix(args[i], "-") {
 				return "", "", false, fmt.Errorf("unknown flag %q", args[i])
 			}
-			if hostName != "" {
+			if nodeName != "" {
 				return "", "", false, fmt.Errorf("unexpected argument %q", args[i])
 			}
-			hostName = args[i]
+			nodeName = args[i]
 		}
 	}
-	if hostName == "" {
-		return "", "", false, fmt.Errorf("usage: net join <host> --address <addr>")
+	if nodeName == "" {
+		return "", "", false, fmt.Errorf("usage: ops ruches join <node> --address <addr>")
 	}
 	if !haveAddress {
-		return "", "", false, fmt.Errorf("net join requires --address")
+		return "", "", false, fmt.Errorf("ops ruches join requires --address")
 	}
 	// Trim surrounding whitespace: a padded value is cleaned before storing, and
 	// an all-whitespace value collapses to "" and is rejected below as a usage
 	// error rather than stored as a blank address.
 	address = strings.TrimSpace(address)
 	if address == "" {
-		return "", "", false, fmt.Errorf("net join requires a non-empty --address")
+		return "", "", false, fmt.Errorf("ops ruches join requires a non-empty --address")
 	}
-	return hostName, address, jsonOut, nil
+	return nodeName, address, jsonOut, nil
 }
 
-// cmdNetJoin records a host's static management address in its host config.
-func cmdNetJoin(hostsDir string, args []string, out io.Writer) int {
+// cmdNetJoin records a node's static management address in its node config.
+func cmdNetJoin(nodesDir string, args []string, out io.Writer) int {
 	name, address, jsonOut, err := parseNetJoin(args)
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 2
 	}
-	path := filepath.Join(hostsDir, name, "configuration.yml")
-	if err := hostcfg.WriteNetwork(path, hostcfg.Network{Address: address}); err != nil {
+	path := filepath.Join(nodesDir, name, "configuration.yml")
+	if err := nodecfg.WriteNetwork(path, nodecfg.Network{Address: address}); err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1
 	}
 	if jsonOut {
 		// Compact machine-readable success line; field order matches the struct.
 		b, err := json.Marshal(struct {
-			Host    string `json:"host"`
+			Node    string `json:"node"`
 			Address string `json:"address"`
-		}{Host: name, Address: address})
+		}{Node: name, Address: address})
 		if err != nil {
 			fmt.Fprintln(out, "error:", err)
 			return 1
