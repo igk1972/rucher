@@ -19,6 +19,8 @@ func TestParseNetJoinErrors(t *testing.T) {
 		"missing address value": {"web", "--address"},
 		"extra positional":      {"web", "extra", "--address", "1.2.3.4"},
 		"unknown flag":          {"web", "--drivr", "--address", "1.2.3.4"},
+		"blank address":         {"web", "--address", ""},
+		"whitespace address":    {"web", "--address", "  "},
 	}
 	for name, args := range cases {
 		if _, _, err := parseNetJoin(args); err == nil {
