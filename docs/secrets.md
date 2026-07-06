@@ -1,0 +1,93 @@
+# Secrets (SOPS + age)
+
+Secrets live **encrypted at rest** inside a compartment directory, safe to commit to the
+store. The model is [SOPS](https://github.com/getsops/sops) for the file format plus
+[age](https://age-encryption.org/) (X25519) for the encryption backend. Plaintext is only
+ever held in the manager's memory and fed to podman over stdin — never written to disk,
+never passed on a command line.
+
+## Per-compartment identity
+
+Every compartment has its own age identity, generated **in-process** (via `filippo.io/age`)
+the first time the compartment's user is provisioned. It is stored under the compartment
+user's home:
+
+```
+<home>/.config/rucher/age/
+  identity.txt     # the private age identity (mode 0600)
+  recipient.txt    # the public recipient (age1...)
+```
+
+Retrieve the recipient with `rucher age recipient <name>` (or it is printed by `rucher new`).
+
+The per-compartment identity scopes **at-rest** access in the store: a compartment's file is
+encrypted only to that compartment's recipient, so compartments cannot read each other's
+secrets from the store. It does not scope runtime access on the host — root (the manager)
+can already read every compartment's identity and every secret.
+
+## Encrypting a compartment's secrets
+
+Encrypt a plaintext key/value document to the compartment's recipient and save it as the
+compartment's SOPS file (default filename `secrets.sops.yaml`):
+
+```bash
+sudo rucher new web                                    # prints the compartment recipient
+REC=$(sudo rucher age recipient web)
+
+printf 'db_password: s3cr3t\n' \
+  | sops --encrypt --input-type yaml --output-type yaml --age "$REC" /dev/stdin \
+  > compartments/web/secrets.sops.yaml
+```
+
+`--input-type yaml` matters: without it SOPS may treat the input as binary and wrap the whole
+document under a single `data` key, so the individual keys would not be addressable.
+
+The manifest points at this file and (optionally) narrows which keys become podman secrets:
+
+```yaml
+# compartment.yml
+name: web
+secrets:
+  from: secrets.sops.yaml
+  create: [db_password]     # only this key -> a podman secret; omit `create` to take all keys
+```
+
+## Decryption at `apply`
+
+When a compartment ships a SOPS file, `apply` decrypts it as **root**:
+
+```
+env SOPS_AGE_KEY_FILE=<home>/.../age/identity.txt \
+    sops -d --output-type json <secrets.sops.yaml>
+```
+
+Root can read both the (root-owned) SOPS file and the compartment user's age identity. The
+decrypted JSON is parsed into an in-memory key/value map. From there:
+
+- keys selected by `secrets.create` (or all keys, if `create` is omitted) are turned into
+  podman secrets via `podman secret create <key> -`, the value piped over stdin, run as the
+  compartment user. A changed value hash re-creates the secret; a key removed from the file
+  removes the secret (see [compartments.md](compartments.md) for the diff rules).
+- each `registries.login[]` entry logs in with `podman login --username <u> --password-stdin`,
+  the password taken from the decrypted key named by `passwordKey`.
+
+Units consume the resulting podman secrets the normal Quadlet way, e.g.
+`Secret=db_password,type=env,target=DB_PASSWORD`.
+
+## Host tooling
+
+The host needs the **`sops` binary** on `PATH` for decryption. age is **not** a separate host
+dependency:
+
+- identity **generation** is in-process (built into the manager);
+- identity **decryption** uses SOPS's built-in age backend, driven by the
+  `SOPS_AGE_KEY_FILE` environment variable — there is no separate age CLI to install.
+
+See [host-requirements.md](host-requirements.md).
+
+## Relation to the GitOps agent
+
+Under the GitOps agent, the compartment's private identity does not live on the host until it
+is needed: it is sealed to the node's recipient as `identity.age` and committed to the store.
+The agent unseals it with the node key and installs it at the same `identity.txt` path before
+running the decrypt+apply described above. See [gitops-agent.md](gitops-agent.md).

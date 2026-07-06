@@ -1,0 +1,36 @@
+# rucher
+
+`rucher` (the built binary is `rucher`) is a config-driven
+manager that runs each workload group as an isolated **compartment**. A compartment is a
+dedicated rootless-podman environment owned by its own Linux user, materialized from
+[Quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) unit files
+under per-user systemd, with its secrets encrypted at rest (SOPS + age). The tool does not
+generate units — you author them — it reconciles a directory of compartments into running
+services, idempotently. On top of the single-host reconciler it offers an optional
+**pull-based GitOps agent** (each node reconciles the compartments a placement file assigns
+to it, out of a git or S3 store), an **operator status/management plane** that queries every
+host over SSH, and optional **per-compartment overlay networking** for transparent L3
+connectivity between workloads across hosts.
+
+## Table of contents
+
+| Document | What it covers |
+|----------|----------------|
+| [architecture.md](architecture.md) | Components and how they fit; the reconcile data flow |
+| [cli.md](cli.md) | Reference for every `rucher` command, its flags and an example |
+| [compartments.md](compartments.md) | Compartment directory layout, manifest schema, the per-user rootless model, and how `plan`/`apply` reconcile |
+| [secrets.md](secrets.md) | The SOPS/age secret model: per-compartment identity, encryption, podman secrets, decryption at apply |
+| [gitops-agent.md](gitops-agent.md) | Pull-based reconcile: git/S3 store backends, `placement.yml`, node and sealed compartment identities, `agent run`/`install` |
+| [management-network.md](management-network.md) | `net join`, `hosts status`, the native Go SSH client with TOFU host-key pinning, address resolution |
+| [overlays.md](overlays.md) | Per-compartment overlay networking for cross-host L3 between workloads |
+| [host-requirements.md](host-requirements.md) | What each host in the fleet must provide |
+
+## Terminology
+
+- **Compartment** — one workload group: a directory ([compartments.md](compartments.md))
+  reconciled into a dedicated Linux user's rootless-podman environment.
+- **Node / host** — a Linux machine in the fleet that runs compartments. Reached over SSH
+  by the operator plane; a node runs the GitOps agent to reconcile itself.
+- **Operator** — the machine an engineer drives `rucher` from to query and manage the fleet.
+- **Store** — the git or S3 source of truth the GitOps agent pulls
+  ([gitops-agent.md](gitops-agent.md)).
