@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"podman-essaim-compartment-manager/internal/hostcfg"
+	"rucher/internal/hostcfg"
 )
 
 // parseNetJoin reads a single positional <host>, a required --address <addr> and

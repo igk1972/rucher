@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"podman-essaim-compartment-manager/internal/fileset"
-	"podman-essaim-compartment-manager/internal/manifest"
+	"rucher/internal/fileset"
+	"rucher/internal/manifest"
 )
 
 type File struct {

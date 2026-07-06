@@ -7,7 +7,7 @@ import (
 )
 
 func usage() string {
-	return "podman-essaim-compartment-manager <command> [args]\n" +
+	return "rucher <command> [args]\n" +
 		"commands: new plan apply status rm logs age node agent keygen net hosts\n"
 }
 
@@ -115,7 +115,7 @@ func run(args []string, stdout io.Writer) int {
 			fmt.Fprintln(stdout, "usage: agent run|install")
 			return 2
 		}
-		configPath := "/etc/podman-essaim/agent.yml"
+		configPath := "/etc/rucher/agent.yml"
 		rest := args[2:]
 		if len(rest) >= 2 && rest[0] == "--config" {
 			configPath = rest[1]

@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"podman-essaim-compartment-manager/internal/host"
-	"podman-essaim-compartment-manager/internal/manifest"
+	"rucher/internal/host"
+	"rucher/internal/manifest"
 )
 
 func TestUserNameAndHome(t *testing.T) {
-	if UserName("web") != "pecm-web" {
+	if UserName("web") != "rucher-web" {
 		t.Fatalf("UserName = %q", UserName("web"))
 	}
 	if HomeDir("web") != BaseDir+"/web" {
@@ -20,7 +20,7 @@ func TestUserNameAndHome(t *testing.T) {
 func TestEnsureUserCreatesWhenMissing(t *testing.T) {
 	f := &host.Fake{Responses: map[string]host.Result{
 		// id -u for a missing user: non-zero exit
-		"root:id -u pecm-web": {Code: 1},
+		"root:id -u rucher-web": {Code: 1},
 		// after creation, id -u returns the uid (call recorded again below)
 	}}
 	// Second id -u (after useradd) should return the uid; emulate by switching response.
@@ -31,7 +31,7 @@ func TestEnsureUserCreatesWhenMissing(t *testing.T) {
 		joined = append(joined, strings.Join(c.Argv, " "))
 	}
 	all := strings.Join(joined, "\n")
-	for _, want := range []string{"useradd", "loginctl enable-linger pecm-web"} {
+	for _, want := range []string{"useradd", "loginctl enable-linger rucher-web"} {
 		if !strings.Contains(all, want) {
 			t.Fatalf("expected command %q in:\n%s", want, all)
 		}
@@ -51,17 +51,17 @@ func TestNextSubidStart(t *testing.T) {
 }
 
 func TestHasSubid(t *testing.T) {
-	if !hasSubid("pecm-web:100000:65536\n", "pecm-web") {
-		t.Fatal("expected hasSubid to find pecm-web")
+	if !hasSubid("rucher-web:100000:65536\n", "rucher-web") {
+		t.Fatal("expected hasSubid to find rucher-web")
 	}
-	if hasSubid("pecm-web:100000:65536\n", "pecm-api") {
-		t.Fatal("expected hasSubid to not find pecm-api")
+	if hasSubid("rucher-web:100000:65536\n", "rucher-api") {
+		t.Fatal("expected hasSubid to not find rucher-api")
 	}
 }
 
 func TestEnsureUserAllocatesFreeBlock(t *testing.T) {
 	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u pecm-web":  {Stdout: "1500"},
+		"root:id -u rucher-web":  {Stdout: "1500"},
 		"root:cat /etc/subuid": {Stdout: "existing:100000:65536\n"},
 		"root:cat /etc/subgid": {Stdout: "existing:100000:65536\n"},
 	}}
@@ -72,7 +72,7 @@ func TestEnsureUserAllocatesFreeBlock(t *testing.T) {
 	if uid != 1500 {
 		t.Fatalf("uid = %d, want 1500", uid)
 	}
-	want := []string{"usermod", "--add-subuids", "165536-231071", "--add-subgids", "165536-231071", "pecm-web"}
+	want := []string{"usermod", "--add-subuids", "165536-231071", "--add-subgids", "165536-231071", "rucher-web"}
 	found := false
 	for _, c := range f.Calls {
 		if strings.Join(c.Argv, " ") == strings.Join(want, " ") {
@@ -86,8 +86,8 @@ func TestEnsureUserAllocatesFreeBlock(t *testing.T) {
 
 func TestEnsureUserSkipsSubidWhenPresent(t *testing.T) {
 	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u pecm-web":  {Stdout: "1500"},
-		"root:cat /etc/subuid": {Stdout: "pecm-web:300000:65536\n"},
+		"root:id -u rucher-web":  {Stdout: "1500"},
+		"root:cat /etc/subuid": {Stdout: "rucher-web:300000:65536\n"},
 	}}
 	if _, err := EnsureUser(f, "web"); err != nil {
 		t.Fatal(err)

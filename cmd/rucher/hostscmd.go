@@ -10,8 +10,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"podman-essaim-compartment-manager/internal/hoststatus"
-	"podman-essaim-compartment-manager/internal/sshx"
+	"rucher/internal/hoststatus"
+	"rucher/internal/sshx"
 )
 
 func limaDir() string {
@@ -28,7 +28,7 @@ func knownHostsPath() string {
 	if err != nil {
 		return "known_hosts"
 	}
-	return filepath.Join(home, ".config", "podman-essaim", "known_hosts")
+	return filepath.Join(home, ".config", "rucher", "known_hosts")
 }
 
 // cmdHostsStatus gathers per-host status over ssh and renders it as either a

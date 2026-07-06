@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"strings"
 
-	"podman-essaim-compartment-manager/internal/agent"
-	"podman-essaim-compartment-manager/internal/hostcfg"
-	"podman-essaim-compartment-manager/internal/sshresolve"
-	"podman-essaim-compartment-manager/internal/sshx"
+	"rucher/internal/agent"
+	"rucher/internal/hostcfg"
+	"rucher/internal/sshresolve"
+	"rucher/internal/sshx"
 )
 
-const statusPath = "/var/lib/podman-essaim/agent-status.json"
+const statusPath = "/var/lib/rucher/agent-status.json"
 
 type Row struct {
 	Host      string   `json:"host"`
@@ -79,7 +79,7 @@ func Collect(r sshx.Runner, hostsDir, limaDir string, names []string, live bool)
 			}
 		}
 		if live {
-			if lv, err := r.Run(target, []string{"sudo", "pecm", "status"}, nil); err == nil {
+			if lv, err := r.Run(target, []string{"sudo", "rucher", "status"}, nil); err == nil {
 				row.Live = lv.Stdout
 			}
 		}

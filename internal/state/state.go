@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"podman-essaim-compartment-manager/internal/manifest"
+	"rucher/internal/manifest"
 )
 
 type State struct {

@@ -1,4 +1,4 @@
-module podman-essaim-compartment-manager
+module rucher
 
 go 1.23
 

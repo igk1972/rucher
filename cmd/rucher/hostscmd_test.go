@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"podman-essaim-compartment-manager/internal/hoststatus"
+	"rucher/internal/hoststatus"
 )
 
 func TestRenderHostsJSON(t *testing.T) {

@@ -1,4 +1,4 @@
-# podman-essaim-compartment-manager
+# rucher
 
 Single-host manager for **podman Quadlet** workloads. It reconciles a directory of
 *compartments* into running rootless-podman services under per-user systemd. Each
@@ -28,7 +28,7 @@ Native systemd gives dependencies (`After=`/`Requires=`), lifecycle hooks
 ## Build
 
 ```bash
-GOOS=linux GOARCH=arm64 go build -o pecm ./cmd/podman-essaim-compartment-manager
+GOOS=linux GOARCH=arm64 go build -o rucher ./cmd/rucher
 ```
 
 Runs as **root** on the target host (it creates users, manages linger/subuids, and drives
@@ -72,13 +72,13 @@ Units reference support files by their in-place path, e.g.
 ## Commands
 
 ```
-pecm new <name>                     # create the user + age identity; print the recipient
-pecm age recipient <name>           # print a compartment's age recipient
-pecm plan [--dir DIR] [name...]     # dry-run: show what apply would change
-pecm apply [--dir DIR] [name...]    # reconcile compartments onto the host
-pecm status [name...]               # per-unit ActiveState/SubState
-pecm logs <name> <unit>             # journalctl --user for one unit
-pecm rm <name> [--purge]            # stop + unmanage; --purge also deletes the user + data
+rucher new <name>                     # create the user + age identity; print the recipient
+rucher age recipient <name>           # print a compartment's age recipient
+rucher plan [--dir DIR] [name...]     # dry-run: show what apply would change
+rucher apply [--dir DIR] [name...]    # reconcile compartments onto the host
+rucher status [name...]               # per-unit ActiveState/SubState
+rucher logs <name> <unit>             # journalctl --user for one unit
+rucher rm <name> [--purge]            # stop + unmanage; --purge also deletes the user + data
 ```
 
 No `--dir` defaults to `./compartments`; no names means all compartments.
@@ -86,11 +86,11 @@ No `--dir` defaults to `./compartments`; no names means all compartments.
 ## Secret workflow
 
 ```bash
-sudo pecm new web                                   # prints age1... recipient
+sudo rucher new web                                   # prints age1... recipient
 printf 'db_password: s3cr3t\n' \
   | sops --encrypt --age <recipient> /dev/stdin \
   > compartments/web/secrets.sops.yaml              # encrypt to that recipient
-sudo pecm apply --dir ./compartments web            # decrypt + create podman secret + start
+sudo rucher apply --dir ./compartments web            # decrypt + create podman secret + start
 ```
 
 At apply time the root agent decrypts the SOPS file using the compartment's age identity
@@ -101,29 +101,29 @@ registry logins as the compartment user via stdin.
 
 | What | Path |
 |------|------|
-| Compartment user | `pecm-<name>` (system user, nologin) |
-| Home | `/var/lib/podman-essaim/compartments/<name>` |
+| Compartment user | `rucher-<name>` (system user, nologin) |
+| Home | `/var/lib/rucher/compartments/<name>` |
 | Units + support files | `<home>/.config/containers/systemd/` |
-| age identity / recipient | `<home>/.config/podman-essaim-compartment-manager/age/` |
-| Last-applied state (hashes only) | `/var/lib/podman-essaim/compartments/state/<name>.json` |
-| Resource slice drop-in | `/etc/systemd/system/user-<uid>.slice.d/50-podman-essaim-compartment-manager.conf` |
+| age identity / recipient | `<home>/.config/rucher/age/` |
+| Last-applied state (hashes only) | `/var/lib/rucher/compartments/state/<name>.json` |
+| Resource slice drop-in | `/etc/systemd/system/user-<uid>.slice.d/50-rucher.conf` |
 
 Each compartment user gets a unique, non-overlapping subuid/subgid block (allocated from
 `/etc/subuid`), so many compartments coexist on one host.
 
 ## Host keys
 
-`pecm hosts status` (and the rest of the operator control plane) reaches hosts with a
+`rucher hosts status` (and the rest of the operator control plane) reaches hosts with a
 built-in Go SSH client — no system `ssh` binary is required. Host keys are trusted
 **TOFU**: an unknown host is accepted and pinned on first contact into
-`~/.config/podman-essaim/known_hosts` (created mode 0600); a later key **change** for the
+`~/.config/rucher/known_hosts` (created mode 0600); a later key **change** for the
 same host is rejected.
 
 This is a separate trust store from `~/.ssh/known_hosts`, so every host re-pins on first
 contact after switching to the native client. Lima nodes (previously reached via
 `ssh -F ~/.lima/<name>/ssh.config`, which disables host-key checking) are now TOFU-pinned
 like any other host. If a Lima VM is recreated on the **same** forwarded port with a new
-key, clear its line from `~/.config/podman-essaim/known_hosts` before reconnecting.
+key, clear its line from `~/.config/rucher/known_hosts` before reconnecting.
 
 ## Compartment overlays
 
@@ -132,7 +132,7 @@ without any manager code change. It fits the opaque-Quadlet model: the operator 
 kernel-mode Tailscale sidecar plus the app in one pod, and the auth key rides the existing
 `secrets.create` machinery (podman secret → sidecar env). Privilege stays confined to the
 sidecar; the unprivileged app shares the pod netns and reaches the tailnet transparently.
-This is distinct from the operator control-plane network (`pecm net join`, which sets a
+This is distinct from the operator control-plane network (`rucher net join`, which sets a
 *host's* management address). See the runbook
 [`test/integration-overlay.md`](test/integration-overlay.md) and the ready example in
 [`test/overlay-example/`](test/overlay-example/).

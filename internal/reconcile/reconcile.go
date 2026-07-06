@@ -9,19 +9,19 @@ import (
 	"path/filepath"
 	"strings"
 
-	"podman-essaim-compartment-manager/internal/compartment"
-	"podman-essaim-compartment-manager/internal/host"
-	"podman-essaim-compartment-manager/internal/ops"
-	"podman-essaim-compartment-manager/internal/plan"
-	"podman-essaim-compartment-manager/internal/provision"
-	"podman-essaim-compartment-manager/internal/secrets"
-	"podman-essaim-compartment-manager/internal/state"
+	"rucher/internal/compartment"
+	"rucher/internal/host"
+	"rucher/internal/ops"
+	"rucher/internal/plan"
+	"rucher/internal/provision"
+	"rucher/internal/secrets"
+	"rucher/internal/state"
 )
 
-// stateBaseDir is where per-compartment state files live. PECM_STATE_DIR overrides the
+// stateBaseDir is where per-compartment state files live. RUCHER_STATE_DIR overrides the
 // default (useful for tests and alternative layouts); empty falls back to provision.BaseDir.
 func stateBaseDir() string {
-	if d := os.Getenv("PECM_STATE_DIR"); d != "" {
+	if d := os.Getenv("RUCHER_STATE_DIR"); d != "" {
 		return d
 	}
 	return provision.BaseDir
@@ -36,7 +36,7 @@ func systemdDir(name string) string {
 }
 
 func ageDir(name string) string {
-	return provision.HomeDir(name) + "/.config/podman-essaim-compartment-manager/age"
+	return provision.HomeDir(name) + "/.config/rucher/age"
 }
 
 func IdentityPath(name string) string  { return ageDir(name) + "/identity.txt" }

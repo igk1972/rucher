@@ -6,18 +6,18 @@ import (
 	"strconv"
 	"strings"
 
-	"podman-essaim-compartment-manager/internal/host"
-	"podman-essaim-compartment-manager/internal/manifest"
+	"rucher/internal/host"
+	"rucher/internal/manifest"
 )
 
-const BaseDir = "/var/lib/podman-essaim/compartments"
+const BaseDir = "/var/lib/rucher/compartments"
 
 const (
 	subidCount = 65536
 	subidBase  = 100000
 )
 
-func UserName(name string) string { return "pecm-" + name }
+func UserName(name string) string { return "rucher-" + name }
 func HomeDir(name string) string  { return BaseDir + "/" + name }
 
 // nextSubidStart returns the next free subid start, scanning both /etc/subuid and
@@ -117,7 +117,7 @@ func ApplyResources(r host.Runner, uid int, res manifest.Resources) error {
 	if res.CPUQuota != "" {
 		fmt.Fprintf(&b, "CPUQuota=%s\n", res.CPUQuota)
 	}
-	conf := dir + "/50-podman-essaim-compartment-manager.conf"
+	conf := dir + "/50-rucher.conf"
 	// tee reads the drop-in body from stdin (never argv).
 	if _, err := r.Root([]string{"tee", conf}, []byte(b.String())); err != nil {
 		return err

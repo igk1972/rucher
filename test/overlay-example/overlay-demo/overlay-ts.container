@@ -6,6 +6,6 @@ AddDevice=/dev/net/tun
 AddCapability=NET_ADMIN
 AddCapability=NET_RAW
 Secret=ts-authkey,type=env,target=TS_AUTHKEY
-Environment=TS_USERSPACE=false TS_HOSTNAME=pecm-overlay-demo TS_STATE_DIR=/tmp/tsstate
+Environment=TS_USERSPACE=false TS_HOSTNAME=rucher-overlay-demo TS_STATE_DIR=/tmp/tsstate
 [Install]
 WantedBy=default.target

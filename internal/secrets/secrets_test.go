@@ -3,7 +3,7 @@ package secrets
 import (
 	"testing"
 
-	"podman-essaim-compartment-manager/internal/host"
+	"rucher/internal/host"
 )
 
 func TestDecryptParsesJSON(t *testing.T) {

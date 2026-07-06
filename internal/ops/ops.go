@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"podman-essaim-compartment-manager/internal/age"
-	"podman-essaim-compartment-manager/internal/host"
+	"rucher/internal/age"
+	"rucher/internal/host"
 )
 
 type Ops struct {

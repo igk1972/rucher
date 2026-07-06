@@ -8,13 +8,13 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"podman-essaim-compartment-manager/internal/compartment"
-	"podman-essaim-compartment-manager/internal/host"
-	"podman-essaim-compartment-manager/internal/ops"
-	"podman-essaim-compartment-manager/internal/plan"
-	"podman-essaim-compartment-manager/internal/provision"
-	"podman-essaim-compartment-manager/internal/reconcile"
-	"podman-essaim-compartment-manager/internal/state"
+	"rucher/internal/compartment"
+	"rucher/internal/host"
+	"rucher/internal/ops"
+	"rucher/internal/plan"
+	"rucher/internal/provision"
+	"rucher/internal/reconcile"
+	"rucher/internal/state"
 )
 
 // discover returns compartment directories under dir, optionally filtered by names.

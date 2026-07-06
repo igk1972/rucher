@@ -5,13 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	"podman-essaim-compartment-manager/internal/age"
-	"podman-essaim-compartment-manager/internal/compartment"
-	"podman-essaim-compartment-manager/internal/fileset"
-	"podman-essaim-compartment-manager/internal/host"
-	"podman-essaim-compartment-manager/internal/manifest"
-	"podman-essaim-compartment-manager/internal/provision"
-	"podman-essaim-compartment-manager/internal/state"
+	"rucher/internal/age"
+	"rucher/internal/compartment"
+	"rucher/internal/fileset"
+	"rucher/internal/host"
+	"rucher/internal/manifest"
+	"rucher/internal/provision"
+	"rucher/internal/state"
 )
 
 func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
@@ -20,9 +20,9 @@ func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
 	c.Files = []compartment.File{{Name: "web.container", Content: []byte(body), Hash: fileset.Hash([]byte(body)), IsUnit: true}}
 
 	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u pecm-web": {Stdout: "1234", Code: 0},
+		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
 	}}
-	t.Setenv("PECM_STATE_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 
 	p, err := Apply(f, c)
 	if err != nil {
@@ -41,10 +41,10 @@ func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
 }
 
 func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
-	idp := provision.HomeDir("web") + "/.config/podman-essaim-compartment-manager/age/identity.txt"
-	recp := provision.HomeDir("web") + "/.config/podman-essaim-compartment-manager/age/recipient.txt"
+	idp := provision.HomeDir("web") + "/.config/rucher/age/identity.txt"
+	recp := provision.HomeDir("web") + "/.config/rucher/age/recipient.txt"
 	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u pecm-web":      {Stdout: "1500"},
+		"root:id -u rucher-web":      {Stdout: "1500"},
 		"root:cat /etc/subuid":     {},
 		"root:cat /etc/subgid":     {},
 		"user:1500:test -f " + idp: {Code: 1}, // force generation
@@ -89,7 +89,7 @@ func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 }
 
 func TestStatusReportsUnitStates(t *testing.T) {
-	t.Setenv("PECM_STATE_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestStatusReportsUnitStates(t *testing.T) {
 }
 
 func TestListReturnsCompartmentsWithState(t *testing.T) {
-	t.Setenv("PECM_STATE_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 	if err := state.Save(statePath("web"), state.State{Name: "web"}); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestListReturnsCompartmentsWithState(t *testing.T) {
 }
 
 func TestListEmptyWhenNoStateDir(t *testing.T) {
-	t.Setenv("PECM_STATE_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 	got, err := List()
 	if err != nil {
 		t.Fatal(err)
@@ -136,7 +136,7 @@ func TestListEmptyWhenNoStateDir(t *testing.T) {
 }
 
 func TestStatusEmptyWhenNoState(t *testing.T) {
-	t.Setenv("PECM_STATE_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 	f := &host.Fake{Responses: map[string]host.Result{}}
 	got, err := Status(f, "web")
 	if err != nil {
@@ -148,7 +148,7 @@ func TestStatusEmptyWhenNoState(t *testing.T) {
 }
 
 func TestRemoveStopsUnitsAndFilesWithoutPurge(t *testing.T) {
-	t.Setenv("PECM_STATE_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestRemoveStopsUnitsAndFilesWithoutPurge(t *testing.T) {
 }
 
 func TestRemovePurgeDeletesUser(t *testing.T) {
-	t.Setenv("PECM_STATE_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestRemovePurgeDeletesUser(t *testing.T) {
 	wantRmSlice := "rm -rf /etc/systemd/system/user-1234.slice.d"
 	for _, c := range f.Calls {
 		joined := strings.Join(c.Argv, " ")
-		if c.Root && joined == "userdel -r pecm-web" {
+		if c.Root && joined == "userdel -r rucher-web" {
 			sawUserdel = true
 		}
 		if c.Root && joined == wantRmSlice {
@@ -205,7 +205,7 @@ func TestRemovePurgeDeletesUser(t *testing.T) {
 		}
 	}
 	if !sawUserdel {
-		t.Errorf("expected a root `userdel -r pecm-web` call")
+		t.Errorf("expected a root `userdel -r rucher-web` call")
 	}
 	if !sawRmSlice {
 		t.Errorf("expected a root `%s` call", wantRmSlice)
@@ -213,13 +213,13 @@ func TestRemovePurgeDeletesUser(t *testing.T) {
 }
 
 func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
-	t.Setenv("PECM_STATE_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 
-	sopsPath := "/etc/pecm/web/secrets.sops.yaml"
+	sopsPath := "/etc/rucher/web/secrets.sops.yaml"
 	idp := IdentityPath("web")
 	decrypted := `{"db_password":"pw1","ghcr_token":"tok"}`
 	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u pecm-web": {Stdout: "1234", Code: 0},
+		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
 		"root:env SOPS_AGE_KEY_FILE=" + idp + " sops -d --output-type json " + sopsPath: {Stdout: decrypted},
 	}}
 
@@ -254,13 +254,13 @@ func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 }
 
 func TestApplyErrorsOnMissingLoginPasswordKey(t *testing.T) {
-	t.Setenv("PECM_STATE_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 
-	sopsPath := "/etc/pecm/web/secrets.sops.yaml"
+	sopsPath := "/etc/rucher/web/secrets.sops.yaml"
 	idp := IdentityPath("web")
 	decrypted := `{"db_password":"pw1"}`
 	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u pecm-web": {Stdout: "1234", Code: 0},
+		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
 		"root:env SOPS_AGE_KEY_FILE=" + idp + " sops -d --output-type json " + sopsPath: {Stdout: decrypted},
 	}}
 
@@ -285,7 +285,7 @@ func TestApplyErrorsOnMissingLoginPasswordKey(t *testing.T) {
 }
 
 func TestRecipientReadsFile(t *testing.T) {
-	recp := provision.HomeDir("web") + "/.config/podman-essaim-compartment-manager/age/recipient.txt"
+	recp := provision.HomeDir("web") + "/.config/rucher/age/recipient.txt"
 	f := &host.Fake{Responses: map[string]host.Result{
 		"root:cat " + recp: {Stdout: "age1abc\n"},
 	}}

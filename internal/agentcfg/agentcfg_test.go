@@ -14,7 +14,7 @@ store:
   kind: git
   url: git@example.com:org/fleet.git
   branch: main
-  sshKey: /etc/podman-essaim/deploy_key
+  sshKey: /etc/rucher/deploy_key
 interval: 30s
 `), 0o644)
 	c, err := Load(path)

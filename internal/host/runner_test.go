@@ -24,14 +24,14 @@ func TestFakeRecordsAndResponds(t *testing.T) {
 	f := &Fake{Responses: map[string]Result{
 		"user:1234:systemctl --user is-active web.service": {Stdout: "active", Code: 0},
 	}}
-	res, err := f.User("pecm-web", 1234, []string{"systemctl", "--user", "is-active", "web.service"}, nil)
+	res, err := f.User("rucher-web", 1234, []string{"systemctl", "--user", "is-active", "web.service"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.TrimSpace(res.Stdout) != "active" {
 		t.Fatalf("stdout = %q", res.Stdout)
 	}
-	if len(f.Calls) != 1 || f.Calls[0].User != "pecm-web" {
+	if len(f.Calls) != 1 || f.Calls[0].User != "rucher-web" {
 		t.Fatalf("calls = %+v", f.Calls)
 	}
 }
@@ -68,8 +68,8 @@ func TestNewExecFeedsStdin(t *testing.T) {
 }
 
 func TestFakeRootAndErr(t *testing.T) {
-	f := &Fake{Responses: map[string]Result{"root:id -u pecm-web": {Stdout: "1234"}}}
-	res, err := f.Root([]string{"id", "-u", "pecm-web"}, nil)
+	f := &Fake{Responses: map[string]Result{"root:id -u rucher-web": {Stdout: "1234"}}}
+	res, err := f.Root([]string{"id", "-u", "rucher-web"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

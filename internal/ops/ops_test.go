@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"podman-essaim-compartment-manager/internal/age"
-	"podman-essaim-compartment-manager/internal/host"
+	"rucher/internal/age"
+	"rucher/internal/host"
 )
 
 func TestUnitService(t *testing.T) {
@@ -28,7 +28,7 @@ func TestStartStopUseStartStopNotEnableDisable(t *testing.T) {
 	// Start/Stop must issue plain start/stop; boot-persistence comes from the
 	// unit's [Install] section + linger.
 	f := &host.Fake{Responses: map[string]host.Result{}}
-	o := Ops{R: f, User: "pecm-web", UID: 1234}
+	o := Ops{R: f, User: "rucher-web", UID: 1234}
 
 	if err := o.Start("web.container"); err != nil {
 		t.Fatal(err)
@@ -71,7 +71,7 @@ func equalArgv(a, b []string) bool {
 
 func TestGenerateAgeKey(t *testing.T) {
 	f := &host.Fake{Responses: map[string]host.Result{}}
-	o := Ops{R: f, User: "pecm-web", UID: 1500}
+	o := Ops{R: f, User: "rucher-web", UID: 1500}
 
 	recipient, err := o.GenerateAgeKey("/id/identity.txt")
 	if err != nil {
@@ -115,7 +115,7 @@ func TestGenerateAgeKey(t *testing.T) {
 
 func TestSecretCreatePassesValueViaStdin(t *testing.T) {
 	f := &host.Fake{Responses: map[string]host.Result{}}
-	o := Ops{R: f, User: "pecm-web", UID: 1234}
+	o := Ops{R: f, User: "rucher-web", UID: 1234}
 	if err := o.SecretCreate("db_password", []byte("s3cr3t")); err != nil {
 		t.Fatal(err)
 	}

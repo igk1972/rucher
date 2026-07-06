@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"podman-essaim-compartment-manager/internal/fileset"
-	"podman-essaim-compartment-manager/internal/host"
+	"rucher/internal/fileset"
+	"rucher/internal/host"
 )
 
 func Decrypt(r host.Runner, identityPath, sopsPath string) (map[string]string, error) {

@@ -5,10 +5,10 @@ import (
 	"slices"
 	"strings"
 
-	"podman-essaim-compartment-manager/internal/compartment"
-	"podman-essaim-compartment-manager/internal/manifest"
-	"podman-essaim-compartment-manager/internal/quadletref"
-	"podman-essaim-compartment-manager/internal/state"
+	"rucher/internal/compartment"
+	"rucher/internal/manifest"
+	"rucher/internal/quadletref"
+	"rucher/internal/state"
 )
 
 type Plan struct {

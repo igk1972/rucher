@@ -1,4 +1,4 @@
 # Built binary from `go build ./cmd/...`
-/podman-essaim-compartment-manager
+/rucher
 # Go test binaries
 *.test

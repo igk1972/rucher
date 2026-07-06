@@ -10,13 +10,13 @@ import (
 	"path/filepath"
 	"slices"
 
-	"podman-essaim-compartment-manager/internal/age"
-	"podman-essaim-compartment-manager/internal/compartment"
-	"podman-essaim-compartment-manager/internal/host"
-	"podman-essaim-compartment-manager/internal/placement"
-	"podman-essaim-compartment-manager/internal/provision"
-	"podman-essaim-compartment-manager/internal/reconcile"
-	"podman-essaim-compartment-manager/internal/store"
+	"rucher/internal/age"
+	"rucher/internal/compartment"
+	"rucher/internal/host"
+	"rucher/internal/placement"
+	"rucher/internal/provision"
+	"rucher/internal/reconcile"
+	"rucher/internal/store"
 )
 
 type Result struct {

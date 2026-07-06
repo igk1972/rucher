@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"podman-essaim-compartment-manager/internal/age"
+	"rucher/internal/age"
 )
 
-const IdentityPath = "/etc/podman-essaim/node/identity.txt"
+const IdentityPath = "/etc/rucher/node/identity.txt"
 
 func Identity(path string) (string, error) {
 	data, err := os.ReadFile(path)

@@ -4,10 +4,10 @@ import (
 	"slices"
 	"testing"
 
-	"podman-essaim-compartment-manager/internal/compartment"
-	"podman-essaim-compartment-manager/internal/fileset"
-	"podman-essaim-compartment-manager/internal/manifest"
-	"podman-essaim-compartment-manager/internal/state"
+	"rucher/internal/compartment"
+	"rucher/internal/fileset"
+	"rucher/internal/manifest"
+	"rucher/internal/state"
 )
 
 func comp(files map[string]string) compartment.Compartment {

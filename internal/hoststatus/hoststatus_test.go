@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"podman-essaim-compartment-manager/internal/sshx"
+	"rucher/internal/sshx"
 )
 
 func writeHost(t *testing.T, dir, name, body string) {

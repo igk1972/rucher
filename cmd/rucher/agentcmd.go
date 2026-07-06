@@ -6,16 +6,16 @@ import (
 	"io"
 	"os"
 
-	"podman-essaim-compartment-manager/internal/age"
-	"podman-essaim-compartment-manager/internal/agent"
-	"podman-essaim-compartment-manager/internal/agentcfg"
-	"podman-essaim-compartment-manager/internal/host"
-	"podman-essaim-compartment-manager/internal/node"
-	"podman-essaim-compartment-manager/internal/store"
+	"rucher/internal/age"
+	"rucher/internal/agent"
+	"rucher/internal/agentcfg"
+	"rucher/internal/host"
+	"rucher/internal/node"
+	"rucher/internal/store"
 )
 
-const agentStatusPath = "/var/lib/podman-essaim/agent-status.json"
-const storeCachePath = "/var/lib/podman-essaim/store"
+const agentStatusPath = "/var/lib/rucher/agent-status.json"
+const storeCachePath = "/var/lib/rucher/store"
 
 // parseKeygen collects the compartment name and every repeatable --to recipient, so
 // the identity can be sealed to all target nodes at once.
@@ -110,7 +110,7 @@ func cmdAgentRun(configPath string, out io.Writer) int {
 	}
 	nodeIdentity, err := node.Identity(node.IdentityPath)
 	if err != nil {
-		fmt.Fprintln(out, "error: node key missing (run `pecm node init`):", err)
+		fmt.Fprintln(out, "error: node key missing (run `rucher node init`):", err)
 		return 1
 	}
 	var st agent.Status
@@ -149,7 +149,7 @@ func agentTimerUnit(interval string) string {
 	if interval == "" {
 		interval = "30s"
 	}
-	return "[Unit]\nDescription=run the podman-essaim GitOps agent periodically\n\n" +
+	return "[Unit]\nDescription=run the rucher GitOps agent periodically\n\n" +
 		"[Timer]\nOnBootSec=30s\nOnUnitActiveSec=" + interval + "\n\n[Install]\nWantedBy=timers.target\n"
 }
 
@@ -161,12 +161,12 @@ func cmdAgentInstall(configPath string, out io.Writer) int {
 		return 1
 	}
 	r := host.NewExec()
-	service := "[Unit]\nDescription=podman-essaim GitOps agent (one pass)\n\n" +
-		"[Service]\nType=oneshot\nExecStart=/usr/local/bin/pecm agent run --config " + configPath + "\n"
+	service := "[Unit]\nDescription=rucher GitOps agent (one pass)\n\n" +
+		"[Service]\nType=oneshot\nExecStart=/usr/local/bin/rucher agent run --config " + configPath + "\n"
 	timer := agentTimerUnit(cfg.Interval)
 	for path, body := range map[string]string{
-		"/etc/systemd/system/podman-essaim-agent.service": service,
-		"/etc/systemd/system/podman-essaim-agent.timer":   timer,
+		"/etc/systemd/system/rucher-agent.service": service,
+		"/etc/systemd/system/rucher-agent.timer":   timer,
 	} {
 		if _, err := r.Root([]string{"tee", path}, []byte(body)); err != nil {
 			fmt.Fprintln(out, "error:", err)
@@ -177,11 +177,11 @@ func cmdAgentInstall(configPath string, out io.Writer) int {
 		fmt.Fprintln(out, "error: systemctl daemon-reload:", err, res.Stderr)
 		return 1
 	}
-	res, err := r.Root([]string{"systemctl", "enable", "--now", "podman-essaim-agent.timer"}, nil)
+	res, err := r.Root([]string{"systemctl", "enable", "--now", "rucher-agent.timer"}, nil)
 	if err != nil || res.Code != 0 {
-		fmt.Fprintln(out, "error: enable podman-essaim-agent.timer:", err, res.Stderr)
+		fmt.Fprintln(out, "error: enable rucher-agent.timer:", err, res.Stderr)
 		return 1
 	}
-	fmt.Fprintln(out, "installed podman-essaim-agent.timer")
+	fmt.Fprintln(out, "installed rucher-agent.timer")
 	return 0
 }

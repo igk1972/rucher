@@ -13,7 +13,7 @@ func TestRunNoArgsPrintsUsageAndFails(t *testing.T) {
 	if code != 2 {
 		t.Fatalf("code = %d, want 2", code)
 	}
-	if !strings.Contains(out.String(), "podman-essaim-compartment-manager") {
+	if !strings.Contains(out.String(), "rucher") {
 		t.Fatalf("usage not printed: %q", out.String())
 	}
 }

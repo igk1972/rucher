@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"podman-essaim-compartment-manager/internal/age"
-	"podman-essaim-compartment-manager/internal/host"
-	"podman-essaim-compartment-manager/internal/state"
-	"podman-essaim-compartment-manager/internal/store"
+	"rucher/internal/age"
+	"rucher/internal/host"
+	"rucher/internal/state"
+	"rucher/internal/store"
 )
 
 func TestRunAppliesAssignedCompartment(t *testing.T) {
@@ -30,7 +30,7 @@ func TestRunAppliesAssignedCompartment(t *testing.T) {
 	os.WriteFile(filepath.Join(cdir, "identity.age"), sealed, 0o644)
 
 	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u pecm-web": {Stdout: "1234"},
+		"root:id -u rucher-web": {Stdout: "1234"},
 	}}
 	fs := &store.Fake{Checkout: co, Revision: "rev1"}
 
@@ -69,7 +69,7 @@ func TestRunRemovesUnassignedManaged(t *testing.T) {
 	os.WriteFile(filepath.Join(co, "placement.yml"), []byte("placements: {web: node-b}\n"), 0o644)
 
 	// persist state for "old" so reconcile.List() reports it as managed on this node
-	statePath := filepath.Join(os.Getenv("PECM_STATE_DIR"), "state", "old.json")
+	statePath := filepath.Join(os.Getenv("RUCHER_STATE_DIR"), "state", "old.json")
 	if err := state.Save(statePath, state.State{Name: "old", UID: 1234, Units: []string{"old.container"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestRunFailsCompartmentIsolated(t *testing.T) {
 
 	// EnsureUser must succeed so the failure lands in age.Unseal, not user setup
 	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u pecm-web": {Stdout: "1234"},
+		"root:id -u rucher-web": {Stdout: "1234"},
 	}}
 	fs := &store.Fake{Checkout: co, Revision: "rev1"}
 

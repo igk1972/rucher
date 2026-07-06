@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"podman-essaim-compartment-manager/internal/hostcfg"
-	"podman-essaim-compartment-manager/internal/sshx"
+	"rucher/internal/hostcfg"
+	"rucher/internal/sshx"
 )
 
 func TestResolveNetworkAddress(t *testing.T) {

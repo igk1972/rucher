@@ -12,8 +12,8 @@ import (
 
 	"github.com/kevinburke/ssh_config"
 
-	"podman-essaim-compartment-manager/internal/hostcfg"
-	"podman-essaim-compartment-manager/internal/sshx"
+	"rucher/internal/hostcfg"
+	"rucher/internal/sshx"
 )
 
 func userOr(u, def string) string {
