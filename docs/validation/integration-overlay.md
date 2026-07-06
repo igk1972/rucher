@@ -12,7 +12,7 @@ the controller verified and what remains an operator step.
 
 ## How it differs from control network C
 
-- **Control network C** (`rucher net join <host> --address 100.64.0.1`) is the control plane:
+- **Control network C** (`rucher ops ruches join <host> --address 100.64.0.1`) is the control plane:
   the host's own address, over which the operator/manager reaches the node. It is written to
   `./hosts/<host>/configuration.yml` as `network: {address}`. Level — host.
 - **Compartment overlay** (this run) is the data plane: tailnet membership of a specific
@@ -49,7 +49,7 @@ transparently — the application has no idea it goes through the tailnet.
 - Encrypt it to THIS compartment's age recipient in `secrets.sops.yaml`:
 
   ```bash
-  rucher age recipient overlay-demo                     # -> age1... the compartment's recipient
+  rucher node cadre recipient overlay-demo              # -> age1... the compartment's recipient
   printf 'ts-authkey: tskey-auth-XXXX\n' \
     | sops --encrypt --input-type yaml --output-type yaml --age <recipient> /dev/stdin \
     > test/overlay-example/overlay-demo/secrets.sops.yaml
@@ -66,14 +66,14 @@ transparently — the application has no idea it goes through the tailnet.
 
 Lay it out and run it as an ordinary compartment — no manager changes required. `--dir` is
 the **parent** directory (the one that contains the `overlay-demo/` compartment subdirectory),
-and the name selects the subdirectory; verified by the controller via a full `rucher new` → `apply` → `rm`:
+and the name selects the subdirectory; verified by the controller via a full `rucher node cadre new` → `apply` → `rm`:
 
 ```bash
 # local/direct apply on the node (--dir = parent, overlay-demo = subdirectory):
-sudo rucher apply --dir ./test/overlay-example overlay-demo
+sudo rucher node cadre apply --dir ./test/overlay-example overlay-demo
 
 # or via the GitOps agent (run B): commit the compartment into the store,
-# placement.yml -> overlay-demo: <node>, then `sudo rucher agent run`.
+# placement.yml -> overlay-demo: <node>, then `sudo rucher node agent run`.
 ```
 
 The quadlet form the manager applies was verified by the controller via `systemctl --user`:
@@ -102,7 +102,7 @@ podman exec overlay-app wget -qO- http://<tailscale-IP-of-nginx-on-lima-02>/
 ## Cleanup
 
 ```bash
-sudo rucher rm overlay-demo --purge     # stop units, unmanage, remove user+data
+sudo rucher node cadre rm overlay-demo --purge     # stop units, unmanage, remove user+data
 ```
 
 The node leaves the tailnet on its own once the sidecar is stopped (for an ephemeral authkey — immediately;

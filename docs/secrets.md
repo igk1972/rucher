@@ -18,7 +18,7 @@ user's home:
   recipient.txt    # the public recipient (age1...)
 ```
 
-Retrieve the recipient with `rucher age recipient <name>` (or it is printed by `rucher new`).
+Retrieve the recipient with `rucher node cadre recipient <name>` (or it is printed by `rucher node cadre new`).
 
 The per-compartment identity scopes **at-rest** access in the store: a compartment's file is
 encrypted only to that compartment's recipient, so compartments cannot read each other's
@@ -31,8 +31,8 @@ Encrypt a plaintext key/value document to the compartment's recipient and save i
 compartment's SOPS file (default filename `secrets.sops.yaml`):
 
 ```bash
-sudo rucher new web                                    # prints the compartment recipient
-REC=$(sudo rucher age recipient web)
+sudo rucher node cadre new web                         # prints the compartment recipient
+REC=$(sudo rucher node cadre recipient web)
 
 printf 'db_password: s3cr3t\n' \
   | sops --encrypt --input-type yaml --output-type yaml --age "$REC" /dev/stdin \

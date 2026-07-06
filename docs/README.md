@@ -20,8 +20,8 @@ connectivity between workloads across hosts.
 | [cli.md](cli.md) | Reference for every `rucher` command, its flags and an example |
 | [compartments.md](compartments.md) | Compartment directory layout, manifest schema, the per-user rootless model, and how `plan`/`apply` reconcile |
 | [secrets.md](secrets.md) | The SOPS/age secret model: per-compartment identity, encryption, podman secrets, decryption at apply |
-| [gitops-agent.md](gitops-agent.md) | Pull-based reconcile: git/S3 store backends, `placement.yml`, node and sealed compartment identities, `agent run`/`install` |
-| [management-network.md](management-network.md) | `net join`, `hosts status`, the native Go SSH client with TOFU host-key pinning, address resolution |
+| [gitops-agent.md](gitops-agent.md) | Pull-based reconcile: git/S3 store backends, `placement.yml`, node and sealed compartment identities, `node agent run`/`install` |
+| [management-network.md](management-network.md) | `ops ruches join`, `ops ruches status`, the native Go SSH client with TOFU host-key pinning, address resolution |
 | [overlays.md](overlays.md) | Per-compartment overlay networking for cross-host L3 between workloads |
 | [host-requirements.md](host-requirements.md) | What each host in the fleet must provide |
 
@@ -33,8 +33,8 @@ was verified on real hardware. See [`validation/`](validation/):
 | Runbook | Validates |
 |---------|-----------|
 | [integration-a.md](validation/integration-a.md) | Single-host core: new → apply → drift → idempotency → rm |
-| [integration-b.md](validation/integration-b.md) | GitOps agent: node key → seal → git store → `agent run` → removal |
-| [integration-c.md](validation/integration-c.md) | Operator plane: `hosts status`, `--live`, `net join` |
+| [integration-b.md](validation/integration-b.md) | GitOps agent: node key → seal → git store → `node agent run` → removal |
+| [integration-c.md](validation/integration-c.md) | Operator plane: `ops ruches status`, `--live`, `ops ruches join` |
 | [integration-overlay.md](validation/integration-overlay.md) | Compartment overlay: kernel-mode sidecar, cross-host L3 |
 
 ## Terminology

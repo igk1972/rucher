@@ -29,13 +29,13 @@ from this directory:
 ```bash
 # 1. authkey from the tailscale admin console -> encrypt it for this compartment's recipient
 #    (into overlay-demo/secrets.sops.yaml, next to compartment.yml):
-rucher age recipient overlay-demo                     # -> age1...
+rucher node cadre recipient overlay-demo              # -> age1...
 printf 'ts-authkey: tskey-auth-XXXX\n' \
   | sops --encrypt --input-type yaml --output-type yaml --age <recipient> /dev/stdin \
   > overlay-demo/secrets.sops.yaml
 
 # 2. lay down and start (--dir = parent, overlay-demo = subdirectory; or via a GitOps agent):
-rucher apply --dir . overlay-demo
+rucher node cadre apply --dir . overlay-demo
 ```
 
 The host must have the `tun` module loaded and `/dev/net/tun` accessible to the compartment's

@@ -3,7 +3,7 @@
 A compartment can give its workloads **transparent L3 connectivity across hosts** — a private
 mesh where an app on one host reaches an app on another by a stable overlay IP, with no proxy
 and no application changes. This is a per-workload data plane, distinct from the operator
-[management network](management-network.md) (`net join`, which sets a *host's* management
+[management network](management-network.md) (`ops ruches join`, which sets a *host's* management
 address).
 
 ## How it fits the model — no manager change
@@ -94,5 +94,5 @@ compartment — remember `--dir` is the **parent** directory and the name select
 subdirectory (run from the module root):
 
 ```bash
-sudo rucher apply --dir ./test/overlay-example overlay-demo
+sudo rucher node cadre apply --dir ./test/overlay-example overlay-demo
 ```

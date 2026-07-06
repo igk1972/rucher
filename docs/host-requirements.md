@@ -8,9 +8,9 @@ tooling ensures on every node; the manager assumes they are present.
 
 - A Linux host with **systemd**, including per-user managers: `loginctl` (for
   `enable-linger`), `runuser`, the `user@<uid>.service` template, and `journalctl` (used by
-  `rucher logs` and `rucher status`).
+  `rucher node cadre logs` and `rucher node cadre status`).
 - The `rucher` binary installed and runnable as root. For the GitOps timer, install it at
-  `/usr/local/bin/rucher` — the unit written by `rucher agent install` invokes that exact path.
+  `/usr/local/bin/rucher` — the unit written by `rucher node agent install` invokes that exact path.
 
 ## podman (rootless)
 
@@ -40,13 +40,13 @@ podman secret store and a running user systemd manager (see [compartments.md](co
   on the worker. For a git-over-SSH store, `~/.ssh/known_hosts` must be seeded for the remote
   (or the agent config sets `insecureHostKey: true`). The S3 store needs only network access
   to the endpoint. See [gitops-agent.md](gitops-agent.md).
-- The node's own age key is created by `rucher node init` at
+- The node's own age key is created by `rucher node key init` at
   `/etc/rucher/node/identity.txt`.
 
 ## SSH reachability (operator plane)
 
 - Hosts are reached from the operator over SSH by the manager's built-in Go SSH client, so a
-  host only needs a standard **sshd** and a reachable address (recorded via `rucher net join`).
+  host only needs a standard **sshd** and a reachable address (recorded via `rucher ops ruches join`).
   No `ssh` binary is required on the operator machine. See
   [management-network.md](management-network.md).
 

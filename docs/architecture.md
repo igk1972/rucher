@@ -5,9 +5,9 @@ The system has one core and three optional layers built on top of it.
 ```
               operator machine                          host in the fleet
        ┌───────────────────────────┐            ┌──────────────────────────────┐
-       │ rucher hosts status / net    │  SSH       │ sshd                          │
+       │ rucher ops ruches status/join│  SSH       │ sshd                          │
        │ (native Go SSH client,     │──────────► │                               │
-       │  TOFU known_hosts)         │            │  rucher agent run (timer)       │
+       │  TOFU known_hosts)         │            │  rucher node agent run (timer)  │
        └───────────────────────────┘            │      │ pulls                   │
                                                  │      ▼                         │
    git / S3 store  ◄──────────────────────────── │  store checkout               │
@@ -54,8 +54,8 @@ feeds selected keys to podman as secrets over stdin — never to disk, never on 
 
 ## 4. GitOps agent (pull-based reconcile)
 
-Instead of pushing from an operator, each node can run `rucher agent run` (typically on a
-systemd timer via `rucher agent install`). One pass: sync the store (git or S3) into a local
+Instead of pushing from an operator, each node can run `rucher node agent run` (typically on a
+systemd timer via `rucher node agent install`). One pass: sync the store (git or S3) into a local
 checkout, read `placement.yml`, compute the compartments assigned to this node, install each
 one's unsealed identity, reconcile it, and unmanage compartments no longer assigned. A
 status summary is written to `/var/lib/rucher/agent-status.json`. See
@@ -63,9 +63,9 @@ status summary is written to `/var/lib/rucher/agent-status.json`. See
 
 ## 5. Management network (operator status plane)
 
-`rucher hosts status` reaches every host over SSH (a native Go client with TOFU host-key
+`rucher ops ruches status` reaches every host over SSH (a native Go client with TOFU host-key
 pinning — no system `ssh` binary required), reads each host's agent status file, and prints
-an aggregated table or JSON. `rucher net join` records a host's reachability address into its
+an aggregated table or JSON. `rucher ops ruches join` records a host's reachability address into its
 host config so the status plane can find it. See [management-network.md](management-network.md).
 
 ## 6. Compartment overlays (workload data plane)
@@ -80,7 +80,7 @@ to the operator management plane in (5). See [overlays.md](overlays.md).
 
 1. **Desired state** is a compartment directory: `compartment.yml`, Quadlet units, support
    files, and (optionally) an encrypted `secrets.sops.yaml`. It comes either from a local
-   `--dir` (imperative `rucher apply`) or from the store checkout (GitOps agent).
+   `--dir` (imperative `rucher node apply`) or from the store checkout (GitOps agent).
 2. **Load & validate** — parse the manifest (strict decode, unknown keys rejected), hash
    every support/unit file, validate units.
 3. **Provision** — ensure the `rucher-<name>` user exists, has linger, a non-overlapping

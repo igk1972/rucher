@@ -58,12 +58,12 @@ placements:
 
 ## Identities: node key and sealed compartment keys
 
-- **Node key** — each node owns an age identity created by `rucher node init` at
+- **Node key** — each node owns an age identity created by `rucher node key init` at
   `/etc/rucher/node/identity.txt` (mode 0600). The private key is born on the node and
-  never leaves it; `rucher node recipient` prints its public recipient.
+  never leaves it; `rucher node key show` prints its public recipient.
 - **Sealed compartment key** — a compartment's private age identity (which decrypts its
   `secrets.sops.yaml`) is not stored in cleartext in the store. The operator runs
-  `rucher keygen <name> --to <node-recipient> [--to …]`, which generates the compartment
+  `rucher ops key seal <name> --to <node-recipient> [--to …]`, which generates the compartment
   keypair, seals the identity to each target node's recipient (age writes one stanza per
   recipient, so any of those nodes can unseal it), writes it to
   `compartments/<name>/identity.age`, and prints the compartment recipient (used to encrypt
@@ -74,9 +74,9 @@ compartment's `identity.txt` path — exactly where the decrypt step reads it (s
 [secrets.md](secrets.md)). A node whose key was not among the `--to` recipients cannot unseal
 the identity and cannot run that compartment.
 
-## `agent run` — one pass
+## `node agent run` — one pass
 
-`rucher agent run [--config PATH]` (default config `/etc/rucher/agent.yml`):
+`rucher node agent run [--config PATH]` (default config `/etc/rucher/agent.yml`):
 
 1. Sync the store into the checkout; obtain the current revision.
 2. Read `placement.yml`; compute the compartments assigned to this node.
@@ -84,7 +84,7 @@ the identity and cannot run that compartment.
    identity (no-op if it ships no `identity.age`), load it from the checkout, and run the
    standard `reconcile.Apply` (see [compartments.md](compartments.md)).
 4. Unmanage every compartment currently managed on this node but no longer assigned
-   (`rucher rm` without `--purge`: stop units, drop state, keep the user and data).
+   (`rucher node cadre rm` without `--purge`: stop units, drop state, keep the user and data).
 5. Write a status summary to `/var/lib/rucher/agent-status.json` and print
    `revision <rev>: applied=<n> removed=<n>`. A non-zero exit means one or more compartments
    failed to apply.
@@ -116,13 +116,13 @@ store:
   useSSL: true
 ```
 
-## `agent install` — periodic reconcile
+## `node agent install` — periodic reconcile
 
-`rucher agent install [--config PATH]` writes a systemd oneshot service plus a timer and enables
+`rucher node agent install [--config PATH]` writes a systemd oneshot service plus a timer and enables
 the timer:
 
 - `/etc/systemd/system/rucher-agent.service` — `Type=oneshot`, running
-  `/usr/local/bin/rucher agent run --config <PATH>` (so `rucher` must be installed at
+  `/usr/local/bin/rucher node agent run --config <PATH>` (so `rucher` must be installed at
   `/usr/local/bin/rucher`);
 - `/etc/systemd/system/rucher-agent.timer` — `OnBootSec=30s`,
   `OnUnitActiveSec=<interval>` (default `30s`), `WantedBy=timers.target`.
@@ -134,16 +134,16 @@ rucher-agent.timer`.
 
 ```bash
 # on each node:
-sudo rucher node init                       # -> node recipient
+sudo rucher node key init                   # -> node recipient
 
 # on the operator, in the store checkout:
-rucher keygen web --to <node-a-recipient>   # writes compartments/web/identity.age; prints web's recipient
+rucher ops key seal web --to <node-a-recipient>   # writes compartments/web/identity.age; prints web's recipient
 printf 'db_password: s3cr3t\n' \
   | sops --encrypt --input-type yaml --output-type yaml --age <web-recipient> /dev/stdin \
   > compartments/web/secrets.sops.yaml
 # add compartment.yml, units, support files, and placement.yml, then commit + push
 
 # on the node:
-sudo rucher agent run        # applied=1
-sudo rucher agent install    # reconcile on a timer
+sudo rucher node agent run      # applied=1
+sudo rucher node agent install  # reconcile on a timer
 ```

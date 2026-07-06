@@ -30,12 +30,15 @@ Native systemd gives dependencies (`After=`/`Requires=`), lifecycle hooks
 ## Build
 
 ```bash
-GOOS=linux GOARCH=arm64 go build -o rucher ./cmd/rucher
+GOOS=linux go build -trimpath -ldflags="-s -w" -o rucher ./cmd/rucher
 ```
 
 Runs as **root** on the target host (it creates users, manages linger/subuids, and drives
 each user's systemd). Requires Go ≥ 1.23 to build; dependencies (age, go-git, minio-go,
-`golang.org/x/crypto`, yaml) are pulled as Go modules.
+`golang.org/x/crypto`, yaml) are pulled as Go modules. `GOOS=linux` cross-compiles to Linux
+from any host; `GOARCH` defaults to your machine's — set it explicitly (e.g. `GOARCH=amd64`)
+when the fleet's architecture differs. `-trimpath` and `-ldflags="-s -w"` strip filesystem
+paths and the symbol/DWARF tables for a smaller, reproducible binary (~⅓ smaller).
 
 ## Host prerequisites
 
@@ -74,18 +77,19 @@ Units reference support files by their in-place path, e.g.
 ## Commands
 
 ```
-rucher new <name>                     # create the user + age identity; print the recipient
-rucher age recipient <name>           # print a compartment's age recipient
-rucher plan [--dir DIR] [name...]     # dry-run: show what apply would change
-rucher apply [--dir DIR] [name...]    # reconcile compartments onto the host
-rucher status [name...]               # per-unit ActiveState/SubState
-rucher logs <name> <unit>             # journalctl --user for one unit
-rucher rm <name> [--purge]            # stop + unmanage; --purge also deletes the user + data
-rucher node init|recipient            # this node's age key (GitOps)
-rucher keygen <name> --to <node-rcpt> # seal a compartment identity to node(s)
-rucher agent run|install [--config P] # pull-based reconcile from a git/S3 store
-rucher net [--hosts DIR] join <host> --address <addr>  # record a host's management address
-rucher hosts [--hosts DIR] status [--live] [--json]    # fleet status over SSH
+rucher node cadre new <name>                  # create the user + age identity; print the recipient
+rucher node cadre recipient <name>            # print a compartment's age recipient
+rucher ops plan [--dir DIR] [name...]         # dry-run: show what apply would change
+rucher node apply [--dir DIR]                 # reconcile compartments onto the host
+rucher node cadre apply [--dir DIR] <name...> # reconcile the named compartment(s)
+rucher node cadre status [name...]            # per-unit ActiveState/SubState
+rucher node cadre logs <name> <unit>          # journalctl --user for one unit
+rucher node cadre rm <name> [--purge]         # stop + unmanage; --purge also deletes the user + data
+rucher node key init|show                     # this node's age key (GitOps)
+rucher ops key seal <name> --to <node-rcpt>   # seal a compartment identity to node(s)
+rucher node agent run|install [--config P]    # pull-based reconcile from a git/S3 store
+rucher ops ruches [--hosts DIR] join <host> --address <addr>  # record a host's management address
+rucher ops ruches [--hosts DIR] status [--live] [--json]  # fleet status over SSH
 ```
 
 No `--dir` defaults to `./compartments`; no names means all compartments. Full reference:
@@ -94,11 +98,11 @@ No `--dir` defaults to `./compartments`; no names means all compartments. Full r
 ## Secret workflow
 
 ```bash
-sudo rucher new web                                   # prints age1... recipient
+sudo rucher node cadre new web                                   # prints age1... recipient
 printf 'db_password: s3cr3t\n' \
   | sops --encrypt --age <recipient> /dev/stdin \
   > compartments/web/secrets.sops.yaml              # encrypt to that recipient
-sudo rucher apply --dir ./compartments web            # decrypt + create podman secret + start
+sudo rucher node cadre apply --dir ./compartments web            # decrypt + create podman secret + start
 ```
 
 At apply time the root agent decrypts the SOPS file using the compartment's age identity
@@ -121,7 +125,7 @@ Each compartment user gets a unique, non-overlapping subuid/subgid block (alloca
 
 ## Host keys
 
-`rucher hosts status` (and the rest of the operator control plane) reaches hosts with a
+`rucher ops ruches status` (and the rest of the operator control plane) reaches hosts with a
 built-in Go SSH client — no system `ssh` binary is required. Host keys are trusted
 **TOFU**: an unknown host is accepted and pinned on first contact into
 `~/.config/rucher/known_hosts` (created mode 0600); a later key **change** for the
@@ -140,7 +144,7 @@ without any manager code change. It fits the opaque-Quadlet model: the operator 
 kernel-mode Tailscale sidecar plus the app in one pod, and the auth key rides the existing
 `secrets.create` machinery (podman secret → sidecar env). Privilege stays confined to the
 sidecar; the unprivileged app shares the pod netns and reaches the tailnet transparently.
-This is distinct from the operator control-plane network (`rucher net join`, which sets a
+This is distinct from the operator control-plane network (`rucher ops ruches join`, which sets a
 *host's* management address). See the runbook
 [`docs/validation/integration-overlay.md`](docs/validation/integration-overlay.md) and the
 ready example in [`test/overlay-example/`](test/overlay-example/).

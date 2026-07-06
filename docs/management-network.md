@@ -13,7 +13,7 @@ replaced). The schema:
 
 ```yaml
 network:
-  address: 100.64.0.1     # the host's reachability address (set by `rucher net join`)
+  address: 100.64.0.1     # the host's reachability address (set by `rucher ops ruches join`)
 connection:
   host: 203.0.113.7       # explicit SSH host
   port: 22                # default 22
@@ -21,22 +21,22 @@ connection:
   identity: /path/to/key  # private key for SSH (optional)
 ```
 
-## `rucher net join <host> --address <addr>`
+## `rucher ops ruches join <host> --address <addr>`
 
 Records `<host>`'s static management address into its `configuration.yml` as
 `network: {address: <addr>}`, preserving other keys and comments. It updates an existing
-host's config (the host directory must already exist — `net join` records an address, it does
+host's config (the host directory must already exist — `ops ruches join` records an address, it does
 not create a host). `--address` is required and trimmed; an empty value is rejected. `--json`
 switches the success line to `{"host":…,"address":…}`.
 
 ```bash
-rucher net join node-a --address 100.64.0.1
-rucher net join node-a --address 100.64.0.1 --json
+rucher ops ruches join node-a --address 100.64.0.1
+rucher ops ruches join node-a --address 100.64.0.1 --json
 ```
 
-A repeated `net join` with a different address simply updates the value.
+A repeated `ops ruches join` with a different address simply updates the value.
 
-## `rucher hosts status [--live] [--json] [host...]`
+## `rucher ops ruches status [--live] [--json] [host...]`
 
 For each host (all hosts under `--hosts` when none are named), the tool:
 
@@ -45,7 +45,7 @@ For each host (all hosts under `--hosts` when none are named), the tool:
 3. runs `cat /var/lib/rucher/agent-status.json` over SSH and parses the agent's
    [status](gitops-agent.md) (revision, applied count, removed count, per-compartment
    errors);
-4. with `--live`, additionally runs `rucher status` on the host and captures its live per-unit
+4. with `--live`, additionally runs `rucher node cadre status` on the host and captures its live per-unit
    `ActiveState`/`SubState`.
 
 Output is a table by default:
@@ -63,9 +63,9 @@ that connects but fails records the reason under `errors:` so a transport/config
 distinguishable from a plain "host down"; the exit code is 1 if any host is unreachable.
 
 ```bash
-rucher hosts status
-rucher hosts status --live node-a
-rucher hosts status --json > status.json
+rucher ops ruches status
+rucher ops ruches status --live node-a
+rucher ops ruches status --json > status.json
 ```
 
 ## Native SSH client and TOFU host keys
@@ -92,7 +92,7 @@ If a host is rebuilt with a new key on the same address, remove its line from
 `sshresolve.Resolve` turns a host's config into an SSH target using the first source that
 applies, in this order:
 
-1. **`network.address`** (set by `net join`) — SSH on port 22, user from `connection.user`
+1. **`network.address`** (set by `ops ruches join`) — SSH on port 22, user from `connection.user`
    (default `root`), identity from `connection.identity`.
 2. **A locally-generated per-host SSH config**, if one exists for the host (used for
    locally-provisioned development VMs) — the host, port, user and identity file are taken

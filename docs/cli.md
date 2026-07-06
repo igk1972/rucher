@@ -1,78 +1,138 @@
 # CLI reference
 
-The binary is `rucher`. Invocation is `rucher <command> [args]`. Compartment lifecycle commands
-run as **root** on the host (they create users and drive per-user systemd). The commands:
+The binary is `rucher`. Invocation is `rucher <group> <command> [args]`. Commands are split into
+two top-level groups:
 
 ```
-new  plan  apply  status  rm  logs  age  node  agent  keygen  net  hosts
+node   on the Linux node — cadre lifecycle, the node's own key, and the GitOps agent (run as root)
+ops    from the operator machine — plan, seal cadre keys, manage the ruches over SSH (any OS)
 ```
 
-Unknown commands and missing required arguments print a usage line and exit non-zero.
+The `node` group shells out on the host (`runuser`/`systemctl`/`podman`) and its cadre lifecycle
+commands run as **root** (they create users and drive per-user systemd). The `ops` group is
+cross-platform. Unknown commands and missing required arguments print a usage line and exit
+non-zero.
+
+## Command map
+
+```
+rucher <group> <command> [args]
+│
+├─ node                                                on the Linux node (runuser/systemctl/podman)
+│   ├─ apply   [--dir DIR]                             [node]   reconcile ALL cadres under --dir
+│   ├─ cadre
+│   │   ├─ new <name>                                  [node]   create the user + age identity, print the recipient
+│   │   ├─ apply  [--dir DIR] <name...>                [node]   reconcile the named cadre(s)
+│   │   ├─ status [name...]                            [node]   ActiveState/SubState per unit
+│   │   ├─ logs <name> <unit>                          [node]   last 200 journal lines for one unit
+│   │   ├─ rm <name> [--purge]                         [node]   unmanage; --purge also deletes the user + data
+│   │   └─ recipient <name>                            [node]   print the cadre's age recipient
+│   ├─ key
+│   │   ├─ init                                        [node]   create /etc/rucher/node/identity.txt, print the recipient
+│   │   └─ show                                        [node]   print the node recipient
+│   └─ agent
+│       ├─ run     [--config PATH]                     [node]   one pull-based reconcile pass
+│       └─ install [--config PATH]                     [node]   write + enable the systemd service + timer
+└─ ops                                                 from the operator machine
+    ├─ plan   [--dir DIR] [name...]                    [local]  dry-run: what apply would change
+    ├─ ruches [--hosts DIR]
+    │   ├─ status [--live] [--json] [host...]          [ssh]    gather ruches status over SSH
+    │   └─ join <host> --address <addr> [--json]       [local]  record a host's management address
+    └─ key
+        └─ seal <name> --to <rcpt> [--to <rcpt> ...]   [local]  seal a cadre identity to node(s)
+```
+
+Execution side: `[node]` shells out on the local machine (`runuser`/`systemctl`/`podman`) — the
+machine must be a Linux node; `[local]` touches only local files/crypto — any OS; `[ssh]` reaches
+remote hosts (the client is cross-platform). Defaults: `--dir ./compartments`, `--hosts ./hosts`,
+`--config /etc/rucher/agent.yml`. Exit codes: `0` ok, `1` runtime error, `2` usage/parse error.
 
 ## Shared conventions
 
-### `--dir DIR` (plan, apply)
+### `--dir DIR` (node apply, node cadre apply, ops plan)
 
 `--dir` is the **parent** directory whose immediate subdirectories are compartments; the
-subdirectory name is the compartment name. It defaults to `./compartments`. Any positional
-arguments after the flags are compartment names to act on; with none, every subdirectory is
-selected. A requested name that is not a subdirectory of `--dir` is an error (this guards
-against pointing `--dir` at a single compartment folder instead of its parent).
+subdirectory name is the compartment name. It defaults to `./compartments`. `node apply` and
+`ops plan` take positional compartment names to act on; with none, every subdirectory is
+selected. `node cadre apply` requires at least one name. A requested name that is not a
+subdirectory of `--dir` is an error (this guards against pointing `--dir` at a single compartment
+folder instead of its parent).
 
 ```bash
-rucher apply --dir ./compartments web        # reconcile ./compartments/web
-rucher apply --dir .                          # reconcile every compartment under .
+rucher node cadre apply --dir ./compartments web   # reconcile ./compartments/web
+rucher node apply --dir .                            # reconcile every compartment under .
 ```
 
-### `--hosts DIR` (net, hosts)
+### `--hosts DIR` (ops ruches)
 
 `--hosts` points at the directory of per-host config folders (`<DIR>/<host>/configuration.yml`).
 It defaults to `./hosts`. See [management-network.md](management-network.md).
 
+```bash
+rucher ops ruches --hosts ./hosts status
+```
+
 ---
 
-## `rucher new <name>`
+## node
+
+Runs on the Linux node. The `cadre` subgroup manages the compartment lifecycle; `key` manages the
+node's own age key; `agent` drives the pull-based GitOps agent. `node apply` reconciles **all**
+cadres under `--dir`; `node cadre apply <name...>` reconciles **only the named** cadre(s).
+
+### `rucher node apply [--dir DIR]`
+
+Reconcile **every** compartment under `--dir` onto the host: for each one ensure the user, decrypt
+secrets, diff against the last-applied state, and apply the minimal changes (write files, create
+secrets, registry logins, resource limits, `daemon-reload`, start/restart/stop units). Idempotent.
+Prints `started=<n> restarted=<n>` per compartment. Positional names, if given, narrow the set.
+
+```bash
+sudo rucher node apply --dir ./compartments
+```
+
+### `rucher node cadre new <name>`
 
 Provision a compartment's OS user (`rucher-<name>`) and its age identity if absent, then print
 the compartment's age recipient. Idempotent: re-running returns the existing recipient.
 
 ```bash
-sudo rucher new web        # -> age1... (the compartment's recipient)
+sudo rucher node cadre new web        # -> age1... (the compartment's recipient)
 ```
 
-## `rucher plan [--dir DIR] [name...]`
+### `rucher node cadre apply [--dir DIR] <name...>`
 
-Dry run. For each selected compartment, load and validate it and print what `apply` would do
-(against an empty prior state, so the full intended change is shown): units to start/restart
-and files to write. Read-only — it touches nothing on the host and does not require root.
+Reconcile the **named** compartment(s) onto the host — same reconcile as `node apply`, but scoped
+to the compartments you name (at least one required): ensure the user, decrypt secrets, diff
+against the last-applied state, and apply the minimal changes. Idempotent. Prints
+`started=<n> restarted=<n>` per compartment.
 
 ```bash
-rucher plan --dir ./compartments web
+sudo rucher node cadre apply --dir ./compartments web
 ```
 
-## `rucher apply [--dir DIR] [name...]`
-
-Reconcile each selected compartment onto the host: ensure the user, decrypt secrets, diff
-against the last-applied state, and apply the minimal changes (write files, create secrets,
-registry logins, resource limits, `daemon-reload`, start/restart/stop units). Idempotent.
-Prints `started=<n> restarted=<n>` per compartment.
-
-```bash
-sudo rucher apply --dir ./compartments web
-```
-
-## `rucher status [name...]`
+### `rucher node cadre status [name...]`
 
 Print each compartment's per-unit `ActiveState`/`SubState` (via `systemctl --user show`) as a
 table. With no names it reports every compartment that has a persisted state file. (Note:
 `status` does not take `--dir`; it works from persisted state, not a directory.)
 
 ```bash
-sudo rucher status
-sudo rucher status web
+sudo rucher node cadre status
+sudo rucher node cadre status web
 ```
 
-## `rucher rm <name> [--purge]`
+### `rucher node cadre logs <name> <unit>`
+
+Print the last 200 journal lines for one of a compartment's units. Read as root filtered to
+the user's unit (`_SYSTEMD_USER_UNIT` + `_UID`), because a nologin system user cannot open
+its own `journalctl --user`. `<unit>` is the Quadlet filename (e.g. `web.container`).
+
+```bash
+sudo rucher node cadre logs web web.container
+```
+
+### `rucher node cadre rm <name> [--purge]`
 
 Unmanage a compartment: stop its units, delete their unit files (so nothing restarts on
 boot), and drop the state file. The OS user, its podman secrets/volumes and the age identity
@@ -80,55 +140,60 @@ are **kept**. With `--purge` it additionally tears down the OS user and its home
 the user's session and processes, `userdel -r`, removes the resource slice drop-in).
 
 ```bash
-sudo rucher rm web              # unmanage, keep the user and data
-sudo rucher rm web --purge      # also delete the user + home + data
+sudo rucher node cadre rm web              # unmanage, keep the user and data
+sudo rucher node cadre rm web --purge      # also delete the user + home + data
 ```
 
-## `rucher logs <name> <unit>`
-
-Print the last 200 journal lines for one of a compartment's units. Read as root filtered to
-the user's unit (`_SYSTEMD_USER_UNIT` + `_UID`), because a nologin system user cannot open
-its own `journalctl --user`. `<unit>` is the Quadlet filename (e.g. `web.container`).
-
-```bash
-sudo rucher logs web web.container
-```
-
-## `rucher age recipient <name>`
+### `rucher node cadre recipient <name>`
 
 Print a compartment's stored age recipient (used to encrypt its `secrets.sops.yaml`). See
 [secrets.md](secrets.md).
 
 ```bash
-sudo rucher age recipient web    # -> age1...
+sudo rucher node cadre recipient web    # -> age1...
 ```
 
-## `rucher node init` / `rucher node recipient`
+### `rucher node key init` / `rucher node key show`
 
 Manage the node's own age key (born on the node at `/etc/rucher/node/identity.txt`,
 mode 0600; the private key never leaves the node). `init` creates it on first use and prints
-its recipient; `recipient` prints the recipient of the existing key. Used by the GitOps
+its recipient; `show` prints the recipient of the existing key. Used by the GitOps
 agent to unseal compartment identities. See [gitops-agent.md](gitops-agent.md).
 
 ```bash
-sudo rucher node init         # -> age1... (this node's recipient)
-sudo rucher node recipient
+sudo rucher node key init         # -> age1... (this node's recipient)
+sudo rucher node key show
 ```
 
-## `rucher agent run [--config PATH]` / `rucher agent install [--config PATH]`
+### `rucher node agent run [--config PATH]` / `rucher node agent install [--config PATH]`
 
 `run` performs one pull-based reconcile pass from the store described by the agent config
 (default `/etc/rucher/agent.yml`); `install` writes a systemd oneshot service + timer
-that run `agent run` periodically and enables the timer. Prints
+that run `node agent run` periodically and enables the timer. Prints
 `revision <rev>: applied=<n> removed=<n>`. `--config`, when given, must come immediately
 after `run`/`install`. See [gitops-agent.md](gitops-agent.md).
 
 ```bash
-sudo rucher agent run --config /etc/rucher/agent.yml
-sudo rucher agent install
+sudo rucher node agent run --config /etc/rucher/agent.yml
+sudo rucher node agent install
 ```
 
-## `rucher keygen <name> --to <node-recipient> [--to <node-recipient> ...]`
+## ops
+
+Runs from the operator machine (any OS). `plan` is a read-only dry run; `key seal` seals a
+compartment identity to node(s); `ruches` manages the fleet of hosts over SSH.
+
+### `rucher ops plan [--dir DIR] [name...]`
+
+Dry run. For each selected compartment, load and validate it and print what `apply` would do
+(against an empty prior state, so the full intended change is shown): units to start/restart
+and files to write. Read-only — it touches nothing on the host and does not require root.
+
+```bash
+rucher ops plan --dir ./compartments web
+```
+
+### `rucher ops key seal <name> --to <node-recipient> [--to <node-recipient> ...]`
 
 Generate a compartment keypair, seal its private identity to every listed node recipient (so
 any of those nodes can unseal it), write the sealed `identity.age` into
@@ -137,10 +202,10 @@ de-duplicated. This is an operator-side command used when building the store. Se
 [gitops-agent.md](gitops-agent.md).
 
 ```bash
-rucher keygen web --to age1nodeA... --to age1nodeB...   # -> web's recipient
+rucher ops key seal web --to age1nodeA... --to age1nodeB...   # -> web's recipient
 ```
 
-## `rucher net [--hosts DIR] join <host> --address <addr> [--json]`
+### `rucher ops ruches [--hosts DIR] join <host> --address <addr> [--json]`
 
 Record `<host>`'s static management address into `<hosts-dir>/<host>/configuration.yml` as a
 `network: {address: <addr>}` block, preserving other keys and comments. The host directory
@@ -148,21 +213,21 @@ must already exist. `--address` is required and non-empty; `--json` switches the
 output to a compact JSON object. See [management-network.md](management-network.md).
 
 ```bash
-rucher net join node-a --address 100.64.0.1
-rucher net join node-a --address 100.64.0.1 --json
+rucher ops ruches join node-a --address 100.64.0.1
+rucher ops ruches join node-a --address 100.64.0.1 --json
 ```
 
-## `rucher hosts [--hosts DIR] status [--live] [--json] [host...]`
+### `rucher ops ruches [--hosts DIR] status [--live] [--json] [host...]`
 
 Gather each host's agent status over SSH and print it. Default output is a table
 (`HOST ADDRESS REACHABLE REVISION APPLIED REMOVED ERRORS`) followed by an errors detail
-block; `--json` emits a JSON array instead. `--live` additionally runs `rucher status` on each
-reachable host and appends the live per-unit output. With no host names, every host under
+block; `--json` emits a JSON array instead. `--live` additionally runs `rucher node cadre status`
+on each reachable host and appends the live per-unit output. With no host names, every host under
 `--hosts` that has a `configuration.yml` is queried. Exit code is 1 if any host is
 unreachable. See [management-network.md](management-network.md).
 
 ```bash
-rucher hosts status
-rucher hosts status --live node-a
-rucher hosts status --json
+rucher ops ruches status
+rucher ops ruches status --live node-a
+rucher ops ruches status --json
 ```
