@@ -38,10 +38,15 @@ func discover(dir string, names []string) ([]string, error) {
 		}
 	}
 	if len(names) > 0 {
+		seen := make(map[string]bool)
 		for _, name := range names {
 			if !subdirs[name] {
 				return nil, fmt.Errorf("compartment %q not found in %s", name, dir)
 			}
+			if seen[name] {
+				continue // a repeated name reconciles the compartment once, not twice
+			}
+			seen[name] = true
 			dirs = append(dirs, filepath.Join(dir, name))
 		}
 	}

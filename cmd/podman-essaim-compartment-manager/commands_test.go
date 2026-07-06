@@ -100,6 +100,15 @@ func TestDiscover(t *testing.T) {
 		t.Fatalf("discover missing: err = nil, want error")
 	}
 
+	// A repeated name resolves to the compartment once, not twice.
+	dup, err := discover(root, []string{"web", "web"})
+	if err != nil {
+		t.Fatalf("discover dup: %v", err)
+	}
+	if len(dup) != 1 {
+		t.Fatalf("discover dup = %v, want a single path", dup)
+	}
+
 	// No names: returns all subdirectories (files excluded).
 	all, err := discover(root, nil)
 	if err != nil {
