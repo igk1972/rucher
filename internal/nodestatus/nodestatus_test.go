@@ -10,30 +10,30 @@ import (
 	"rucher/internal/sshx"
 )
 
-func writeHost(t *testing.T, dir, name, body string) {
+func writeNode(t *testing.T, dir, name, body string) {
 	t.Helper()
 	os.MkdirAll(filepath.Join(dir, name), 0o755)
 	os.WriteFile(filepath.Join(dir, name, "configuration.yml"), []byte(body), 0o644)
 }
 
 func TestCollectAggregatesAndIsolates(t *testing.T) {
-	hosts := t.TempDir()
-	writeHost(t, hosts, "a", "network: {address: 1.1.1.1}\n")
-	writeHost(t, hosts, "b", "network: {address: 2.2.2.2}\n")
+	nodes := t.TempDir()
+	writeNode(t, nodes, "a", "network: {address: 1.1.1.1}\n")
+	writeNode(t, nodes, "b", "network: {address: 2.2.2.2}\n")
 
-	// The Targets that Resolve yields for the two host configs.
+	// The Targets that Resolve yields for the two node configs.
 	targetA := sshx.Target{Addr: "1.1.1.1:22", User: "root"}
 	targetB := sshx.Target{Addr: "2.2.2.2:22", User: "root"}
 	catCmd := []string{"cat", statusPath}
 
 	statusJSON := `{"revision":"rev9","applied":[{"name":"web","ok":true},{"name":"db","ok":false,"error":"boom"}],"removed":["old"]}`
 	f := &sshx.Fake{Responses: map[string]sshx.Result{
-		// host a returns a status doc
+		// node a returns a status doc
 		sshx.Key(targetA, catCmd): {Stdout: statusJSON},
-		// host b: ssh fails (unreachable)
+		// node b: ssh fails (unreachable)
 		sshx.Key(targetB, catCmd): {Code: 255, Stderr: "conn refused"},
 	}}
-	rows, err := Collect(f, hosts, "/nonexistent", nil, false)
+	rows, err := Collect(f, nodes, "/nonexistent", nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,18 +58,18 @@ func TestCollectAggregatesAndIsolates(t *testing.T) {
 	if b.Reachable {
 		t.Fatalf("b should be unreachable: %+v", b)
 	}
-	// An unreachable host must capture the ssh stderr so the operator can tell
-	// "host down" from "config broken".
+	// An unreachable node must capture the ssh stderr so the operator can tell
+	// "node down" from "config broken".
 	if !slices.Contains(b.Errors, "conn refused") {
 		t.Fatalf("b.Errors = %v, want to contain %q", b.Errors, "conn refused")
 	}
 }
 
 func TestCollectInheritsGlobalConnection(t *testing.T) {
-	hosts := t.TempDir()
-	// Global default supplies the ssh user; the per-host file only has an address.
-	os.WriteFile(filepath.Join(hosts, "configuration.yml"), []byte("connection:\n  user: globaluser\n"), 0o644)
-	writeHost(t, hosts, "a", "network: {address: 1.1.1.1}\n")
+	nodes := t.TempDir()
+	// Global default supplies the ssh user; the per-node file only has an address.
+	os.WriteFile(filepath.Join(nodes, "configuration.yml"), []byte("connection:\n  user: globaluser\n"), 0o644)
+	writeNode(t, nodes, "a", "network: {address: 1.1.1.1}\n")
 
 	// Keying the fake by the globaluser target proves the global connection default
 	// was merged in: without it Resolve would yield user "root" and the key would miss.
@@ -79,7 +79,7 @@ func TestCollectInheritsGlobalConnection(t *testing.T) {
 	f := &sshx.Fake{Responses: map[string]sshx.Result{
 		sshx.Key(target, catCmd): {Stdout: statusJSON},
 	}}
-	rows, err := Collect(f, hosts, "/nonexistent", nil, false)
+	rows, err := Collect(f, nodes, "/nonexistent", nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,12 +92,12 @@ func TestCollectInheritsGlobalConnection(t *testing.T) {
 }
 
 func TestCollectCapturesTransportError(t *testing.T) {
-	hosts := t.TempDir()
-	writeHost(t, hosts, "c", "network: {address: 3.3.3.3}\n")
+	nodes := t.TempDir()
+	writeNode(t, nodes, "c", "network: {address: 3.3.3.3}\n")
 
 	// A transport failure makes Run return a non-nil error rather than a Result.
 	f := &sshx.Fake{Err: errors.New("ssh spawn failed")}
-	rows, err := Collect(f, hosts, "/nonexistent", nil, false)
+	rows, err := Collect(f, nodes, "/nonexistent", nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -51,8 +51,8 @@ func Collect(r sshx.Runner, nodesDir, limaDir string, names []string, live bool)
 		}
 		res, err := r.Run(target, []string{"cat", statusPath}, nil)
 		if err != nil || res.Code != 0 {
-			// Record why the host is unreachable so the operator can tell a
-			// transport/config failure from a plain "host down".
+			// Record why the node is unreachable so the operator can tell a
+			// transport/config failure from a plain "node down".
 			switch {
 			case err != nil:
 				row.Errors = append(row.Errors, err.Error())

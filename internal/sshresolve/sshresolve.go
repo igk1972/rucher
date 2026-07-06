@@ -1,4 +1,4 @@
-// Package sshresolve resolves a host config to a native sshx.Target, per config
+// Package sshresolve resolves a node config to a native sshx.Target, per config
 // precedence (network.address -> lima ssh.config -> connection block).
 package sshresolve
 
@@ -23,7 +23,7 @@ func userOr(u, def string) string {
 	return u
 }
 
-// Resolve turns a host config into a native sshx.Target.
+// Resolve turns a node config into a native sshx.Target.
 // Precedence: network.address -> lima ssh.config -> connection block.
 func Resolve(name string, cfg nodecfg.Config, limaDir string) (sshx.Target, error) {
 	if cfg.Network.Address != "" {
@@ -68,7 +68,7 @@ func Resolve(name string, cfg nodecfg.Config, limaDir string) (sshx.Target, erro
 			Identity: cfg.Connection.Identity,
 		}, nil
 	}
-	return sshx.Target{}, fmt.Errorf("host %s: no network.address, lima ssh.config, or connection.host", name)
+	return sshx.Target{}, fmt.Errorf("node %s: no network.address, lima ssh.config, or connection.host", name)
 }
 
 // expandHome rewrites a leading "~/" to the user's home directory.

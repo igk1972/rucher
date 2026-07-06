@@ -1,4 +1,4 @@
-// Package nodecfg reads and updates ./hosts/<name>/configuration.yml (network/connection).
+// Package nodecfg reads and updates ./nodes/<name>/configuration.yml (network/connection).
 package nodecfg
 
 import (
@@ -39,30 +39,30 @@ func Load(path string) (Config, error) {
 }
 
 // LoadMerged reads the global ./nodes/configuration.yml (all nodes) (if present) and the
-// per-host ./hosts/<name>/configuration.yml, then deep-merges the per-host doc OVER
+// per-node ./nodes/<name>/configuration.yml, then deep-merges the per-node doc OVER
 // the global one (maps merge key-by-key; scalars and sequences are replaced) before
-// decoding into Config. The global file is optional; the per-host file is required.
-func LoadMerged(hostsDir, name string) (Config, error) {
-	globalPath := filepath.Join(hostsDir, "configuration.yml")
+// decoding into Config. The global file is optional; the per-node file is required.
+func LoadMerged(nodesDir, name string) (Config, error) {
+	globalPath := filepath.Join(nodesDir, "configuration.yml")
 	global, err := readYAMLMap(globalPath)
 	if err != nil && !os.IsNotExist(err) {
 		return Config{}, err
 	}
 
-	hostPath := filepath.Join(hostsDir, name, "configuration.yml")
-	host, err := readYAMLMap(hostPath)
+	nodePath := filepath.Join(nodesDir, name, "configuration.yml")
+	nodeDoc, err := readYAMLMap(nodePath)
 	if err != nil {
 		return Config{}, err
 	}
 
-	merged := deepMerge(global, host)
+	merged := deepMerge(global, nodeDoc)
 	out, err := yaml.Marshal(merged)
 	if err != nil {
 		return Config{}, err
 	}
 	var c Config
 	if err := yaml.Unmarshal(out, &c); err != nil {
-		return Config{}, fmt.Errorf("parse merged %s: %w", hostPath, err)
+		return Config{}, fmt.Errorf("parse merged %s: %w", nodePath, err)
 	}
 	return c, nil
 }
@@ -101,9 +101,9 @@ func deepMerge(base, over map[string]any) map[string]any {
 	return out
 }
 
-// List returns the names of host subdirectories that contain a configuration.yml.
-func List(hostsDir string) ([]string, error) {
-	entries, err := os.ReadDir(hostsDir)
+// List returns the names of node subdirectories that contain a configuration.yml.
+func List(nodesDir string) ([]string, error) {
+	entries, err := os.ReadDir(nodesDir)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func List(hostsDir string) ([]string, error) {
 		if !e.IsDir() {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(hostsDir, e.Name(), "configuration.yml")); err == nil {
+		if _, err := os.Stat(filepath.Join(nodesDir, e.Name(), "configuration.yml")); err == nil {
 			names = append(names, e.Name())
 		}
 	}
@@ -137,12 +137,12 @@ func setKey(m *yaml.Node, key string, val *yaml.Node) {
 
 // WriteNetwork inserts/updates the `network:` block, preserving other keys and comments.
 func WriteNetwork(path string, n Network) error {
-	// The host's config directory must already exist: net join records an address for
-	// a defined host, it does not create one. Surface a clear error instead of the raw
+	// The node's config directory must already exist: `ops nodes join` records an address
+	// for a defined node, it does not create one. Surface a clear error instead of the raw
 	// "open ...: no such file or directory" the write below would otherwise return.
 	if dir := filepath.Dir(path); dir != "" {
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			return fmt.Errorf("host directory does not exist: %s", dir)
+			return fmt.Errorf("node directory does not exist: %s", dir)
 		}
 	}
 	data, err := os.ReadFile(path)
