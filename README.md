@@ -125,6 +125,18 @@ contact after switching to the native client. Lima nodes (previously reached via
 like any other host. If a Lima VM is recreated on the **same** forwarded port with a new
 key, clear its line from `~/.config/podman-essaim/known_hosts` before reconnecting.
 
+## Compartment overlays
+
+Workloads can get transparent L3 mesh connectivity across hosts (a *compartment overlay*)
+without any manager code change. It fits the opaque-Quadlet model: the operator authors a
+kernel-mode Tailscale sidecar plus the app in one pod, and the auth key rides the existing
+`secrets.create` machinery (podman secret → sidecar env). Privilege stays confined to the
+sidecar; the unprivileged app shares the pod netns and reaches the tailnet transparently.
+This is distinct from the operator control-plane network (`pecm net join`, which sets a
+*host's* management address). See the runbook
+[`test/integration-overlay.md`](test/integration-overlay.md) and the ready example in
+[`test/overlay-example/`](test/overlay-example/).
+
 ## Testing
 
 Pure logic and the shell-out layer are unit-tested with a fake command runner

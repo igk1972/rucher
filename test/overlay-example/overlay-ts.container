@@ -1,0 +1,11 @@
+[Container]
+ContainerName=overlay-ts
+Image=docker.io/tailscale/tailscale:latest
+Pod=overlay-demo.pod
+AddDevice=/dev/net/tun
+AddCapability=NET_ADMIN
+AddCapability=NET_RAW
+Secret=ts-authkey,type=env,target=TS_AUTHKEY
+Environment=TS_USERSPACE=false TS_HOSTNAME=pecm-overlay-demo TS_STATE_DIR=/tmp/tsstate
+[Install]
+WantedBy=default.target

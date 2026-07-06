@@ -1,0 +1,6 @@
+[Container]
+ContainerName=overlay-app
+Image=docker.io/library/nginx:alpine
+Pod=overlay-demo.pod
+[Install]
+WantedBy=default.target
