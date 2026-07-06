@@ -20,7 +20,9 @@ func (f *Fake) Run(t Target, cmd []string, stdin []byte) (Result, error) {
 	return f.Responses[Key(t, cmd)], f.Err
 }
 
-// Key builds the Responses map key for a target + command.
+// Key builds the Responses map key for a target + command. It folds in User and
+// Identity so two Targets that share an Addr but differ by user or key do not
+// collide.
 func Key(t Target, cmd []string) string {
-	return t.Addr + "|" + strings.Join(cmd, " ")
+	return t.Addr + "|" + t.User + "|" + t.Identity + "|" + strings.Join(cmd, " ")
 }

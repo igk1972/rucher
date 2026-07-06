@@ -186,6 +186,21 @@ func TestWaitRunTimesOut(t *testing.T) {
 	}
 }
 
+func TestKeyDistinguishesUserAndIdentity(t *testing.T) {
+	cmd := []string{"cat", "/x"}
+	base := Target{Addr: "h:22", User: "root", Identity: "/k"}
+
+	if Key(base, cmd) == Key(Target{Addr: "h:22", User: "app", Identity: "/k"}, cmd) {
+		t.Fatal("same Addr but different User must produce different keys")
+	}
+	if Key(base, cmd) == Key(Target{Addr: "h:22", User: "root", Identity: "/other"}, cmd) {
+		t.Fatal("same Addr but different Identity must produce different keys")
+	}
+	if Key(base, cmd) != Key(base, cmd) {
+		t.Fatal("identical targets must produce identical keys")
+	}
+}
+
 func TestClientRunParsesBadKey(t *testing.T) {
 	c := NewClient(filepath.Join(t.TempDir(), "known_hosts"), 0)
 	// Identity points at a nonexistent file: Run must error before dialing.
