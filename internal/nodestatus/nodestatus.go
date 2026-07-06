@@ -79,7 +79,7 @@ func Collect(r sshx.Runner, nodesDir, limaDir string, names []string, live bool)
 			}
 		}
 		if live {
-			if lv, err := r.Run(target, []string{"sudo", "rucher", "status"}, nil); err == nil {
+			if lv, err := r.Run(target, []string{"sudo", "rucher", "node", "cadre", "status"}, nil); err == nil {
 				row.Live = lv.Stdout
 			}
 		}
