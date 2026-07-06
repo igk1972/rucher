@@ -66,6 +66,24 @@ func TestLoadExcludesSealedIdentity(t *testing.T) {
 	}
 }
 
+func TestLoadExcludesExtraSopsFile(t *testing.T) {
+	// Any *.sops.yaml is a service file, not just the one named by secrets.from:
+	// a second encrypted doc must not leak into the cadre's systemd dir.
+	dir := writeCadre(t, map[string]string{
+		"web.container":   "[Container]\nImage=nginx\n",
+		"extra.sops.yaml": "api_token: ENC[...]\n",
+	})
+	c, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range c.Files {
+		if strings.HasSuffix(f.Name, ".sops.yaml") {
+			t.Fatalf("SOPS file %q must not be a materialized file", f.Name)
+		}
+	}
+}
+
 func TestLoadRejectsNameMismatch(t *testing.T) {
 	dir := writeDir(t)
 	os.WriteFile(filepath.Join(dir, "rucher.yml"), []byte("name: other\n"), 0o644)

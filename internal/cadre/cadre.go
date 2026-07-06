@@ -52,16 +52,19 @@ func Load(dir string) (Cadre, error) {
 	service := map[string]bool{
 		"rucher.yml":   true,
 		m.Secrets.From: true,
-		".sops.yaml":   true,
 	}
-	// sealed age identities (identity.age / identity.<node>.age) are B service
-	// files, not support files, so they must never be materialized either
-	isSealedIdentity := func(name string) bool {
+	// A SOPS file (anything ending .sops.yaml) and a sealed age identity
+	// (identity.age / identity.<node>.age) are service files, not support files, so they
+	// must never be materialized onto the node.
+	isServiceFile := func(name string) bool {
+		if strings.HasSuffix(name, ".sops.yaml") {
+			return true
+		}
 		return strings.HasPrefix(name, "identity.") && strings.HasSuffix(name, ".age")
 	}
 	c := Cadre{Name: m.Name, Dir: dir, Manifest: m}
 	for _, e := range entries {
-		if e.IsDir() || service[e.Name()] || isSealedIdentity(e.Name()) {
+		if e.IsDir() || service[e.Name()] || isServiceFile(e.Name()) {
 			if e.Name() == m.Secrets.From {
 				c.SopsPath = filepath.Join(dir, e.Name())
 			}
