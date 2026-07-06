@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"podman-essaim-compartment-manager/internal/age"
 	"podman-essaim-compartment-manager/internal/compartment"
 	"podman-essaim-compartment-manager/internal/fileset"
 	"podman-essaim-compartment-manager/internal/host"
@@ -43,33 +44,47 @@ func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 	idp := provision.HomeDir("web") + "/.config/podman-essaim-compartment-manager/age/identity.txt"
 	recp := provision.HomeDir("web") + "/.config/podman-essaim-compartment-manager/age/recipient.txt"
 	f := &host.Fake{Responses: map[string]host.Result{
-		"root:id -u pecm-web":            {Stdout: "1500"},
-		"root:cat /etc/subuid":           {},
-		"root:cat /etc/subgid":           {},
-		"user:1500:test -f " + idp:       {Code: 1}, // force generation
-		"user:1500:age-keygen -o " + idp: {Stderr: "Public key: age1testrecipient\n"},
+		"root:id -u pecm-web":      {Stdout: "1500"},
+		"root:cat /etc/subuid":     {},
+		"root:cat /etc/subgid":     {},
+		"user:1500:test -f " + idp: {Code: 1}, // force generation
 	}}
 
 	rec, err := New(f, "web")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rec != "age1testrecipient" {
-		t.Fatalf("recipient = %q, want age1testrecipient", rec)
+	// The identity is generated in-process, so the recipient is a real random age1 key.
+	if !strings.HasPrefix(rec, "age1") {
+		t.Fatalf("recipient = %q, want a valid age1 recipient", rec)
 	}
 
-	var teed *host.Call
+	var idCall, teed *host.Call
 	for i := range f.Calls {
 		c := &f.Calls[i]
+		if len(c.Argv) == 2 && c.Argv[0] == "tee" && c.Argv[1] == idp {
+			idCall = c
+		}
 		if len(c.Argv) == 2 && c.Argv[0] == "tee" && c.Argv[1] == recp {
 			teed = c
 		}
 	}
+	// The identity written to disk must back-derive to the returned recipient.
+	if idCall == nil {
+		t.Fatalf("no tee %s call recorded", idp)
+	}
+	back, err := age.RecipientFor(strings.TrimSpace(string(idCall.Stdin)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back != rec {
+		t.Fatalf("recipient from written identity = %q, want returned %q", back, rec)
+	}
 	if teed == nil {
 		t.Fatalf("no tee %s call recorded", recp)
 	}
-	if string(teed.Stdin) != "age1testrecipient\n" {
-		t.Fatalf("tee stdin = %q, want %q", teed.Stdin, "age1testrecipient\n")
+	if string(teed.Stdin) != rec+"\n" {
+		t.Fatalf("tee stdin = %q, want %q", teed.Stdin, rec+"\n")
 	}
 }
 

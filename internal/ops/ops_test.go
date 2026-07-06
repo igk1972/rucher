@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"podman-essaim-compartment-manager/internal/age"
 	"podman-essaim-compartment-manager/internal/host"
 )
 
@@ -66,6 +67,50 @@ func equalArgv(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func TestGenerateAgeKey(t *testing.T) {
+	f := &host.Fake{Responses: map[string]host.Result{}}
+	o := Ops{R: f, User: "pecm-web", UID: 1500}
+
+	recipient, err := o.GenerateAgeKey("/id/identity.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(recipient, "age1") {
+		t.Fatalf("recipient = %q, want an age1 prefix", recipient)
+	}
+
+	// The key is random, so we prove correctness by capturing the identity written to
+	// disk and back-deriving its recipient: it must equal the returned one.
+	var teed *host.Call
+	var sawChmod bool
+	for i := range f.Calls {
+		c := &f.Calls[i]
+		if len(c.Argv) == 2 && c.Argv[0] == "tee" && c.Argv[1] == "/id/identity.txt" {
+			teed = c
+		}
+		if strings.Join(c.Argv, " ") == "chmod 600 /id/identity.txt" {
+			sawChmod = true
+		}
+	}
+	if teed == nil {
+		t.Fatal("no `tee /id/identity.txt` call recorded")
+	}
+	id := strings.TrimSpace(string(teed.Stdin))
+	if !strings.HasPrefix(id, "AGE-SECRET-KEY-1") {
+		t.Fatalf("tee stdin = %q, want an AGE-SECRET-KEY-1 identity", id)
+	}
+	back, err := age.RecipientFor(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back != recipient {
+		t.Fatalf("recipient from written identity = %q, want returned %q", back, recipient)
+	}
+	if !sawChmod {
+		t.Fatal("expected a `chmod 600 /id/identity.txt` user call")
+	}
 }
 
 func TestSecretCreatePassesValueViaStdin(t *testing.T) {

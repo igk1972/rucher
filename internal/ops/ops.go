@@ -3,8 +3,10 @@ package ops
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
+	"podman-essaim-compartment-manager/internal/age"
 	"podman-essaim-compartment-manager/internal/host"
 )
 
@@ -48,19 +50,32 @@ func (o Ops) Login(reg, user string, password []byte, insecure bool) error {
 	return wrap(res, err, argv)
 }
 
+// GenerateAgeKey creates the compartment's age identity in-process and writes it to
+// identityPath as the compartment user, returning the corresponding recipient. Writing
+// as the user (mkdir/tee/chmod) mirrors agent.installIdentity; tee honors the user's
+// umask, so the private key is tightened to 0600.
 func (o Ops) GenerateAgeKey(identityPath string) (string, error) {
-	argv := []string{"age-keygen", "-o", identityPath}
-	res, err := o.R.User(o.User, o.UID, argv, nil)
-	if err := wrap(res, err, argv); err != nil {
+	identity, recipient, err := age.GenerateIdentity()
+	if err != nil {
 		return "", err
 	}
-	// age-keygen prints "Public key: age1..." to stderr.
-	for _, line := range strings.Split(res.Stderr, "\n") {
-		if r, ok := strings.CutPrefix(strings.TrimSpace(line), "Public key: "); ok {
-			return r, nil
-		}
+
+	mkdir := []string{"mkdir", "-p", filepath.Dir(identityPath)}
+	res, err := o.R.User(o.User, o.UID, mkdir, nil)
+	if err := wrap(res, err, mkdir); err != nil {
+		return "", err
 	}
-	return "", fmt.Errorf("age-keygen: recipient not found in output")
+	tee := []string{"tee", identityPath}
+	res, err = o.R.User(o.User, o.UID, tee, []byte(identity+"\n"))
+	if err := wrap(res, err, tee); err != nil {
+		return "", err
+	}
+	chmod := []string{"chmod", "600", identityPath}
+	res, err = o.R.User(o.User, o.UID, chmod, nil)
+	if err := wrap(res, err, chmod); err != nil {
+		return "", err
+	}
+	return recipient, nil
 }
 
 // UnitService maps a Quadlet unit filename to its generated .service name.
