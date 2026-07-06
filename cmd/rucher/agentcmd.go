@@ -110,7 +110,7 @@ func cmdAgentRun(configPath string, out io.Writer) int {
 	}
 	nodeIdentity, err := node.Identity(node.IdentityPath)
 	if err != nil {
-		fmt.Fprintln(out, "error: node key missing (run `rucher node init`):", err)
+		fmt.Fprintln(out, "error: node key missing (run `rucher node key init`):", err)
 		return 1
 	}
 	var st agent.Status
@@ -153,7 +153,7 @@ func agentTimerUnit(interval string) string {
 		"[Timer]\nOnBootSec=30s\nOnUnitActiveSec=" + interval + "\n\n[Install]\nWantedBy=timers.target\n"
 }
 
-// cmdAgentInstall writes the systemd oneshot service + timer that run `agent run`.
+// cmdAgentInstall writes the systemd oneshot service + timer that run `node agent run`.
 func cmdAgentInstall(configPath string, out io.Writer) int {
 	cfg, err := agentcfg.Load(configPath)
 	if err != nil {
@@ -162,7 +162,7 @@ func cmdAgentInstall(configPath string, out io.Writer) int {
 	}
 	r := host.NewExec()
 	service := "[Unit]\nDescription=rucher GitOps agent (one pass)\n\n" +
-		"[Service]\nType=oneshot\nExecStart=/usr/local/bin/rucher agent run --config " + configPath + "\n"
+		"[Service]\nType=oneshot\nExecStart=/usr/local/bin/rucher node agent run --config " + configPath + "\n"
 	timer := agentTimerUnit(cfg.Interval)
 	for path, body := range map[string]string{
 		"/etc/systemd/system/rucher-agent.service": service,

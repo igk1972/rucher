@@ -18,12 +18,12 @@ func TestRunNoArgsPrintsUsageAndFails(t *testing.T) {
 	}
 }
 
-func TestHostsStatusJSONWiring(t *testing.T) {
+func TestRuchesStatusJSONWiring(t *testing.T) {
 	// An empty hosts dir means no rows, so the --json wiring in run() should emit
 	// an empty JSON array (not null) and exit 0 since nothing is unreachable.
 	dir := t.TempDir()
 	var out bytes.Buffer
-	code := run([]string{"hosts", "--hosts", dir, "status", "--json"}, &out)
+	code := run([]string{"ops", "ruches", "--hosts", dir, "status", "--json"}, &out)
 	if code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
@@ -82,5 +82,36 @@ func TestParseRm(t *testing.T) {
 	}
 	if _, _, err := parseRm(nil); err == nil {
 		t.Fatal("parseRm with no args should error")
+	}
+}
+
+func TestNodeApplyRejectsPositionalNames(t *testing.T) {
+	// `node apply` reconciles the whole node; a named compartment must go through
+	// `node cadre apply`, so a positional name here is a usage error with guidance.
+	var out bytes.Buffer
+	code := run([]string{"node", "apply", "web"}, &out)
+	if code != 2 {
+		t.Fatalf("code = %d, want 2", code)
+	}
+	if !strings.Contains(out.String(), "node cadre apply") {
+		t.Fatalf("expected guidance to `node cadre apply`, got %q", out.String())
+	}
+}
+
+func TestNodeCadreApplyRequiresName(t *testing.T) {
+	var out bytes.Buffer
+	code := run([]string{"node", "cadre", "apply"}, &out)
+	if code != 2 {
+		t.Fatalf("code = %d, want 2", code)
+	}
+	if !strings.Contains(out.String(), "node apply") {
+		t.Fatalf("expected guidance to `node apply`, got %q", out.String())
+	}
+}
+
+func TestUnknownGroupFails(t *testing.T) {
+	var out bytes.Buffer
+	if code := run([]string{"frobnicate"}, &out); code != 2 {
+		t.Fatalf("code = %d, want 2", code)
 	}
 }

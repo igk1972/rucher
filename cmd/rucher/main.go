@@ -7,8 +7,25 @@ import (
 )
 
 func usage() string {
-	return "rucher <command> [args]\n" +
-		"commands: new plan apply status rm logs age node agent keygen net hosts\n"
+	return `rucher <node|ops> ...
+
+node — on the Linux node (runuser/systemctl/podman):
+  node apply [--dir DIR]                        reconcile all compartments under --dir
+  node cadre new <name>
+  node cadre apply [--dir DIR] <name...>        reconcile the named compartment(s)
+  node cadre status [name...]
+  node cadre logs <name> <unit>
+  node cadre rm <name> [--purge]
+  node cadre recipient <name>
+  node key init | show
+  node agent run | install [--config PATH]
+
+ops — from the operator machine:
+  ops plan [--dir DIR] [name...]
+  ops ruches [--hosts DIR] status [--live] [--json] [host...]
+  ops ruches [--hosts DIR] join <host> --address <addr> [--json]
+  ops key seal <name> --to <recipient> [--to <recipient> ...]
+`
 }
 
 // parseDir pulls an optional `--dir <value>` out of args wherever it appears
@@ -48,71 +65,65 @@ func parseRm(args []string) (name string, purge bool, err error) {
 	return name, purge, nil
 }
 
-// run is the testable entry point; it returns a process exit code.
+// run is the testable entry point; it returns a process exit code. The command
+// surface is split by execution side: `node` acts on the local Linux host,
+// `ops` runs on the operator machine (cross-platform).
 func run(args []string, stdout io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprint(stdout, usage())
 		return 2
 	}
 	switch args[0] {
-	case "new":
-		if len(args) < 2 {
-			fmt.Fprint(stdout, usage())
-			return 2
-		}
-		return cmdNew(args[1], stdout)
-	case "plan":
-		dir, names, err := parseDir(args[1:])
-		if err != nil {
-			fmt.Fprintln(stdout, "error:", err)
-			return 2
-		}
-		return cmdPlan(dir, names, stdout)
-	case "apply":
-		dir, names, err := parseDir(args[1:])
-		if err != nil {
-			fmt.Fprintln(stdout, "error:", err)
-			return 2
-		}
-		return cmdApply(dir, names, stdout)
-	case "status":
-		return cmdStatus(args[1:], stdout)
-	case "logs":
-		if len(args) < 3 {
-			fmt.Fprint(stdout, usage())
-			return 2
-		}
-		return cmdLogs(args[1], args[2], stdout)
-	case "age":
-		if len(args) >= 3 && args[1] == "recipient" {
-			return cmdAgeRecipient(args[2], stdout)
-		}
+	case "node":
+		return runNode(args[1:], stdout)
+	case "ops":
+		return runOps(args[1:], stdout)
+	default:
+		fmt.Fprintf(stdout, "unknown command: %s\n\n%s", args[0], usage())
+		return 2
+	}
+}
+
+// runNode dispatches the node-side tree (everything that shells out to the local
+// host's systemd/podman via runuser).
+func runNode(args []string, stdout io.Writer) int {
+	if len(args) == 0 {
 		fmt.Fprint(stdout, usage())
 		return 2
-	case "rm":
-		name, purge, err := parseRm(args[1:])
+	}
+	switch args[0] {
+	case "apply":
+		// `node apply` reconciles the whole node (all compartments); a specific
+		// compartment is `node cadre apply <name>`, so positional names are rejected here.
+		dir, names, err := parseDir(args[1:])
 		if err != nil {
-			fmt.Fprintf(stdout, "error: %v\n\n%s", err, usage())
+			fmt.Fprintln(stdout, "error:", err)
 			return 2
 		}
-		return cmdRm(name, purge, stdout)
-	case "node":
+		if len(names) > 0 {
+			fmt.Fprintln(stdout, "error: `node apply` reconciles all compartments; use `node cadre apply <name>` for one")
+			return 2
+		}
+		return cmdApply(dir, nil, stdout)
+	case "cadre":
+		return runNodeCadre(args[1:], stdout)
+	case "key":
 		if len(args) < 2 {
-			fmt.Fprintln(stdout, "usage: node init|recipient")
+			fmt.Fprintln(stdout, "usage: node key init|show")
 			return 2
 		}
 		switch args[1] {
 		case "init":
 			return cmdNodeInit(stdout)
-		case "recipient":
+		case "show":
 			return cmdNodeRecipient(stdout)
 		default:
-			fmt.Fprintf(stdout, "unknown node subcommand: %s\n", args[1])
+			fmt.Fprintf(stdout, "unknown node key subcommand: %s\n", args[1])
 			return 2
 		}
 	case "agent":
 		if len(args) < 2 {
-			fmt.Fprintln(stdout, "usage: agent run|install")
+			fmt.Fprintln(stdout, "usage: node agent run|install [--config PATH]")
 			return 2
 		}
 		configPath := "/etc/rucher/agent.yml"
@@ -126,48 +137,126 @@ func run(args []string, stdout io.Writer) int {
 		case "install":
 			return cmdAgentInstall(configPath, stdout)
 		default:
-			fmt.Fprintf(stdout, "unknown agent subcommand: %s\n", args[1])
+			fmt.Fprintf(stdout, "unknown node agent subcommand: %s\n", args[1])
 			return 2
 		}
-	case "keygen":
-		return cmdKeygen(args[1:], stdout)
-	case "net":
-		hostsDir := "./hosts"
-		rest := args[1:]
-		if len(rest) >= 2 && rest[0] == "--hosts" {
-			hostsDir, rest = rest[1], rest[2:]
-		}
-		if len(rest) >= 1 && rest[0] == "join" {
-			return cmdNetJoin(hostsDir, rest[1:], stdout)
-		}
-		fmt.Fprintln(stdout, "usage: net [--hosts DIR] join <host> --address <addr> [--json]")
-		return 2
-	case "hosts":
-		hostsDir := "./hosts"
-		rest := args[1:]
-		if len(rest) >= 2 && rest[0] == "--hosts" {
-			hostsDir, rest = rest[1], rest[2:]
-		}
-		if len(rest) >= 1 && rest[0] == "status" {
-			live := false
-			jsonOut := false
-			var names []string
-			for _, a := range rest[1:] {
-				switch a {
-				case "--live":
-					live = true
-				case "--json":
-					jsonOut = true
-				default:
-					names = append(names, a)
-				}
-			}
-			return cmdHostsStatus(hostsDir, names, live, jsonOut, stdout)
-		}
-		fmt.Fprintln(stdout, "usage: hosts [--hosts DIR] status [--live] [--json] [host...]")
-		return 2
 	default:
-		fmt.Fprintf(stdout, "unknown or not-yet-implemented command: %s\n\n%s", args[0], usage())
+		fmt.Fprintf(stdout, "unknown node subcommand: %s\n\n%s", args[0], usage())
+		return 2
+	}
+}
+
+// runNodeCadre dispatches per-compartment operations (`node cadre <verb> ...`).
+func runNodeCadre(args []string, stdout io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprintln(stdout, "usage: node cadre <new|apply|status|logs|rm|recipient> ...")
+		return 2
+	}
+	switch args[0] {
+	case "new":
+		if len(args) < 2 {
+			fmt.Fprintln(stdout, "usage: node cadre new <name>")
+			return 2
+		}
+		return cmdNew(args[1], stdout)
+	case "apply":
+		dir, names, err := parseDir(args[1:])
+		if err != nil {
+			fmt.Fprintln(stdout, "error:", err)
+			return 2
+		}
+		if len(names) == 0 {
+			fmt.Fprintln(stdout, "error: `node cadre apply` needs a compartment name; use `node apply` for all")
+			return 2
+		}
+		return cmdApply(dir, names, stdout)
+	case "status":
+		return cmdStatus(args[1:], stdout)
+	case "logs":
+		if len(args) < 3 {
+			fmt.Fprintln(stdout, "usage: node cadre logs <name> <unit>")
+			return 2
+		}
+		return cmdLogs(args[1], args[2], stdout)
+	case "rm":
+		name, purge, err := parseRm(args[1:])
+		if err != nil {
+			fmt.Fprintf(stdout, "error: %v\n\nusage: node cadre rm <name> [--purge]\n", err)
+			return 2
+		}
+		return cmdRm(name, purge, stdout)
+	case "recipient":
+		if len(args) < 2 {
+			fmt.Fprintln(stdout, "usage: node cadre recipient <name>")
+			return 2
+		}
+		return cmdAgeRecipient(args[1], stdout)
+	default:
+		fmt.Fprintf(stdout, "unknown node cadre subcommand: %s\n", args[0])
+		return 2
+	}
+}
+
+// runOps dispatches the operator-side tree (cross-platform: local files, crypto,
+// and the SSH fleet plane).
+func runOps(args []string, stdout io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprint(stdout, usage())
+		return 2
+	}
+	switch args[0] {
+	case "plan":
+		dir, names, err := parseDir(args[1:])
+		if err != nil {
+			fmt.Fprintln(stdout, "error:", err)
+			return 2
+		}
+		return cmdPlan(dir, names, stdout)
+	case "key":
+		if len(args) < 2 || args[1] != "seal" {
+			fmt.Fprintln(stdout, "usage: ops key seal <name> --to <recipient> [--to <recipient> ...]")
+			return 2
+		}
+		return cmdKeygen(args[2:], stdout)
+	case "ruches":
+		return runOpsRuches(args[1:], stdout)
+	default:
+		fmt.Fprintf(stdout, "unknown ops subcommand: %s\n\n%s", args[0], usage())
+		return 2
+	}
+}
+
+// runOpsRuches dispatches the fleet plane (`ops ruches [--hosts DIR] <status|join>`).
+// --hosts is accepted only before the subcommand, matching the other flag-first commands.
+func runOpsRuches(args []string, stdout io.Writer) int {
+	hostsDir := "./hosts"
+	rest := args
+	if len(rest) >= 2 && rest[0] == "--hosts" {
+		hostsDir, rest = rest[1], rest[2:]
+	}
+	if len(rest) == 0 {
+		fmt.Fprintln(stdout, "usage: ops ruches [--hosts DIR] status|join ...")
+		return 2
+	}
+	switch rest[0] {
+	case "status":
+		live, jsonOut := false, false
+		var names []string
+		for _, a := range rest[1:] {
+			switch a {
+			case "--live":
+				live = true
+			case "--json":
+				jsonOut = true
+			default:
+				names = append(names, a)
+			}
+		}
+		return cmdHostsStatus(hostsDir, names, live, jsonOut, stdout)
+	case "join":
+		return cmdNetJoin(hostsDir, rest[1:], stdout)
+	default:
+		fmt.Fprintf(stdout, "unknown ops ruches subcommand: %s\n", rest[0])
 		return 2
 	}
 }
