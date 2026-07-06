@@ -12,7 +12,6 @@ func TestLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "configuration.yml")
 	os.WriteFile(path, []byte(`
 network:
-  driver: tailscale
   address: 100.1.2.3
 connection:
   host: 10.0.0.5

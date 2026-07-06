@@ -18,8 +18,8 @@ func writeHost(t *testing.T, dir, name, body string) {
 
 func TestCollectAggregatesAndIsolates(t *testing.T) {
 	hosts := t.TempDir()
-	writeHost(t, hosts, "a", "network: {driver: ssh, address: 1.1.1.1}\n")
-	writeHost(t, hosts, "b", "network: {driver: ssh, address: 2.2.2.2}\n")
+	writeHost(t, hosts, "a", "network: {address: 1.1.1.1}\n")
+	writeHost(t, hosts, "b", "network: {address: 2.2.2.2}\n")
 
 	// The Targets that Resolve yields for the two host configs.
 	targetA := sshx.Target{Addr: "1.1.1.1:22", User: "root"}
@@ -67,7 +67,7 @@ func TestCollectAggregatesAndIsolates(t *testing.T) {
 
 func TestCollectCapturesTransportError(t *testing.T) {
 	hosts := t.TempDir()
-	writeHost(t, hosts, "c", "network: {driver: ssh, address: 3.3.3.3}\n")
+	writeHost(t, hosts, "c", "network: {address: 3.3.3.3}\n")
 
 	// A transport failure makes Run return a non-nil error rather than a Result.
 	f := &sshx.Fake{Err: errors.New("ssh spawn failed")}
