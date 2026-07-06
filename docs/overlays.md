@@ -1,6 +1,6 @@
-# Compartment overlays
+# Cadre overlays
 
-A compartment can give its workloads **transparent L3 connectivity across nodes** — a private
+A cadre can give its workloads **transparent L3 connectivity across nodes** — a private
 mesh where an app on one node reaches an app on another by a stable overlay IP, with no proxy
 and no application changes. This is a per-workload data plane, distinct from the operator
 [management network](management-network.md) (`ops nodes join`, which sets a *node's* management
@@ -9,7 +9,7 @@ address).
 ## How it fits the model — no manager change
 
 An overlay is just ordinary opaque Quadlets plus the standard secrets mechanism; the manager
-lays them down as-is. The compartment's pod contains two containers:
+lays them down as-is. The cadre's pod contains two containers:
 
 - an **overlay sidecar** running a mesh VPN in **kernel mode**, which brings up a real network
   interface (e.g. `tailscale0`) inside the pod and joins the mesh, receiving an overlay
@@ -38,7 +38,7 @@ transparently.
 Only the sidecar holds `/dev/net/tun` and the `NET_ADMIN`/`NET_RAW` capabilities. The
 application container carries **no** device and **no** added capability — it is an ordinary
 unprivileged container that happens to share the pod's netns and therefore the overlay
-interface. Overlay membership is per compartment: each compartment that wants mesh
+interface. Overlay membership is per cadre: each cadre that wants mesh
 connectivity ships its own sidecar and gets its own overlay address.
 
 ## The auth key rides `secrets.create`
@@ -47,7 +47,7 @@ The sidecar authenticates to the mesh with an auth key, delivered through the no
 path (see [secrets.md](secrets.md)):
 
 ```yaml
-# compartment.yml
+# rucher.yml
 name: overlay-demo
 secrets:
   from: secrets.sops.yaml
@@ -81,16 +81,16 @@ Never commit a real auth key in plaintext — commit only the encrypted `secrets
 ## Node prerequisite
 
 Kernel mode needs the `tun` kernel module loaded and `/dev/net/tun` accessible to the
-compartment's user. The manager does not set this up; it belongs to the provisioning layer
+cadre's user. The manager does not set this up; it belongs to the provisioning layer
 (see [node-requirements.md](node-requirements.md)). If the device is missing or its
 permissions are insufficient, a kernel-mode sidecar cannot bring up its interface.
 
 ## Worked example
 
-A complete, ready-to-apply overlay compartment lives at
+A complete, ready-to-apply overlay cadre lives at
 [`../test/overlay-example/`](../test/overlay-example/): the manifest, the pod, the kernel-mode
 sidecar unit, the unprivileged app unit, and a plaintext secrets template. Apply it like any
-compartment — remember `--dir` is the **parent** directory and the name selects the
+cadre — remember `--dir` is the **parent** directory and the name selects the
 subdirectory (run from the module root):
 
 ```bash

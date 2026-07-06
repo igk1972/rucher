@@ -44,23 +44,23 @@ rucher <group> <command> [args]
 
 Execution side: `[node]` shells out on the local machine (`runuser`/`systemctl`/`podman`) — the
 machine must be a Linux node; `[local]` touches only local files/crypto — any OS; `[ssh]` reaches
-remote nodes (the client is cross-platform). Defaults: `--dir ./compartments`, `--dir ./nodes`,
-`--config /etc/rucher/agent.yml`. Exit codes: `0` ok, `1` runtime error, `2` usage/parse error.
+remote nodes (the client is cross-platform). Defaults: `--dir` is `./cadres` for cadre commands
+and `./nodes` for `ops nodes`; `--config /etc/rucher/agent.yml`. Exit codes: `0` ok, `1` runtime error, `2` usage/parse error.
 
 ## Shared conventions
 
-### `--dir DIR` for compartments (node apply, node cadre apply, ops plan)
+### `--dir DIR` for cadres (node apply, node cadre apply, ops plan)
 
-`--dir` is the **parent** directory whose immediate subdirectories are compartments; the
-subdirectory name is the compartment name. It defaults to `./compartments`. `node apply` and
-`ops plan` take positional compartment names to act on; with none, every subdirectory is
+`--dir` is the **parent** directory whose immediate subdirectories are cadres; the
+subdirectory name is the cadre name. It defaults to `./cadres`. `node apply` and
+`ops plan` take positional cadre names to act on; with none, every subdirectory is
 selected. `node cadre apply` requires at least one name. A requested name that is not a
-subdirectory of `--dir` is an error (this guards against pointing `--dir` at a single compartment
+subdirectory of `--dir` is an error (this guards against pointing `--dir` at a single cadre
 folder instead of its parent).
 
 ```bash
-rucher node cadre apply --dir ./compartments web   # reconcile ./compartments/web
-rucher node apply --dir .                            # reconcile every compartment under .
+rucher node cadre apply --dir ./cadres web   # reconcile ./cadres/web
+rucher node apply --dir .                            # reconcile every cadre under .
 ```
 
 ### `--dir DIR` for node configs (ops nodes)
@@ -77,45 +77,45 @@ rucher ops nodes --dir ./nodes status
 
 ## node
 
-Runs on the Linux node. The `cadre` subgroup manages the compartment lifecycle; `key` manages the
+Runs on the Linux node. The `cadre` subgroup manages the cadre lifecycle; `key` manages the
 node's own age key; `agent` drives the pull-based GitOps agent. `node apply` reconciles **all**
 cadres under `--dir`; `node cadre apply <name...>` reconciles **only the named** cadre(s).
 
 ### `rucher node apply [--dir DIR]`
 
-Reconcile **every** compartment under `--dir` onto the node: for each one ensure the user, decrypt
+Reconcile **every** cadre under `--dir` onto the node: for each one ensure the user, decrypt
 secrets, diff against the last-applied state, and apply the minimal changes (write files, create
 secrets, registry logins, resource limits, `daemon-reload`, start/restart/stop units). Idempotent.
-Prints `started=<n> restarted=<n>` per compartment. Positional names, if given, narrow the set.
+Prints `started=<n> restarted=<n>` per cadre. Positional names, if given, narrow the set.
 
 ```bash
-sudo rucher node apply --dir ./compartments
+sudo rucher node apply --dir ./cadres
 ```
 
 ### `rucher node cadre new <name>`
 
-Provision a compartment's OS user (`rucher-<name>`) and its age identity if absent, then print
-the compartment's age recipient. Idempotent: re-running returns the existing recipient.
+Provision a cadre's OS user (`rucher-<name>`) and its age identity if absent, then print
+the cadre's age recipient. Idempotent: re-running returns the existing recipient.
 
 ```bash
-sudo rucher node cadre new web        # -> age1... (the compartment's recipient)
+sudo rucher node cadre new web        # -> age1... (the cadre's recipient)
 ```
 
 ### `rucher node cadre apply [--dir DIR] <name...>`
 
-Reconcile the **named** compartment(s) onto the node — same reconcile as `node apply`, but scoped
-to the compartments you name (at least one required): ensure the user, decrypt secrets, diff
+Reconcile the **named** cadre(s) onto the node — same reconcile as `node apply`, but scoped
+to the cadres you name (at least one required): ensure the user, decrypt secrets, diff
 against the last-applied state, and apply the minimal changes. Idempotent. Prints
-`started=<n> restarted=<n>` per compartment.
+`started=<n> restarted=<n>` per cadre.
 
 ```bash
-sudo rucher node cadre apply --dir ./compartments web
+sudo rucher node cadre apply --dir ./cadres web
 ```
 
 ### `rucher node cadre status [name...]`
 
-Print each compartment's per-unit `ActiveState`/`SubState` (via `systemctl --user show`) as a
-table. With no names it reports every compartment that has a persisted state file. (Note:
+Print each cadre's per-unit `ActiveState`/`SubState` (via `systemctl --user show`) as a
+table. With no names it reports every cadre that has a persisted state file. (Note:
 `status` does not take `--dir`; it works from persisted state, not a directory.)
 
 ```bash
@@ -125,7 +125,7 @@ sudo rucher node cadre status web
 
 ### `rucher node cadre logs <name> <unit>`
 
-Print the last 200 journal lines for one of a compartment's units. Read as root filtered to
+Print the last 200 journal lines for one of a cadre's units. Read as root filtered to
 the user's unit (`_SYSTEMD_USER_UNIT` + `_UID`), because a nologin system user cannot open
 its own `journalctl --user`. `<unit>` is the Quadlet filename (e.g. `web.container`).
 
@@ -135,7 +135,7 @@ sudo rucher node cadre logs web web.container
 
 ### `rucher node cadre rm <name> [--purge]`
 
-Unmanage a compartment: stop its units, delete their unit files (so nothing restarts on
+Unmanage a cadre: stop its units, delete their unit files (so nothing restarts on
 boot), and drop the state file. The OS user, its podman secrets/volumes and the age identity
 are **kept**. With `--purge` it additionally tears down the OS user and its home (terminates
 the user's session and processes, `userdel -r`, removes the resource slice drop-in).
@@ -147,7 +147,7 @@ sudo rucher node cadre rm web --purge      # also delete the user + home + data
 
 ### `rucher node cadre recipient <name>`
 
-Print a compartment's stored age recipient (used to encrypt its `secrets.sops.yaml`). See
+Print a cadre's stored age recipient (used to encrypt its `secrets.sops.yaml`). See
 [secrets.md](secrets.md).
 
 ```bash
@@ -159,7 +159,7 @@ sudo rucher node cadre recipient web    # -> age1...
 Manage the node's own age key (born on the node at `/etc/rucher/node/identity.txt`,
 mode 0600; the private key never leaves the node). `init` creates it on first use and prints
 its recipient; `show` prints the recipient of the existing key. Used by the GitOps
-agent to unseal compartment identities. See [gitops-agent.md](gitops-agent.md).
+agent to unseal cadre identities. See [gitops-agent.md](gitops-agent.md).
 
 ```bash
 sudo rucher node key init         # -> age1... (this node's recipient)
@@ -182,23 +182,23 @@ sudo rucher node agent install
 ## ops
 
 Runs from the operator machine (any OS). `plan` is a read-only dry run; `key seal` seals a
-compartment identity to node(s); `nodes` reaches every node over SSH.
+cadre identity to node(s); `nodes` reaches every node over SSH.
 
 ### `rucher ops plan [--dir DIR] [name...]`
 
-Dry run. For each selected compartment, load and validate it and print what `apply` would do
+Dry run. For each selected cadre, load and validate it and print what `apply` would do
 (against an empty prior state, so the full intended change is shown): units to start/restart
 and files to write. Read-only — it touches nothing on the node and does not require root.
 
 ```bash
-rucher ops plan --dir ./compartments web
+rucher ops plan --dir ./cadres web
 ```
 
 ### `rucher ops key seal <name> --to <node-recipient> [--to <node-recipient> ...]`
 
-Generate a compartment keypair, seal its private identity to every listed node recipient (so
+Generate a cadre keypair, seal its private identity to every listed node recipient (so
 any of those nodes can unseal it), write the sealed `identity.age` into
-`./compartments/<name>/`, and print the compartment's recipient. Repeated `--to` values are
+`./cadres/<name>/`, and print the cadre's recipient. Repeated `--to` values are
 de-duplicated. This is an operator-side command used when building the store. See
 [gitops-agent.md](gitops-agent.md).
 

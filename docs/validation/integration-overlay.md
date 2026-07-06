@@ -1,9 +1,9 @@
-# Compartment overlay — run on Lima nodes
+# Cadre overlay — run on Lima nodes
 
-Gives a compartment's workloads transparent L3 connectivity in the tailnet between nodes. The form is
+Gives a cadre's workloads transparent L3 connectivity in the tailnet between nodes. The form is
 ordinary "opaque" quadlets: the operator writes a tailscale sidecar + pod as usual, and the authkey
 travels via the regular `secrets.create`. **The manager's code does not change.** The full example is
-`test/overlay-example/` (the compartment itself lives in the subdirectory `overlay-example/overlay-demo/`).
+`test/overlay-example/` (the cadre itself lives in the subdirectory `overlay-example/overlay-demo/`).
 
 **Validated by the controller** on Lima (Debian trixie, podman 5.8.4, a real tailnet):
 cross-node transparent connectivity from a pod on lima-01 to nginx in a pod on lima-02 over the tailscale IP,
@@ -15,14 +15,14 @@ the controller verified and what remains an operator step.
 - **Control network C** (`rucher ops nodes join <node> --address 100.64.0.1`) is the control plane:
   the node's own address, over which the operator/manager reaches the node. It is written to
   `./nodes/<node>/configuration.yml` as `network: {address}`. Level — node.
-- **Compartment overlay** (this run) is the data plane: tailnet membership of a specific
-  workload. A sidecar inside the compartment's pod gives that compartment its own `100.x` address.
-  Level — the workload, tied to a single compartment. The two are unrelated:
+- **Cadre overlay** (this run) is the data plane: tailnet membership of a specific
+  workload. A sidecar inside the cadre's pod gives that cadre its own `100.x` address.
+  Level — the workload, tied to a single cadre. The two are unrelated:
   the overlay works even if the nodes see each other with no C network at all.
 
 ## Node prerequisite (a provisioning step, not the manager's)
 
-- The `tun` kernel module is loaded and `/dev/net/tun` is accessible to the compartment's user
+- The `tun` kernel module is loaded and `/dev/net/tun` is accessible to the cadre's user
   (on the nodes it was `0666`). Check: `test -c /dev/net/tun && stat -c %a /dev/net/tun`.
 - The manager does NOT do this — it belongs in the provisioning layer (`rucher` / node image).
   If the device is missing or permissions are insufficient, a sidecar with `TS_USERSPACE=false` won't bring up
@@ -36,9 +36,9 @@ kernel mode: `TS_USERSPACE=false` + `/dev/net/tun` + `NET_ADMIN`/`NET_RAW`. Then
 creates a real `tailscale0` interface, and the kernel routes traffic `dev tailscale0`
 transparently — the application has no idea it goes through the tailnet.
 
-## Membership per compartment, privilege in the sidecar
+## Membership per cadre, privilege in the sidecar
 
-- Tailnet membership is at the compartment level: each has its own sidecar and its own `100.x`.
+- Tailnet membership is at the cadre level: each has its own sidecar and its own `100.x`.
 - Privilege is locked in the sidecar. `/dev/net/tun`, `NET_ADMIN`, `NET_RAW` are held only by
   `overlay-ts`. `overlay-app` is an ordinary unprivileged container (no device/cap),
   but uses the same `tailscale0` because it shares the `overlay-demo` pod's netns.
@@ -46,33 +46,33 @@ transparently — the application has no idea it goes through the tailnet.
 ## Authkey via `secrets.create`
 
 - Get the key from the tailscale admin console (Settings -> Keys -> Auth keys; reusable + pre-approved is convenient).
-- Encrypt it to THIS compartment's age recipient in `secrets.sops.yaml`:
+- Encrypt it to THIS cadre's age recipient in `secrets.sops.yaml`:
 
   ```bash
-  rucher node cadre recipient overlay-demo              # -> age1... the compartment's recipient
+  rucher node cadre recipient overlay-demo              # -> age1... the cadre's recipient
   printf 'ts-authkey: tskey-auth-XXXX\n' \
     | sops --encrypt --input-type yaml --output-type yaml --age <recipient> /dev/stdin \
     > test/overlay-example/overlay-demo/secrets.sops.yaml
   ```
 
   (`--input-type yaml` is mandatory — otherwise sops wraps everything in a single `data` key; see run B.
-  `secrets.sops.yaml` goes into the compartment's subdirectory, next to `compartment.yml`.)
-- In `compartment.yml`: `secrets.create: [ts-authkey]` — only this key becomes a podman
+  `secrets.sops.yaml` goes into the cadre's subdirectory, next to `rucher.yml`.)
+- In `rucher.yml`: `secrets.create: [ts-authkey]` — only this key becomes a podman
   secret. The sidecar picks it up via `Secret=ts-authkey,type=env,target=TS_AUTHKEY`
   (podman secret -> env `TS_AUTHKEY`). Do NOT commit the real key in plaintext —
   `secrets.sops.example.yaml` is only a format sample.
 
 ## Applying via the manager (an operator step)
 
-Lay it out and run it as an ordinary compartment — no manager changes required. `--dir` is
-the **parent** directory (the one that contains the `overlay-demo/` compartment subdirectory),
+Lay it out and run it as an ordinary cadre — no manager changes required. `--dir` is
+the **parent** directory (the one that contains the `overlay-demo/` cadre subdirectory),
 and the name selects the subdirectory; verified by the controller via a full `rucher node cadre new` → `apply` → `rm`:
 
 ```bash
 # local/direct apply on the node (--dir = parent, overlay-demo = subdirectory):
 sudo rucher node cadre apply --dir ./test/overlay-example overlay-demo
 
-# or via the GitOps agent (run B): commit the compartment into the store,
+# or via the GitOps agent (run B): commit the cadre into the store,
 # placement.yml -> overlay-demo: <node>, then `sudo rucher node agent run`.
 ```
 

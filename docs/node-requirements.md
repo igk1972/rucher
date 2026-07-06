@@ -1,6 +1,6 @@
 # Node requirements
 
-Each node runs the `rucher` binary as **root** and runs compartments as rootless
+Each node runs the `rucher` binary as **root** and runs cadres as rootless
 podman under per-user systemd. The requirements below are prerequisites that the provisioning
 tooling ensures on every node; the manager assumes they are present.
 
@@ -19,17 +19,17 @@ tooling ensures on every node; the manager assumes they are present.
 - **Rootless prerequisites**:
   - the `uidmap` package providing the setuid helpers `newuidmap` / `newgidmap`;
   - `/etc/subuid` and `/etc/subgid` present. The manager allocates a unique,
-    non-overlapping 65536-ID subuid/subgid block per compartment user
+    non-overlapping 65536-ID subuid/subgid block per cadre user
     (`usermod --add-subuids/--add-subgids`), so these files must exist and be writable by
     root; existing ranges are respected.
 
-Each compartment gets a dedicated `rucher-<name>` system user with linger enabled, its own
-podman secret store and a running user systemd manager (see [compartments.md](compartments.md)).
+Each cadre gets a dedicated `rucher-<name>` system user with linger enabled, its own
+podman secret store and a running user systemd manager (see [cadres.md](cadres.md)).
 
 ## Secret decryption
 
-- The **`sops` binary** on `PATH`. `apply` decrypts each compartment's `secrets.sops.yaml`
-  with `sops -d`, using the compartment's age identity via `SOPS_AGE_KEY_FILE`.
+- The **`sops` binary** on `PATH`. `apply` decrypts each cadre's `secrets.sops.yaml`
+  with `sops -d`, using the cadre's age identity via `SOPS_AGE_KEY_FILE`.
 - **No separate age tooling is needed.** age identities are generated in-process by the
   manager, and decryption uses SOPS's built-in age backend — there is no age CLI dependency
   on the node. See [secrets.md](secrets.md).
@@ -50,10 +50,10 @@ podman secret store and a running user systemd manager (see [compartments.md](co
   No `ssh` binary is required on the operator machine. See
   [management-network.md](management-network.md).
 
-## Compartment overlays (only if used)
+## Cadre overlays (only if used)
 
 - The **`tun` kernel module** loaded and **`/dev/net/tun`** present and accessible to the
-  compartment's user. Only needed for compartments that run a kernel-mode overlay sidecar;
+  cadre's user. Only needed for cadres that run a kernel-mode overlay sidecar;
   the manager does not configure it. See [overlays.md](overlays.md).
 
 ## Summary
@@ -62,7 +62,7 @@ podman secret store and a running user systemd manager (see [compartments.md](co
 |-------------|-----------|-------|
 | systemd + per-user managers | always | linger, `runuser`, `user@.service`, `journalctl` |
 | podman (static build) | always | rootless |
-| `uidmap`, `/etc/subuid`+`/etc/subgid` | always | per-compartment subuid/subgid ranges |
+| `uidmap`, `/etc/subuid`+`/etc/subgid` | always | per-cadre subuid/subgid ranges |
 | `sops` binary | secrets | age backend is built into sops |
 | standard `sshd` | operator plane | native Go SSH client from the operator |
 | `tun` module + `/dev/net/tun` | overlays only | kernel-mode sidecar |

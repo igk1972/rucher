@@ -1,34 +1,34 @@
-# Compartments
+# Cadres
 
-A **compartment** is one workload group, defined by a directory and reconciled onto a node as
+A **cadre** is one workload group, defined by a directory and reconciled onto a node as
 a dedicated rootless-podman environment owned by its own Linux user.
 
 ## Directory layout
 
 ```
-compartments/<name>/
-  compartment.yml          # manifest (required)
-  secrets.sops.yaml        # SOPS+age, encrypted to THIS compartment's recipient (optional)
-  identity.age             # sealed compartment identity (GitOps only; optional)
+cadres/<name>/
+  rucher.yml          # manifest (required)
+  secrets.sops.yaml        # SOPS+age, encrypted to THIS cadre's recipient (optional)
+  identity.age             # sealed cadre identity (GitOps only; optional)
   web.container            # your Quadlet unit files
   nginx.conf  app.env      # support files referenced by the units
 ```
 
 The tool classifies each entry in the directory:
 
-- **Manifest** — `compartment.yml`. Parsed strictly (see below).
-- **Service files** — never materialized onto the node: `compartment.yml`, the secrets file
+- **Manifest** — `rucher.yml`. Parsed strictly (see below).
+- **Service files** — never materialized onto the node: `rucher.yml`, the secrets file
   named by `secrets.from` (default `secrets.sops.yaml`), any `.sops.yaml`, and sealed
   identities matching `identity.*.age`.
 - **Unit files** — files whose extension is one of `.container`, `.volume`, `.network`,
   `.pod`, `.kube`, `.image`, `.build` (what podman's Quadlet generator understands).
 - **Support files** — everything else (env files, configs, …). Copied in as-is.
 
-Unit and support files are laid into the compartment user's
+Unit and support files are laid into the cadre user's
 `~/.config/containers/systemd/`. Units reference support files by their in-place path, e.g.
 `EnvironmentFile=%h/.config/containers/systemd/app.env`.
 
-## Manifest schema (`compartment.yml`)
+## Manifest schema (`rucher.yml`)
 
 Decoded strictly: an unknown key (e.g. a typo like `memmoryMax`) is a hard error rather than
 being silently dropped.
@@ -45,7 +45,7 @@ registries:
       username: deploy
       passwordKey: ghcr_token   # value taken from the decrypted SOPS file
       insecure: false           # optional; true adds --tls-verify=false
-resources:                   # optional -> systemd slice drop-in on the compartment user
+resources:                   # optional -> systemd slice drop-in on the cadre user
   memoryMax: 512M            # -> [Slice] MemoryMax=
   cpuQuota: "50%"            # -> [Slice] CPUQuota=
 ```
@@ -66,32 +66,32 @@ resources:                   # optional -> systemd slice drop-in on the compartm
 
 Beyond strict decode and the `name == directory` check, each unit file is validated: it must
 contain at least one `[Section]` header, and any `EnvironmentFile=` pointing at a
-compartment-local file (a bare filename, or a path under `%h/.config/containers/systemd/`)
-must resolve to a file the compartment actually ships. Secret keys and resource-limit
+cadre-local file (a bare filename, or a path under `%h/.config/containers/systemd/`)
+must resolve to a file the cadre actually ships. Secret keys and resource-limit
 formats are deliberately not validated at load (they need decrypted secrets / systemd's own
 parsing). See [secrets.md](secrets.md).
 
-## Per-compartment user and rootless isolation
+## Per-cadre user and rootless isolation
 
-Each compartment gets a dedicated Linux **system** user `rucher-<name>` with:
+Each cadre gets a dedicated Linux **system** user `rucher-<name>` with:
 
-- a home at `/var/lib/rucher/compartments/<name>` and shell `/usr/sbin/nologin`;
+- a home at `/var/lib/rucher/cadres/<name>` and shell `/usr/sbin/nologin`;
 - **linger** enabled (`loginctl enable-linger`) so `/run/user/<uid>` and the user's systemd
   manager persist across logins and across reboots;
 - a **unique, non-overlapping subuid/subgid block** (65536 IDs, allocated above any existing
-  range found in `/etc/subuid` + `/etc/subgid`), so many compartments coexist on one node
+  range found in `/etc/subuid` + `/etc/subgid`), so many cadres coexist on one node
   with disjoint user-namespace mappings;
 - its own podman secret store, registry credentials and age identity.
 
 Commands run inside the user's session via `runuser -u <user> -- env XDG_RUNTIME_DIR=…
 DBUS_SESSION_BUS_ADDRESS=…`, targeting the per-user systemd/DBus bus. Because privilege is a
-plain Linux user boundary, a compartment's workloads cannot see another compartment's
+plain Linux user boundary, a cadre's workloads cannot see another cadre's
 secrets, volumes or processes.
 
 ## How `plan` and `apply` reconcile
 
-Reconciliation diffs the desired compartment against the **last-applied state** — a
-hashes-only JSON file at `/var/lib/rucher/compartments/state/<name>.json` recording
+Reconciliation diffs the desired cadre against the **last-applied state** — a
+hashes-only JSON file at `/var/lib/rucher/cadres/state/<name>.json` recording
 each file's content hash, each secret's value hash, the unit list, the uid and the resource
 limits. `plan` computes the diff against an empty prior state (so it shows the full intended
 change) and prints it; `apply` computes it against the real prior state and executes it.
@@ -123,11 +123,11 @@ new state.
 
 | What | Path |
 |------|------|
-| Compartment user | `rucher-<name>` (system user, `nologin`) |
-| Home | `/var/lib/rucher/compartments/<name>` |
+| Cadre user | `rucher-<name>` (system user, `nologin`) |
+| Home | `/var/lib/rucher/cadres/<name>` |
 | Units + support files | `<home>/.config/containers/systemd/` |
 | age identity / recipient | `<home>/.config/rucher/age/{identity.txt,recipient.txt}` |
-| Last-applied state (hashes only) | `/var/lib/rucher/compartments/state/<name>.json` |
+| Last-applied state (hashes only) | `/var/lib/rucher/cadres/state/<name>.json` |
 | Resource slice drop-in | `/etc/systemd/system/user-<uid>.slice.d/50-rucher.conf` |
 
 `RUCHER_STATE_DIR` overrides the base directory for the state file (useful for tests and

@@ -2,7 +2,7 @@
 
 Instead of an operator pushing changes to each node, every node can pull its own desired
 state from a shared **store** and reconcile itself. One agent pass fetches the store, works
-out which compartments this node should run (from `placement.yml`), applies them, and
+out which cadres this node should run (from `placement.yml`), applies them, and
 unmanages the rest.
 
 ## The store
@@ -12,9 +12,9 @@ The store holds all nodes' desired state:
 ```
 <store root>/
   placement.yml
-  compartments/
+  cadres/
     web/
-      compartment.yml
+      rucher.yml
       web.container
       app.env
       secrets.sops.yaml     # encrypted to web's recipient
@@ -43,10 +43,10 @@ The checkout is cached at `/var/lib/rucher/store`.
 
 ## `placement.yml`
 
-Maps each compartment to the node(s) that should run it. A value may be a single node id or a
+Maps each cadre to the node(s) that should run it. A value may be a single node id or a
 list; the node id defaults to the OS hostname (overridable in the agent config). Decoded
 strictly — a typo such as `placement:` (singular) is an error rather than silently unmanaging
-every compartment.
+every cadre.
 
 ```yaml
 placements:
@@ -56,37 +56,37 @@ placements:
     - node-b
 ```
 
-## Identities: node key and sealed compartment keys
+## Identities: node key and sealed cadre keys
 
 - **Node key** — each node owns an age identity created by `rucher node key init` at
   `/etc/rucher/node/identity.txt` (mode 0600). The private key is born on the node and
   never leaves it; `rucher node key show` prints its public recipient.
-- **Sealed compartment key** — a compartment's private age identity (which decrypts its
+- **Sealed cadre key** — a cadre's private age identity (which decrypts its
   `secrets.sops.yaml`) is not stored in cleartext in the store. The operator runs
-  `rucher ops key seal <name> --to <node-recipient> [--to …]`, which generates the compartment
+  `rucher ops key seal <name> --to <node-recipient> [--to …]`, which generates the cadre
   keypair, seals the identity to each target node's recipient (age writes one stanza per
   recipient, so any of those nodes can unseal it), writes it to
-  `compartments/<name>/identity.age`, and prints the compartment recipient (used to encrypt
+  `cadres/<name>/identity.age`, and prints the cadre recipient (used to encrypt
   `secrets.sops.yaml`). Commit both files to the store.
 
 At apply time the agent unseals `identity.age` with the node key and installs it at the
-compartment's `identity.txt` path — exactly where the decrypt step reads it (see
+cadre's `identity.txt` path — exactly where the decrypt step reads it (see
 [secrets.md](secrets.md)). A node whose key was not among the `--to` recipients cannot unseal
-the identity and cannot run that compartment.
+the identity and cannot run that cadre.
 
 ## `node agent run` — one pass
 
 `rucher node agent run [--config PATH]` (default config `/etc/rucher/agent.yml`):
 
 1. Sync the store into the checkout; obtain the current revision.
-2. Read `placement.yml`; compute the compartments assigned to this node.
-3. For each assigned compartment: ensure the `rucher-<name>` user, unseal + install its
+2. Read `placement.yml`; compute the cadres assigned to this node.
+3. For each assigned cadre: ensure the `rucher-<name>` user, unseal + install its
    identity (no-op if it ships no `identity.age`), load it from the checkout, and run the
-   standard `reconcile.Apply` (see [compartments.md](compartments.md)).
-4. Unmanage every compartment currently managed on this node but no longer assigned
+   standard `reconcile.Apply` (see [cadres.md](cadres.md)).
+4. Unmanage every cadre currently managed on this node but no longer assigned
    (`rucher node cadre rm` without `--purge`: stop units, drop state, keep the user and data).
 5. Write a status summary to `/var/lib/rucher/agent-status.json` and print
-   `revision <rev>: applied=<n> removed=<n>`. A non-zero exit means one or more compartments
+   `revision <rev>: applied=<n> removed=<n>`. A non-zero exit means one or more cadres
    failed to apply.
 
 The status file is what the operator management plane reads over SSH — see
@@ -137,11 +137,11 @@ rucher-agent.timer`.
 sudo rucher node key init                   # -> node recipient
 
 # on the operator, in the store checkout:
-rucher ops key seal web --to <node-a-recipient>   # writes compartments/web/identity.age; prints web's recipient
+rucher ops key seal web --to <node-a-recipient>   # writes cadres/web/identity.age; prints web's recipient
 printf 'db_password: s3cr3t\n' \
   | sops --encrypt --input-type yaml --output-type yaml --age <web-recipient> /dev/stdin \
-  > compartments/web/secrets.sops.yaml
-# add compartment.yml, units, support files, and placement.yml, then commit + push
+  > cadres/web/secrets.sops.yaml
+# add rucher.yml, units, support files, and placement.yml, then commit + push
 
 # on the node:
 sudo rucher node agent run      # applied=1

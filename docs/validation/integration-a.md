@@ -6,8 +6,8 @@ and copied to the node, run as root (`sudo`).
 
 Steps (all on the node):
 1. `sudo rucher node cadre new demo` — user `rucher-demo` created, identity present, recipient printed.
-2. On the Mac: `printf 'db_password: s3cr3t\n' | sops --encrypt --age <recipient> /dev/stdin > compartments/demo/secrets.sops.yaml`.
-   Place `compartments/demo/nginx.container`, `nginx.conf`, `compartment.yml (secrets.from)`.
+2. On the Mac: `printf 'db_password: s3cr3t\n' | sops --encrypt --age <recipient> /dev/stdin > cadres/demo/secrets.sops.yaml`.
+   Place `cadres/demo/nginx.container`, `nginx.conf`, `rucher.yml (secrets.from)`.
 3. `sudo rucher node cadre apply demo` → `systemctl --user -M rucher-demo@ status` shows active; `podman secret ls` contains `db_password`.
 4. Change `nginx.conf`, `sudo rucher node cadre apply demo` → only the nginx unit restarted (verify via `journalctl --user`).
 5. Re-encrypt the secret, `apply` → secret recreated, consumer restarted.

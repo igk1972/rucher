@@ -2,7 +2,7 @@
 
 The operator plane lets an engineer see and manage the nodes from one machine. It reaches
 each node over SSH, reads the node's agent status file, and aggregates the results. It is
-separate from [compartment overlays](overlays.md), which are a per-workload data plane.
+separate from [cadre overlays](overlays.md), which are a per-workload data plane.
 
 ## Node config directory
 
@@ -43,7 +43,7 @@ For each node (all nodes under `--dir` when none are named), the tool:
 1. loads and merges the node config;
 2. resolves an SSH target (see precedence below);
 3. runs `cat /var/lib/rucher/agent-status.json` over SSH and parses the agent's
-   [status](gitops-agent.md) (revision, applied count, removed count, per-compartment
+   [status](gitops-agent.md) (revision, applied count, removed count, per-cadre
    errors);
 4. with `--live`, additionally runs `rucher node cadre status` on the node and captures its live per-unit
    `ActiveState`/`SubState`.

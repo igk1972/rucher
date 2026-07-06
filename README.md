@@ -1,31 +1,31 @@
 # rucher
 
 Single-node manager for **podman Quadlet** workloads. It reconciles a directory of
-*compartments* into running rootless-podman services under per-user systemd. Each
-compartment is an isolated environment backed by a dedicated Linux system user, its own
+*cadres* into running rootless-podman services under per-user systemd. Each
+cadre is an isolated environment backed by a dedicated Linux system user, its own
 podman secret and registry-credential store, its own age identity, and (optionally) a
 systemd resource slice.
 
 On top of this single-node core there are optional layers — a pull-based GitOps agent (each
-node reconciles the compartments a `placement.yml` assigns it, from a git or S3 store), an
-operator status plane that queries every node over SSH, and per-compartment overlay
+node reconciles the cadres a `placement.yml` assigns it, from a git or S3 store), an
+operator status plane that queries every node over SSH, and per-cadre overlay
 networking. See [`docs/`](docs/) for the full reference.
 
 ## What it does
 
 - You author Quadlet units (`.container`/`.volume`/`.network`/`.pod`/…) plus any support
-  files (env files, configs) in a compartment directory. The tool does **not** generate
+  files (env files, configs) in a cadre directory. The tool does **not** generate
   units — you write them.
-- `apply` lays the units + support files into the compartment user's
+- `apply` lays the units + support files into the cadre user's
   `~/.config/containers/systemd/`, creates podman secrets, runs `systemctl --user
   daemon-reload`, and starts the services. It is **idempotent** and reconciles drift:
   changing one support file restarts only the units that use it.
-- Secrets live **encrypted at rest** (SOPS + age) inside the compartment directory, safe
+- Secrets live **encrypted at rest** (SOPS + age) inside the cadre directory, safe
   to commit to a store. Plaintext is decrypted in memory and fed to podman over stdin —
   never written to disk, never passed on argv.
 
 Native systemd gives dependencies (`After=`/`Requires=`), lifecycle hooks
-(`ExecStartPre=`/…), and timers (`.timer`) for free within a compartment.
+(`ExecStartPre=`/…), and timers (`.timer`) for free within a cadre.
 
 ## Build
 
@@ -46,18 +46,18 @@ Debian (arm64/amd64) with: `podman` (rootless-capable), `sops`, `uidmap`
 (`newuidmap`/`newgidmap`), and systemd with `loginctl`/`runuser`. Run as root (or via
 passwordless sudo). age identities are generated in-process — no age CLI is required.
 
-## Compartment layout
+## Cadre layout
 
 ```
-compartments/<name>/
-  compartment.yml          # manifest
-  secrets.sops.yaml        # SOPS+age, encrypted to THIS compartment's recipient (optional)
+cadres/<name>/
+  rucher.yml          # manifest
+  secrets.sops.yaml        # SOPS+age, encrypted to THIS cadre's recipient (optional)
   web.container            # your Quadlet units
   nginx.conf  app.env      # support files referenced by the units
 ```
 
 ```yaml
-# compartment.yml
+# rucher.yml
 name: web                  # must equal the directory name
 secrets:
   from: secrets.sops.yaml  # keys in this file become podman secrets
@@ -66,7 +66,7 @@ registries:
     - registry: ghcr.io
       username: deploy
       passwordKey: ghcr_token   # value taken from the sops file
-resources:                 # optional -> systemd slice on the compartment user
+resources:                 # optional -> systemd slice on the cadre user
   memoryMax: 512M
   cpuQuota: "50%"
 ```
@@ -78,21 +78,21 @@ Units reference support files by their in-place path, e.g.
 
 ```
 rucher node cadre new <name>                  # create the user + age identity; print the recipient
-rucher node cadre recipient <name>            # print a compartment's age recipient
+rucher node cadre recipient <name>            # print a cadre's age recipient
 rucher ops plan [--dir DIR] [name...]         # dry-run: show what apply would change
-rucher node apply [--dir DIR]                 # reconcile compartments onto the node
-rucher node cadre apply [--dir DIR] <name...> # reconcile the named compartment(s)
+rucher node apply [--dir DIR]                 # reconcile cadres onto the node
+rucher node cadre apply [--dir DIR] <name...> # reconcile the named cadre(s)
 rucher node cadre status [name...]            # per-unit ActiveState/SubState
 rucher node cadre logs <name> <unit>          # journalctl --user for one unit
 rucher node cadre rm <name> [--purge]         # stop + unmanage; --purge also deletes the user + data
 rucher node key init|show                     # this node's age key (GitOps)
-rucher ops key seal <name> --to <node-rcpt>   # seal a compartment identity to node(s)
+rucher ops key seal <name> --to <node-rcpt>   # seal a cadre identity to node(s)
 rucher node agent run|install [--config P]    # pull-based reconcile from a git/S3 store
 rucher ops nodes [--dir DIR] join <node> --address <addr>  # record a node's management address
 rucher ops nodes [--dir DIR] status [--live] [--json]  # nodes status over SSH
 ```
 
-No `--dir` defaults to `./compartments`; no names means all compartments. Full reference:
+No `--dir` defaults to `./cadres`; no names means all cadres. Full reference:
 [`docs/cli.md`](docs/cli.md).
 
 ## Secret workflow
@@ -101,27 +101,27 @@ No `--dir` defaults to `./compartments`; no names means all compartments. Full r
 sudo rucher node cadre new web                                   # prints age1... recipient
 printf 'db_password: s3cr3t\n' \
   | sops --encrypt --age <recipient> /dev/stdin \
-  > compartments/web/secrets.sops.yaml              # encrypt to that recipient
-sudo rucher node cadre apply --dir ./compartments web            # decrypt + create podman secret + start
+  > cadres/web/secrets.sops.yaml              # encrypt to that recipient
+sudo rucher node cadre apply --dir ./cadres web            # decrypt + create podman secret + start
 ```
 
-At apply time the root agent decrypts the SOPS file using the compartment's age identity
+At apply time the root agent decrypts the SOPS file using the cadre's age identity
 (root can read both the file and the identity), then creates the podman secret and any
-registry logins as the compartment user via stdin.
+registry logins as the cadre user via stdin.
 
 ## On-node layout
 
 | What | Path |
 |------|------|
-| Compartment user | `rucher-<name>` (system user, nologin) |
-| Home | `/var/lib/rucher/compartments/<name>` |
+| Cadre user | `rucher-<name>` (system user, nologin) |
+| Home | `/var/lib/rucher/cadres/<name>` |
 | Units + support files | `<home>/.config/containers/systemd/` |
 | age identity / recipient | `<home>/.config/rucher/age/` |
-| Last-applied state (hashes only) | `/var/lib/rucher/compartments/state/<name>.json` |
+| Last-applied state (hashes only) | `/var/lib/rucher/cadres/state/<name>.json` |
 | Resource slice drop-in | `/etc/systemd/system/user-<uid>.slice.d/50-rucher.conf` |
 
-Each compartment user gets a unique, non-overlapping subuid/subgid block (allocated from
-`/etc/subuid`), so many compartments coexist on one node.
+Each cadre user gets a unique, non-overlapping subuid/subgid block (allocated from
+`/etc/subuid`), so many cadres coexist on one node.
 
 ## Host keys
 
@@ -137,9 +137,9 @@ contact after switching to the native client. Lima nodes (previously reached via
 like any other node. If a Lima VM is recreated on the **same** forwarded port with a new
 key, clear its line from `~/.config/rucher/known_hosts` before reconnecting.
 
-## Compartment overlays
+## Cadre overlays
 
-Workloads can get transparent L3 mesh connectivity across nodes (a *compartment overlay*)
+Workloads can get transparent L3 mesh connectivity across nodes (a *cadre overlay*)
 without any manager code change. It fits the opaque-Quadlet model: the operator authors a
 kernel-mode Tailscale sidecar plus the app in one pod, and the auth key rides the existing
 `secrets.create` machinery (podman secret → sidecar env). Privilege stays confined to the

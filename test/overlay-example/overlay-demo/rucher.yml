@@ -1,4 +1,4 @@
-# compartment.yml — overlay compartment demo (L3 mesh via tailscale sidecar)
+# rucher.yml — overlay cadre demo (L3 mesh via tailscale sidecar)
 name: overlay-demo
 secrets:
   from: secrets.sops.yaml   # keys from this SOPS file (defaults to secrets.sops.yaml)

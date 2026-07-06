@@ -12,12 +12,12 @@ host against `~/.ssh/known_hosts` — it must be pre-populated, otherwise the fi
 1. `sudo rucher node key init` → node recipient `$NODE_R` (the private key is born on the node,
    `/etc/rucher/node/identity.txt`, 0600).
 2. Operator — in the store checkout (here `/root/infrastructure`, `git init -b master`):
-   - `rucher ops key seal web --to $NODE_R` → writes `compartments/web/identity.age` (the compartment's
-     identity, sealed to the node's recipient), prints the compartment's recipient `$WEB_R`;
-   - `printf 'db_password: s3cr3t\n' | sops --encrypt --input-type yaml --output-type yaml --age $WEB_R /dev/stdin > compartments/web/secrets.sops.yaml`
+   - `rucher ops key seal web --to $NODE_R` → writes `cadres/web/identity.age` (the cadre's
+     identity, sealed to the node's recipient), prints the cadre's recipient `$WEB_R`;
+   - `printf 'db_password: s3cr3t\n' | sops --encrypt --input-type yaml --output-type yaml --age $WEB_R /dev/stdin > cadres/web/secrets.sops.yaml`
      (**`--input-type yaml` is mandatory** — otherwise sops treats the input as binary and wraps everything in
      a single `data` key);
-   - place `compartments/web/compartment.yml` (`name: web`, `secrets.from: secrets.sops.yaml`),
+   - place `cadres/web/rucher.yml` (`name: web`, `secrets.from: secrets.sops.yaml`),
      `web.container` (`Secret=db_password,type=env,target=DB_PASSWORD`, `EnvironmentFile=…/app.env`),
      `app.env`;
    - `placement.yml`: `placements:\n  web: lima-essaim-01`;
@@ -26,8 +26,8 @@ host against `~/.ssh/known_hosts` — it must be pre-populated, otherwise the fi
    branch: master}`), then `sudo rucher node agent run`.
    → exit 0, `applied=1`; `web.service` active; container `systemd-web` Up; `DB_PASSWORD=s3cr3t`,
    `GREETING` from `app.env`.
-4. **Check permissions**: `stat -c %a /var/lib/rucher/compartments/web/.config/rucher/age/identity.txt`
-   → `600` (the unsealed compartment private key).
+4. **Check permissions**: `stat -c %a /var/lib/rucher/cadres/web/.config/rucher/age/identity.txt`
+   → `600` (the unsealed cadre private key).
 5. `cat /var/lib/rucher/agent-status.json` → `revision`, `applied=[{web, ok:true}]`.
 6. Idempotency: a repeated `node agent run` → same `InvocationID` on `web.service` (no restart).
 7. Removal: `placement.yml` → `web: lima-essaim-02`, commit, `sudo rucher node agent run` → `removed=[web]`,
@@ -38,5 +38,5 @@ host against `~/.ssh/known_hosts` — it must be pre-populated, otherwise the fi
 
 Multi-node (groundwork): node B with its own `node key init` won't be able to unseal `identity.age`
 sealed to node A's recipient (separate node keys; see the wrong-identity test in `internal/age`).
-To run the same compartment on B, the operator does `ops key seal web --to $B_R` and commits
+To run the same cadre on B, the operator does `ops key seal web --to $B_R` and commits
 `identity.<B>.age` (agent selection of `identity.<node>.age` — in §14 of the spec, for now generic `identity.age`).
