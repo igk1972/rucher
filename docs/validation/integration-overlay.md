@@ -1,6 +1,6 @@
 # Compartment overlay — run on Lima nodes
 
-Gives a compartment's workloads transparent L3 connectivity in the tailnet between hosts. The form is
+Gives a compartment's workloads transparent L3 connectivity in the tailnet between nodes. The form is
 ordinary "opaque" quadlets: the operator writes a tailscale sidecar + pod as usual, and the authkey
 travels via the regular `secrets.create`. **The manager's code does not change.** The full example is
 `test/overlay-example/` (the compartment itself lives in the subdirectory `overlay-example/overlay-demo/`).
@@ -12,15 +12,15 @@ the controller verified and what remains an operator step.
 
 ## How it differs from control network C
 
-- **Control network C** (`rucher ops ruches join <host> --address 100.64.0.1`) is the control plane:
-  the host's own address, over which the operator/manager reaches the node. It is written to
-  `./hosts/<host>/configuration.yml` as `network: {address}`. Level — host.
+- **Control network C** (`rucher ops ruches join <node> --address 100.64.0.1`) is the control plane:
+  the node's own address, over which the operator/manager reaches the node. It is written to
+  `./nodes/<node>/configuration.yml` as `network: {address}`. Level — node.
 - **Compartment overlay** (this run) is the data plane: tailnet membership of a specific
   workload. A sidecar inside the compartment's pod gives that compartment its own `100.x` address.
   Level — the workload, tied to a single compartment. The two are unrelated:
-  the overlay works even if the hosts see each other with no C network at all.
+  the overlay works even if the nodes see each other with no C network at all.
 
-## Host prerequisite (a provisioning step, not the manager's)
+## Node prerequisite (a provisioning step, not the manager's)
 
 - The `tun` kernel module is loaded and `/dev/net/tun` is accessible to the compartment's user
   (on the nodes it was `0666`). Check: `test -c /dev/net/tun && stat -c %a /dev/net/tun`.

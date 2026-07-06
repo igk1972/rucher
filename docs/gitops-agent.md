@@ -1,6 +1,6 @@
 # GitOps agent
 
-Instead of an operator pushing changes to each host, every node can pull its own desired
+Instead of an operator pushing changes to each node, every node can pull its own desired
 state from a shared **store** and reconcile itself. One agent pass fetches the store, works
 out which compartments this node should run (from `placement.yml`), applies them, and
 unmanages the rest.

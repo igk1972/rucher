@@ -1,9 +1,9 @@
 # Compartment overlays
 
-A compartment can give its workloads **transparent L3 connectivity across hosts** — a private
-mesh where an app on one host reaches an app on another by a stable overlay IP, with no proxy
+A compartment can give its workloads **transparent L3 connectivity across nodes** — a private
+mesh where an app on one node reaches an app on another by a stable overlay IP, with no proxy
 and no application changes. This is a per-workload data plane, distinct from the operator
-[management network](management-network.md) (`ops ruches join`, which sets a *host's* management
+[management network](management-network.md) (`ops ruches join`, which sets a *node's* management
 address).
 
 ## How it fits the model — no manager change
@@ -78,11 +78,11 @@ Image=docker.io/library/nginx:alpine
 
 Never commit a real auth key in plaintext — commit only the encrypted `secrets.sops.yaml`.
 
-## Host prerequisite
+## Node prerequisite
 
 Kernel mode needs the `tun` kernel module loaded and `/dev/net/tun` accessible to the
 compartment's user. The manager does not set this up; it belongs to the provisioning layer
-(see [host-requirements.md](host-requirements.md)). If the device is missing or its
+(see [node-requirements.md](node-requirements.md)). If the device is missing or its
 permissions are insufficient, a kernel-mode sidecar cannot bring up its interface.
 
 ## Worked example

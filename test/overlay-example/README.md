@@ -1,7 +1,7 @@
 # Example: overlay compartment (L3 mesh via tailscale sidecar)
 
 A ready-made compartment that gives its workloads transparent L3 connectivity on the tailnet
-between hosts — without changing the manager's code. These are ordinary "opaque" quadlets: the
+between nodes — without changing the manager's code. These are ordinary "opaque" quadlets: the
 manager lays them down as-is, and the authkey travels through the standard secrets mechanism
 (`secrets.create` -> podman secret -> sidecar env).
 
@@ -38,7 +38,7 @@ printf 'ts-authkey: tskey-auth-XXXX\n' \
 rucher node cadre apply --dir . overlay-demo
 ```
 
-The host must have the `tun` module loaded and `/dev/net/tun` accessible to the compartment's
+The node must have the `tun` module loaded and `/dev/net/tun` accessible to the compartment's
 user — that's the provisioning layer's job (see the runbook).
 
 For a detailed walkthrough and exactly what has been verified, see `docs/validation/integration-overlay.md`.

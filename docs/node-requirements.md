@@ -1,12 +1,12 @@
-# Host requirements
+# Node requirements
 
-Each host in the fleet runs the `rucher` binary as **root** and hosts compartments as rootless
+Each node in the fleet runs the `rucher` binary as **root** and runs compartments as rootless
 podman under per-user systemd. The requirements below are prerequisites that the provisioning
 tooling ensures on every node; the manager assumes they are present.
 
 ## Base platform
 
-- A Linux host with **systemd**, including per-user managers: `loginctl` (for
+- A Linux node with **systemd**, including per-user managers: `loginctl` (for
   `enable-linger`), `runuser`, the `user@<uid>.service` template, and `journalctl` (used by
   `rucher node cadre logs` and `rucher node cadre status`).
 - The `rucher` binary installed and runnable as root. For the GitOps timer, install it at
@@ -15,7 +15,7 @@ tooling ensures on every node; the manager assumes they are present.
 ## podman (rootless)
 
 - **podman**, rootless-capable. The provisioning tooling installs a statically linked podman
-  build with all dependencies bundled, so the host needs no distro podman packaging.
+  build with all dependencies bundled, so the node needs no distro podman packaging.
 - **Rootless prerequisites**:
   - the `uidmap` package providing the setuid helpers `newuidmap` / `newgidmap`;
   - `/etc/subuid` and `/etc/subgid` present. The manager allocates a unique,
@@ -32,7 +32,7 @@ podman secret store and a running user systemd manager (see [compartments.md](co
   with `sops -d`, using the compartment's age identity via `SOPS_AGE_KEY_FILE`.
 - **No separate age tooling is needed.** age identities are generated in-process by the
   manager, and decryption uses SOPS's built-in age backend — there is no age CLI dependency
-  on the host. See [secrets.md](secrets.md).
+  on the node. See [secrets.md](secrets.md).
 
 ## GitOps store access (if the agent is used)
 
@@ -45,8 +45,8 @@ podman secret store and a running user systemd manager (see [compartments.md](co
 
 ## SSH reachability (operator plane)
 
-- Hosts are reached from the operator over SSH by the manager's built-in Go SSH client, so a
-  host only needs a standard **sshd** and a reachable address (recorded via `rucher ops ruches join`).
+- Nodes are reached from the operator over SSH by the manager's built-in Go SSH client, so a
+  node only needs a standard **sshd** and a reachable address (recorded via `rucher ops ruches join`).
   No `ssh` binary is required on the operator machine. See
   [management-network.md](management-network.md).
 

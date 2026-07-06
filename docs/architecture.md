@@ -3,7 +3,7 @@
 The system has one core and three optional layers built on top of it.
 
 ```
-              operator machine                          host in the fleet
+              operator machine                          node in the fleet
        ┌───────────────────────────┐            ┌──────────────────────────────┐
        │ rucher ops ruches status/join│  SSH       │ sshd                          │
        │ (native Go SSH client,     │──────────► │                               │
@@ -35,18 +35,18 @@ a compartment. See [compartments.md](compartments.md).
 
 ## 2. The `rucher` CLI and reconciler
 
-`rucher` is a single static binary that runs as **root** on the host (it creates users,
+`rucher` is a single static binary that runs as **root** on the node (it creates users,
 manages linger and subuid/subgid ranges, and drives each user's systemd). The reconciler
 (`internal/reconcile`, `internal/plan`) diffs a compartment's desired state against a
 last-applied state file (hashes only, under `/var/lib/rucher/compartments/state/`)
 and applies the minimal set of changes: write/remove files, create/remove podman secrets,
 (re)apply resource limits, `daemon-reload`, and start/restart/stop only the affected units.
-`apply` is idempotent; `plan` prints the same diff without touching the host. See
+`apply` is idempotent; `plan` prints the same diff without touching the node. See
 [cli.md](cli.md) and [compartments.md](compartments.md).
 
 ## 3. Secrets (SOPS + age)
 
-Each compartment has its own age identity, generated in-process on the host. Its
+Each compartment has its own age identity, generated in-process on the node. Its
 `secrets.sops.yaml` is encrypted to that identity's recipient and is safe to commit to the
 store. At `apply` time, root decrypts it (`sops -d`), keeps the plaintext in memory, and
 feeds selected keys to podman as secrets over stdin — never to disk, never on argv. See
@@ -63,14 +63,14 @@ status summary is written to `/var/lib/rucher/agent-status.json`. See
 
 ## 5. Management network (operator status plane)
 
-`rucher ops ruches status` reaches every host over SSH (a native Go client with TOFU host-key
-pinning — no system `ssh` binary required), reads each host's agent status file, and prints
-an aggregated table or JSON. `rucher ops ruches join` records a host's reachability address into its
-host config so the status plane can find it. See [management-network.md](management-network.md).
+`rucher ops ruches status` reaches every node over SSH (a native Go client with TOFU host-key
+pinning — no system `ssh` binary required), reads each node's agent status file, and prints
+an aggregated table or JSON. `rucher ops ruches join` records a node's reachability address into its
+node config so the status plane can find it. See [management-network.md](management-network.md).
 
 ## 6. Compartment overlays (workload data plane)
 
-A compartment can gain transparent cross-host L3 connectivity by including a
+A compartment can gain transparent cross-node L3 connectivity by including a
 kernel-mode overlay sidecar in its pod. This needs no manager change: it is ordinary opaque
 Quadlets plus the standard secrets mechanism. Privilege stays confined to the sidecar; the
 app container shares the pod's network namespace unprivileged. This data plane is unrelated

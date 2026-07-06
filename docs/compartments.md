@@ -1,6 +1,6 @@
 # Compartments
 
-A **compartment** is one workload group, defined by a directory and reconciled onto a host as
+A **compartment** is one workload group, defined by a directory and reconciled onto a node as
 a dedicated rootless-podman environment owned by its own Linux user.
 
 ## Directory layout
@@ -17,7 +17,7 @@ compartments/<name>/
 The tool classifies each entry in the directory:
 
 - **Manifest** — `compartment.yml`. Parsed strictly (see below).
-- **Service files** — never materialized onto the host: `compartment.yml`, the secrets file
+- **Service files** — never materialized onto the node: `compartment.yml`, the secrets file
   named by `secrets.from` (default `secrets.sops.yaml`), any `.sops.yaml`, and sealed
   identities matching `identity.*.age`.
 - **Unit files** — files whose extension is one of `.container`, `.volume`, `.network`,
@@ -79,7 +79,7 @@ Each compartment gets a dedicated Linux **system** user `rucher-<name>` with:
 - **linger** enabled (`loginctl enable-linger`) so `/run/user/<uid>` and the user's systemd
   manager persist across logins and across reboots;
 - a **unique, non-overlapping subuid/subgid block** (65536 IDs, allocated above any existing
-  range found in `/etc/subuid` + `/etc/subgid`), so many compartments coexist on one host
+  range found in `/etc/subuid` + `/etc/subgid`), so many compartments coexist on one node
   with disjoint user-namespace mappings;
 - its own podman secret store, registry credentials and age identity.
 
@@ -119,7 +119,7 @@ The plan is a minimal, idempotent change set:
 → create/remove secrets → registry logins → `daemon-reload` → start/restart units → persist
 new state.
 
-## On-host layout
+## On-node layout
 
 | What | Path |
 |------|------|

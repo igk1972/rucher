@@ -22,7 +22,7 @@ Retrieve the recipient with `rucher node cadre recipient <name>` (or it is print
 
 The per-compartment identity scopes **at-rest** access in the store: a compartment's file is
 encrypted only to that compartment's recipient, so compartments cannot read each other's
-secrets from the store. It does not scope runtime access on the host — root (the manager)
+secrets from the store. It does not scope runtime access on the node — root (the manager)
 can already read every compartment's identity and every secret.
 
 ## Encrypting a compartment's secrets
@@ -74,20 +74,20 @@ decrypted JSON is parsed into an in-memory key/value map. From there:
 Units consume the resulting podman secrets the normal Quadlet way, e.g.
 `Secret=db_password,type=env,target=DB_PASSWORD`.
 
-## Host tooling
+## Node tooling
 
-The host needs the **`sops` binary** on `PATH` for decryption. age is **not** a separate host
+The node needs the **`sops` binary** on `PATH` for decryption. age is **not** a separate node
 dependency:
 
 - identity **generation** is in-process (built into the manager);
 - identity **decryption** uses SOPS's built-in age backend, driven by the
   `SOPS_AGE_KEY_FILE` environment variable — there is no separate age CLI to install.
 
-See [host-requirements.md](host-requirements.md).
+See [node-requirements.md](node-requirements.md).
 
 ## Relation to the GitOps agent
 
-Under the GitOps agent, the compartment's private identity does not live on the host until it
+Under the GitOps agent, the compartment's private identity does not live on the node until it
 is needed: it is sealed to the node's recipient as `identity.age` and committed to the store.
 The agent unseals it with the node key and installs it at the same `identity.txt` path before
 running the decrypt+apply described above. See [gitops-agent.md](gitops-agent.md).
