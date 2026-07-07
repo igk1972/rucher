@@ -1,0 +1,71 @@
+# Build rucher binaries and publish them to a GitHub Release. rucher is one static
+# binary (node + operator), so we cross-compile per OS/arch: linux for the nodes,
+# plus macOS/Windows for operators (the `ops` group is cross-platform).
+#
+# Triggers: pushing a `v*` tag (release is named after the tag), or a manual run from
+# the Actions tab (giving the tag to create on the current commit).
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create and publish (e.g. v0.1.0)"
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64, ext: .exe }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # -trimpath + -s -w strip filesystem paths and the symbol/DWARF tables for a
+      # smaller, reproducible static binary (matches the README build recipe).
+      - name: Build
+        run: |
+          out="rucher_${{ matrix.goos }}_${{ matrix.goarch }}${{ matrix.ext }}"
+          mkdir -p dist
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -trimpath -ldflags="-s -w" -o "dist/$out" ./cmd/rucher
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rucher_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload assets
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum rucher_* > SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          # inputs.tag on a manual run; the pushed tag's name otherwise.
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: ${{ inputs.tag || github.ref_name }}
+          files: dist/*
+          fail_on_unmatched_files: true
