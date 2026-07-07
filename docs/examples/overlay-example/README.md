@@ -30,7 +30,7 @@ are run from this directory:
 # 1. authkey from the tailscale admin console -> encrypt it for this cadre's recipient
 #    (into overlay-demo/secrets.sops.yaml, next to rucher.yml):
 rucher node cadre recipient overlay-demo              # -> age1...
-printf 'ts-authkey: tskey-auth-XXXX\n' \
+printf 'ts-authkey: <your-tailscale-authkey>\n' \
   | sops --encrypt --input-type yaml --output-type yaml --age <recipient> /dev/stdin \
   > overlay-demo/secrets.sops.yaml
 
