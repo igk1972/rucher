@@ -74,6 +74,47 @@ func TestGitSyncClonesThenPulls(t *testing.T) {
 	}
 }
 
+func TestGitSyncReclonesWhenURLChanges(t *testing.T) {
+	// Store A seeds the cache; store B has a file only it carries.
+	srcA := makeSourceRepo(t)
+
+	srcB := t.TempDir()
+	repoB, err := git.PlainInit(srcB, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcB, "only-b.yml"), []byte("placements: {web: node-b}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wtB, _ := repoB.Worktree()
+	wtB.Add("only-b.yml")
+	if _, err := wtB.Commit("b", &git.CommitOptions{Author: &object.Signature{Name: "t", Email: "t@t"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	cache := filepath.Join(t.TempDir(), "cache")
+	g := Git{URL: srcA, Branch: "master", CachePath: cache}
+	if _, _, err := g.Sync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(cache, "only-b.yml")); err == nil {
+		t.Fatal("cache unexpectedly has B's file after syncing A")
+	}
+
+	// Reconfigure the store URL to B without deleting the cache: Sync must re-clone.
+	g.URL = srcB
+	co, _, err := g.Sync(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(co, "only-b.yml")); err != nil {
+		t.Fatalf("cache did not switch to store B: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(co, "placement.yml")); err == nil {
+		t.Fatal("cache still carries A's file after switching URL to B")
+	}
+}
+
 func TestGitSyncFallsBackToCachedCheckout(t *testing.T) {
 	src := makeSourceRepo(t)
 	g := Git{URL: src, Branch: "master", CachePath: filepath.Join(t.TempDir(), "cache")}

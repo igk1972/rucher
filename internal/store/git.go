@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -52,6 +53,26 @@ func (g Git) auth() (transport.AuthMethod, error) {
 	}
 }
 
+// cacheMatches reports whether the existing cache was cloned from the URL and
+// branch currently configured. A pull only ever refetches the origin recorded at
+// clone time, so a mismatch means the operator changed store.url/branch and the
+// cache must be rebuilt rather than pulled.
+func (g Git) cacheMatches(repo *git.Repository) bool {
+	remote, err := repo.Remote(git.DefaultRemoteName)
+	if err != nil {
+		return false
+	}
+	urls := remote.Config().URLs
+	if len(urls) == 0 || urls[0] != g.URL {
+		return false
+	}
+	head, err := repo.Head()
+	if err != nil {
+		return false
+	}
+	return head.Name() == plumbing.NewBranchReferenceName(g.Branch)
+}
+
 func (g Git) Sync(ctx context.Context) (string, string, error) {
 	auth, err := g.auth()
 	if err != nil {
@@ -59,15 +80,29 @@ func (g Git) Sync(ctx context.Context) (string, string, error) {
 	}
 	ref := plumbing.NewBranchReferenceName(g.Branch)
 
-	cloned := false
-	repo, err := git.PlainOpen(g.CachePath)
-	if errors.Is(err, git.ErrRepositoryNotExists) {
-		repo, err = git.PlainCloneContext(ctx, g.CachePath, false, &git.CloneOptions{
+	clone := func() (*git.Repository, error) {
+		return git.PlainCloneContext(ctx, g.CachePath, false, &git.CloneOptions{
 			URL:           g.URL,
 			ReferenceName: ref,
 			SingleBranch:  true,
 			Auth:          auth,
 		})
+	}
+
+	cloned := false
+	repo, err := git.PlainOpen(g.CachePath)
+	switch {
+	case errors.Is(err, git.ErrRepositoryNotExists):
+		repo, err = clone()
+		cloned = true
+	case err == nil && !g.cacheMatches(repo):
+		// The cache points at a different store than currently configured; drop it and
+		// re-clone so we honor the new URL/branch. This is a deliberate reconfigure, not
+		// a transient fetch failure, so we intentionally do not fall back to last-good.
+		if rmErr := os.RemoveAll(g.CachePath); rmErr != nil {
+			return "", "", fmt.Errorf("git reset cache: %w", rmErr)
+		}
+		repo, err = clone()
 		cloned = true
 	}
 	if err != nil {
