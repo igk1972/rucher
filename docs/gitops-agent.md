@@ -138,11 +138,9 @@ rucher-agent.timer`.
 # printing node-a's recipient (nodes are configured under ./nodes):
 rucher ops nodes deploy --store-url git@example.com:store.git node-a
 
-# in the store checkout — seal the cadre to that node and encrypt its secrets:
-rucher ops key seal web --to <node-a-recipient>   # writes cadres/web/identity.age; prints web's recipient
-printf 'db_password: s3cr3t\n' \
-  | rucher ops secrets encrypt --to <web-recipient> \
-  > cadres/web/secrets.sops.yaml
+# in the store checkout — one command generates the cadre identity, seals it to the node,
+# and encrypts the secrets (edit web.plain.yaml first) into cadres/web/:
+rucher ops secrets encrypt --cadre web --seal-to <node-a-recipient> --in web.plain.yaml
 # add rucher.yml, units, support files, and placement.yml, then commit + push —
 # the agent installed by deploy picks it up on its timer.
 ```

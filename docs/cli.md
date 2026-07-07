@@ -212,17 +212,28 @@ de-duplicated. This is an operator-side command used when building the store. Se
 rucher ops key seal web --to age1nodeA... --to age1nodeB...   # -> web's recipient
 ```
 
-### `rucher ops secrets encrypt --to <recipient> [--to <recipient> ...]`
+### `rucher ops secrets encrypt [--to <rcpt> ... | --cadre <name> --seal-to <node-rcpt> ...]`
 
-Read a flat `key: value` YAML map on stdin and write the encrypted `secrets.sops.yaml`
-(SOPS+age) to stdout, encrypted to every `--to` recipient (repeated values de-duplicated).
-This is the in-process replacement for `sops --encrypt --age <recipient>`; the output is
-byte-compatible with the `sops` CLI. See [secrets.md](secrets.md).
+Encrypt a flat `key: value` YAML map to SOPS+age — byte-compatible with the `sops` CLI, the
+in-process replacement for `sops --encrypt`. Two modes:
+
+- **direct** — `--to <recipient>` (repeatable): encrypt to each recipient. Plaintext on
+  stdin, encrypted document on stdout.
+- **seal** — `--cadre <name> --seal-to <node-recipient>` (repeatable): generate the cadre's
+  age identity, seal it to the node recipient(s) into `<dir>/<name>/identity.age`, encrypt to
+  that identity, and write `<dir>/<name>/secrets.sops.yaml`. One command, no shell glue; it
+  prints the cadre's recipient. `--dir` defaults to `cadres`.
+
+Plaintext comes from `--in FILE` (else stdin); output goes to `--out FILE` (else stdout, or
+the cadre's `secrets.sops.yaml` in seal mode). See [secrets.md](secrets.md) and
+[gitops-agent.md](gitops-agent.md).
 
 ```bash
-printf 'db_password: s3cr3t\n' \
-  | rucher ops secrets encrypt --to <cadre-recipient> \
-  > cadres/web/secrets.sops.yaml
+# direct: encrypt to a known recipient (stdin -> stdout)
+printf 'db_password: s3cr3t\n' | rucher ops secrets encrypt --to <cadre-recipient> > cadres/web/secrets.sops.yaml
+
+# seal: generate + seal the cadre identity to a node and encrypt, in one command
+rucher ops secrets encrypt --cadre web --seal-to <node-recipient> --in web.plain.yaml
 ```
 
 ### `rucher ops nodes [--dir DIR] join <node> --address <addr> [--json]`
