@@ -83,7 +83,7 @@ rucher ops plan [--dir DIR] [name...]         # dry-run: show what apply would c
 rucher node apply [--dir DIR]                 # reconcile cadres onto the node
 rucher node cadre apply [--dir DIR] <name...> # reconcile the named cadre(s)
 rucher node cadre status [name...]            # per-unit ActiveState/SubState
-rucher node cadre logs <name> <unit>          # journalctl --user for one unit
+rucher node cadre logs <name> <unit>          # last journal lines for one unit
 rucher node cadre rm <name> [--purge]         # stop + unmanage; --purge also deletes the user + data
 rucher node key init|show                     # this node's age key (GitOps)
 rucher ops key seal <name> --to <node-rcpt>   # seal a cadre identity to node(s)
@@ -100,7 +100,7 @@ No `--dir` defaults to `./cadres`; no names means all cadres. Full reference:
 ```bash
 sudo rucher node cadre new web                                   # prints age1... recipient
 printf 'db_password: s3cr3t\n' \
-  | sops --encrypt --age <recipient> /dev/stdin \
+  | sops --encrypt --input-type yaml --output-type yaml --age <recipient> /dev/stdin \
   > cadres/web/secrets.sops.yaml              # encrypt to that recipient
 sudo rucher node cadre apply --dir ./cadres web            # decrypt + create podman secret + start
 ```
@@ -145,15 +145,16 @@ kernel-mode Tailscale sidecar plus the app in one pod, and the auth key rides th
 `secrets.create` machinery (podman secret → sidecar env). Privilege stays confined to the
 sidecar; the unprivileged app shares the pod netns and reaches the tailnet transparently.
 This is distinct from the operator control-plane network (`rucher ops nodes join`, which sets a
-*node's* management address). See the runbook
-[`docs/validation/integration-overlay.md`](docs/validation/integration-overlay.md) and the
-ready example in [`test/overlay-example/`](test/overlay-example/).
+*node's* management address). See the ready example in
+[`docs/examples/overlay-example/`](docs/examples/overlay-example/), the automated cross-node test
+`test/integration/headscale_test.go`, and the real-tailnet validation record
+[`docs/validation/integration-overlay.md`](docs/validation/integration-overlay.md).
 
 ## Testing
 
 Pure logic and the shell-out layer are unit-tested with a fake command runner
-(`go test ./...`). End-to-end behavior on a real node is exercised by the manual runbooks
-under [`docs/validation/`](docs/validation/): [integration-a](docs/validation/integration-a.md)
-(single-node core), [integration-b](docs/validation/integration-b.md) (GitOps agent),
-[integration-c](docs/validation/integration-c.md) (operator plane), and
-[integration-overlay](docs/validation/integration-overlay.md), on Lima nodes.
+(`go test ./...`). End-to-end behavior on real nodes is covered by an automated suite
+(`go test -tags integration ./test/integration/`) driving Lima nodes — single-node core, the
+GitOps agent (git + S3), the operator plane, cadre isolation, and a headscale overlay; see
+[`test/integration/`](test/integration/). One manual record remains for the real-tailnet overlay
+with direct kernel routing: [integration-overlay](docs/validation/integration-overlay.md).

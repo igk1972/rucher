@@ -25,17 +25,19 @@ connectivity between workloads across nodes.
 | [overlays.md](overlays.md) | Per-cadre overlay networking for cross-node L3 between workloads |
 | [node-requirements.md](node-requirements.md) | What each node must provide |
 
-## Validation runbooks
+## End-to-end tests and validation
 
-Manual end-to-end procedures run on Lima nodes (not part of `go test`); they also record what
-was verified on real hardware. See [`validation/`](validation/):
+Automated end-to-end tests (Go, build tag `integration`) drive real Lima nodes and cover the
+single-node core, the GitOps agent (git + S3), the operator plane, cadre isolation, and a
+headscale overlay. See [`../test/integration/`](../test/integration/) and its README.
 
-| Runbook | Validates |
-|---------|-----------|
-| [integration-a.md](validation/integration-a.md) | Single-node core: new → apply → drift → idempotency → rm |
-| [integration-b.md](validation/integration-b.md) | GitOps agent: node key → seal → git store → `node agent run` → removal |
-| [integration-c.md](validation/integration-c.md) | Operator plane: `ops nodes status`, `--live`, `ops nodes join` |
-| [integration-overlay.md](validation/integration-overlay.md) | Cadre overlay: kernel-mode sidecar, cross-node L3 |
+One manual record remains for what only real hardware can show — the overlay on a real
+**Tailscale tailnet** with **direct kernel routing**, which the automated test relays through a
+self-hosted headscale/DERP instead:
+
+| Record | Captures |
+|--------|----------|
+| [integration-overlay.md](validation/integration-overlay.md) | Cadre overlay verified on a real tailnet (kernel routing `dev tailscale0`) |
 
 ## Terminology
 

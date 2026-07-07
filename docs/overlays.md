@@ -88,11 +88,11 @@ permissions are insufficient, a kernel-mode sidecar cannot bring up its interfac
 ## Worked example
 
 A complete, ready-to-apply overlay cadre lives at
-[`../test/overlay-example/`](../test/overlay-example/): the manifest, the pod, the kernel-mode
+[`examples/overlay-example/`](examples/overlay-example/): the manifest, the pod, the kernel-mode
 sidecar unit, the unprivileged app unit, and a plaintext secrets template. Apply it like any
 cadre — remember `--dir` is the **parent** directory and the name selects the
 subdirectory (run from the module root):
 
 ```bash
-sudo rucher node cadre apply --dir ./test/overlay-example overlay-demo
+sudo rucher node cadre apply --dir ./docs/examples/overlay-example overlay-demo
 ```

@@ -23,8 +23,8 @@ capabilities, while `overlay-app` is an ordinary unprivileged container that sti
 
 The cadre's files live in the `overlay-demo/` subdirectory. `apply` takes the **parent**
 directory (`--dir`) and the name selects the subdirectory — that is, `--dir` points at this
-directory (`test/overlay-example/`), not at `overlay-demo/` itself. The commands below are run
-from this directory:
+directory (`docs/examples/overlay-example/`), not at `overlay-demo/` itself. The commands below
+are run from this directory:
 
 ```bash
 # 1. authkey from the tailscale admin console -> encrypt it for this cadre's recipient
@@ -39,6 +39,8 @@ rucher node cadre apply --dir . overlay-demo
 ```
 
 The node must have the `tun` module loaded and `/dev/net/tun` accessible to the cadre's
-user — that's the provisioning layer's job (see the runbook).
+user — that's the provisioning layer's job (see `docs/node-requirements.md`).
 
-For a detailed walkthrough and exactly what has been verified, see `docs/validation/integration-overlay.md`.
+For the concepts and walkthrough see `docs/overlays.md`. The automated cross-node test (over a
+self-hosted headscale, no SaaS auth key) is `test/integration/headscale_test.go`; the real-tailnet
+validation record is `docs/validation/integration-overlay.md`.
