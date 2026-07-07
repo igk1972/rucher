@@ -22,10 +22,14 @@ The tool classifies each entry in the directory:
   identities matching `identity.*.age`.
 - **Unit files** — files whose extension is one of `.container`, `.volume`, `.network`,
   `.pod`, `.kube`, `.image`, `.build` (what podman's Quadlet generator understands).
+- **Systemd units** — `.timer`, `.socket`, `.path`: native systemd units that schedule or
+  activate a cadre's Quadlet services (e.g. a `.timer` firing a generated `.service`).
 - **Support files** — everything else (env files, configs, …). Copied in as-is.
 
-Unit and support files are laid into the cadre user's
-`~/.config/containers/systemd/`. Units reference support files by their in-place path, e.g.
+Quadlet units and support files are laid into the cadre user's
+`~/.config/containers/systemd/`; native systemd units go to `~/.config/systemd/user/`
+(where systemd's user manager looks for them) and are enabled directly. Units reference
+support files by their in-place path, e.g.
 `EnvironmentFile=%h/.config/containers/systemd/app.env`.
 
 ## Manifest schema (`rucher.yml`)
@@ -114,10 +118,13 @@ The plan is a minimal, idempotent change set:
     conservative fallback;
   - a unit that disappeared is **stopped** (before its file is removed, while its generated
     `.service` still resolves).
+- **Systemd units** (`.timer`/`.socket`/`.path`): a new one is **`enable --now`**'d (so it
+  also persists across reboot under linger), a changed one is **restarted**, and a removed one
+  is **`disable --now`**'d before its file is deleted.
 
 `apply` executes in a fixed order: resource limits → stop removed units → write/remove files
-→ create/remove secrets → registry logins → `daemon-reload` → start/restart units → persist
-new state.
+→ create/remove secrets → registry logins → `daemon-reload` → start/restart/enable units →
+persist new state.
 
 ## On-node layout
 
@@ -125,7 +132,8 @@ new state.
 |------|------|
 | Cadre user | `rucher-<name>` (system user, `nologin`) |
 | Home | `/var/lib/rucher/cadres/<name>` |
-| Units + support files | `<home>/.config/containers/systemd/` |
+| Quadlet units + support files | `<home>/.config/containers/systemd/` |
+| Native systemd units (`.timer`/`.socket`/`.path`) | `<home>/.config/systemd/user/` |
 | age identity / recipient | `<home>/.config/rucher/age/{identity.txt,recipient.txt}` |
 | Last-applied state (hashes only) | `/var/lib/rucher/cadres/state/<name>.json` |
 | Resource slice drop-in | `/etc/systemd/system/user-<uid>.slice.d/50-rucher.conf` |
