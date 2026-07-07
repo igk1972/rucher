@@ -1,7 +1,6 @@
 // Command setup-nodes creates the Lima node swarm and provisions it (podman +
 // uidmap + /dev/net/tun) for the integration suite. Self-contained: the same recipe on
-// a Mac and in CI, with no external tooling. Distilled from the lima-essaim /
-// podman-essaim skills.
+// a Mac and in CI, with no external tooling.
 //
 //	go run ./test/integration/cmd/setup-nodes            # create + provision + verify
 //	go run ./test/integration/cmd/setup-nodes create     # just create/start the VMs

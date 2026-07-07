@@ -29,8 +29,7 @@ host-built binary, exercising the project's own `sshx` client against the Lima
 
 `cmd/setup-nodes` (a small Go program) creates the Lima swarm and installs podman
 (static bundle) + uidmap + `/dev/net/tun` on each node — the same self-contained
-recipe on a Mac and in CI (no external tooling; distilled from the `lima-essaim` /
-`podman-essaim` skills):
+recipe on a Mac and in CI (no external tooling):
 
 ```bash
 go run ./test/integration/cmd/setup-nodes            # create + provision + verify
