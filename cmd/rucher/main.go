@@ -26,7 +26,7 @@ ops — from the operator machine:
   ops nodes [--dir DIR] join <node> --address <addr> [--json]
   ops nodes [--dir DIR] deploy [--version TAG | --binary PATH] [--store-url URL ...] [node...]
   ops key seal <name> --to <recipient> [--to <recipient> ...]
-  ops secrets encrypt --to <recipient> [--to <recipient> ...]   (plaintext YAML on stdin)
+  ops secrets encrypt [--to <rcpt>... | --cadre <name> --seal-to <node-rcpt>...] [--in F] [--out F]
 `
 }
 
@@ -234,7 +234,7 @@ func runOps(args []string, stdout io.Writer) int {
 // encryption of a plaintext YAML map read from stdin.
 func runOpsSecrets(args []string, stdout io.Writer) int {
 	if len(args) == 0 || args[0] != "encrypt" {
-		fmt.Fprintln(stdout, "usage: ops secrets encrypt --to <recipient> [--to <recipient> ...]")
+		fmt.Fprintln(stdout, "usage: ops secrets encrypt --to <recipient>... | --cadre <name> --seal-to <node-recipient>...")
 		return 2
 	}
 	return cmdSecretsEncrypt(args[1:], os.Stdin, stdout)
