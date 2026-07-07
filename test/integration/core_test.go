@@ -27,7 +27,7 @@ func TestLiveShowsUnitStatus(t *testing.T) {
 	})
 
 	parent := newCadre(t, name, map[string]string{
-		"rucher.yml":  "name: " + name + "\n",
+		"rucher.yml":  "{}\n",
 		"data.volume": volumeUnit,
 	})
 	if r := nodeApply(t, node1, parent, name); r.code != 0 {
@@ -72,7 +72,7 @@ func TestExtraSopsNotMaterialized(t *testing.T) {
 	parent := newCadre(t, name, map[string]string{
 		// No secrets.from file is shipped, so apply performs no decryption; the test
 		// is purely about file classification.
-		"rucher.yml":      "name: " + name + "\n",
+		"rucher.yml":      "{}\n",
 		"data.volume":     volumeUnit,
 		"app.conf":        "answer = 42\n",            // ordinary support file: MUST be materialized
 		"extra.sops.yaml": "api_token: ENC[hidden]\n", // second SOPS doc: MUST NOT be materialized

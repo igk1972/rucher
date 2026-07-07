@@ -14,7 +14,7 @@ import (
 // reconciles without pulling any image (see volumeUnit in core_test.go).
 func seedStoreCadre(t *testing.T, store, name string) {
 	t.Helper()
-	writeStoreFile(t, store, "cadres/"+name+"/rucher.yml", "name: "+name+"\n")
+	writeStoreFile(t, store, "cadres/"+name+"/rucher.yml", "{}\n")
 	writeStoreFile(t, store, "cadres/"+name+"/data.volume", volumeUnit)
 }
 
@@ -117,7 +117,7 @@ func TestSealedIdentityNegative(t *testing.T) {
 	sopsEncrypt(t, cadreRecipient, "db_password: s3cr3t\n",
 		filepath.Join(store, "cadres", name, "secrets.sops.yaml"))
 
-	writeStoreFile(t, store, "cadres/"+name+"/rucher.yml", "name: "+name+"\n")
+	writeStoreFile(t, store, "cadres/"+name+"/rucher.yml", "{}\n")
 	writeStoreFile(t, store, "cadres/"+name+"/data.volume", volumeUnit)
 	// Assign to BOTH nodes; only node-01 can unseal.
 	writeStoreFile(t, store, "placement.yml",

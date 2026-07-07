@@ -97,7 +97,7 @@ func TestS3SyncAgainstRclone(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bucket, "placement.yml"), []byte("placements: {web: node-a}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bucket, "cadres", "web", "rucher.yml"), []byte("name: web\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(bucket, "cadres", "web", "rucher.yml"), []byte("{}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -163,7 +163,7 @@ func TestS3SyncAgainstRclone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read rucher.yml: %v", err)
 	}
-	if string(got) != "name: web\n" {
+	if string(got) != "{}\n" {
 		t.Fatalf("rucher.yml = %q", got)
 	}
 }

@@ -226,7 +226,7 @@ func overlayCadreFiles(name, tsHost, certPEM string) map[string]string {
 	// the container (podman rejects per-container --add-host in a shared netns).
 	pod := "[Pod]\nPodName=" + name + "\nPodmanArgs=--add-host=host.lima.internal:" + hostGatewayIP + "\n"
 	return map[string]string{
-		"rucher.yml":            "name: " + name + "\nsecrets:\n  from: secrets.sops.yaml\n  create:\n    - ts-authkey\n",
+		"rucher.yml":            "secrets:\n  from: secrets.sops.yaml\n  create:\n    - ts-authkey\n",
 		name + ".pod":           pod,
 		"overlay-ts.container":  ts,
 		"overlay-app.container": app,

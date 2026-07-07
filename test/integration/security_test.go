@@ -22,7 +22,7 @@ func TestSensitiveFilePermissions(t *testing.T) {
 		t.Fatalf("new: code=%d err=%q", r.code, r.stderr)
 	}
 	parent := newCadre(t, name, map[string]string{
-		"rucher.yml":  "name: " + name + "\n",
+		"rucher.yml":  "{}\n",
 		"data.volume": volumeUnit,
 	})
 	if r := nodeApply(t, node1, parent, name); r.code != 0 {
@@ -53,7 +53,7 @@ func TestSecretPlaintextNotInStateOrUnits(t *testing.T) {
 		t.Fatalf("new: %s", rec.stderr)
 	}
 	parent := newCadre(t, name, map[string]string{
-		"rucher.yml":  "name: " + name + "\nsecrets:\n  from: secrets.sops.yaml\n",
+		"rucher.yml":  "secrets:\n  from: secrets.sops.yaml\n",
 		"data.volume": volumeUnit,
 	})
 	sopsEncrypt(t, rec.out(), "db_password: "+secret+"\n",

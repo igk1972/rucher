@@ -14,7 +14,7 @@ func writeDir(t *testing.T) string {
 		t.Fatal(err)
 	}
 	files := map[string]string{
-		"rucher.yml":        "name: web\nsecrets:\n  from: secrets.sops.yaml\n",
+		"rucher.yml":        "secrets:\n  from: secrets.sops.yaml\n",
 		"secrets.sops.yaml": "db_password: ENC[...]\n",
 		".sops.yaml":        "creation_rules: []\n",
 		"web.container":     "[Container]\nImage=nginx\n",
@@ -84,11 +84,13 @@ func TestLoadExcludesExtraSopsFile(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsNameMismatch(t *testing.T) {
+func TestLoadRejectsStrayNameKey(t *testing.T) {
+	// A cadre's name comes from its directory; a leftover name: in the
+	// manifest is an unknown key rejected by strict decode.
 	dir := writeDir(t)
-	os.WriteFile(filepath.Join(dir, "rucher.yml"), []byte("name: other\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "rucher.yml"), []byte("name: web\n"), 0o644)
 	if _, err := Load(dir); err == nil {
-		t.Fatal("expected name/dir mismatch error")
+		t.Fatal("expected stray name key error")
 	}
 }
 
@@ -101,7 +103,7 @@ func writeCadre(t *testing.T, extra map[string]string) string {
 		t.Fatal(err)
 	}
 	files := map[string]string{
-		"rucher.yml":        "name: web\nsecrets:\n  from: secrets.sops.yaml\n",
+		"rucher.yml":        "secrets:\n  from: secrets.sops.yaml\n",
 		"secrets.sops.yaml": "db_password: ENC[...]\n",
 	}
 	for name, body := range extra {

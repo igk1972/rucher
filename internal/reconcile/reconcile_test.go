@@ -46,7 +46,7 @@ func writeCadreSecrets(t *testing.T, name string, kv []sopsage.KV) string {
 }
 
 func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
-	c := cadre.Cadre{Name: "web", Manifest: manifest.Manifest{Name: "web"}}
+	c := cadre.Cadre{Name: "web"}
 	body := "[Container]\nImage=nginx\n"
 	c.Files = []cadre.File{{Name: "web.container", Content: []byte(body), Hash: fileset.Hash([]byte(body)), IsUnit: true}}
 
@@ -77,7 +77,7 @@ func TestApplyRoutesSystemdUnitToUserDirAndEnables(t *testing.T) {
 
 	container := "[Container]\nImage=busybox\n"
 	timer := "[Timer]\nOnCalendar=daily\n[Install]\nWantedBy=timers.target\n"
-	c := cadre.Cadre{Name: "web", Manifest: manifest.Manifest{Name: "web"}}
+	c := cadre.Cadre{Name: "web"}
 	c.Files = []cadre.File{
 		{Name: "backup.container", Content: []byte(container), Hash: fileset.Hash([]byte(container)), IsUnit: true},
 		{Name: "backup.timer", Content: []byte(timer), Hash: fileset.Hash([]byte(timer)), IsSystemdUnit: true},
@@ -305,7 +305,6 @@ func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 		Name:     "web",
 		SopsPath: sopsPath,
 		Manifest: manifest.Manifest{
-			Name:    "web",
 			Secrets: manifest.Secrets{Create: []string{"db_password"}},
 		},
 	}
@@ -344,7 +343,6 @@ func TestApplyErrorsOnMissingLoginPasswordKey(t *testing.T) {
 		Name:     "web",
 		SopsPath: sopsPath,
 		Manifest: manifest.Manifest{
-			Name: "web",
 			Registries: manifest.Registries{Login: []manifest.Login{
 				{Registry: "ghcr.io", Username: "u", PasswordKey: "ghcr_token"},
 			}},

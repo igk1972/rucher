@@ -81,7 +81,7 @@ func (s *s3store) write(t *testing.T, rel, body string) {
 }
 
 func (s *s3store) seedCadre(t *testing.T, name string) {
-	s.write(t, "cadres/"+name+"/rucher.yml", "name: "+name+"\n")
+	s.write(t, "cadres/"+name+"/rucher.yml", "{}\n")
 	s.write(t, "cadres/"+name+"/data.volume", volumeUnit)
 }
 

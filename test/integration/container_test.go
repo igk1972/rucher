@@ -41,7 +41,7 @@ func TestSecretReachesContainerEnv(t *testing.T) {
 		t.Fatalf("new: %s", rec.stderr)
 	}
 	parent := newCadre(t, name, map[string]string{
-		"rucher.yml":    "name: " + name + "\nsecrets:\n  from: secrets.sops.yaml\n",
+		"rucher.yml":    "secrets:\n  from: secrets.sops.yaml\n",
 		"app.container": alpineUnit("Secret=db_password,type=env,target=DB_PASSWORD\n"),
 	})
 	sopsEncrypt(t, rec.out(), "db_password: "+value+"\n", parent+"/"+name+"/secrets.sops.yaml")
@@ -73,7 +73,7 @@ func TestSelectiveRestartOnSupportFileChange(t *testing.T) {
 	cleanupCadre(t, name, node1)
 
 	files := map[string]string{
-		"rucher.yml":      "name: " + name + "\n",
+		"rucher.yml":      "{}\n",
 		"web.container":   alpineUnit("EnvironmentFile=%h/.config/containers/systemd/app.env\n"),
 		"other.container": alpineUnit(""),
 		"app.env":         "A=1\n",

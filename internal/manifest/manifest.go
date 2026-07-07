@@ -3,13 +3,14 @@ package manifest
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Manifest struct {
-	Name       string     `yaml:"name"`
 	Secrets    Secrets    `yaml:"secrets"`
 	Registries Registries `yaml:"registries"`
 	Resources  Resources  `yaml:"resources"`
@@ -44,7 +45,9 @@ func Load(data []byte) (Manifest, error) {
 	// hard error rather than being silently dropped.
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
-	if err := dec.Decode(&m); err != nil {
+	// An empty rucher.yml is a valid nameless manifest (every field defaults); yaml.v3
+	// reports an empty/comment-only document as io.EOF, which is not a parse error here.
+	if err := dec.Decode(&m); err != nil && !errors.Is(err, io.EOF) {
 		return Manifest{}, fmt.Errorf("parse rucher.yml: %w", err)
 	}
 	if m.Secrets.From == "" {
@@ -54,9 +57,6 @@ func Load(data []byte) (Manifest, error) {
 }
 
 func (m Manifest) Validate() error {
-	if m.Name == "" {
-		return fmt.Errorf("manifest: name is required")
-	}
 	for i, l := range m.Registries.Login {
 		if l.Registry == "" || l.Username == "" || l.PasswordKey == "" {
 			return fmt.Errorf("manifest: login[%d] needs registry, username and passwordKey", i)

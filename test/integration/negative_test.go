@@ -27,7 +27,7 @@ func TestUnknownManifestKeyRejected(t *testing.T) {
 	t.Cleanup(func() { cleanupCadre(t, name, node1) })
 
 	parent := newCadre(t, name, map[string]string{
-		"rucher.yml":  "name: " + name + "\nbogusField: oops\n",
+		"rucher.yml":  "bogusField: oops\n",
 		"data.volume": volumeUnit,
 	})
 	r := nodeApply(t, node1, parent, name)

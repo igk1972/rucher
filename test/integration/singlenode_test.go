@@ -43,7 +43,7 @@ func TestIdempotentApply(t *testing.T) {
 	t.Cleanup(func() { cleanupCadre(t, name, node1) })
 
 	parent := newCadre(t, name, map[string]string{
-		"rucher.yml":  "name: " + name + "\n",
+		"rucher.yml":  "{}\n",
 		"data.volume": volumeUnit,
 	})
 	if r := nodeApply(t, node1, parent, name); r.code != 0 {
@@ -64,7 +64,7 @@ func TestRemoveKeepsUserPurgeDeletes(t *testing.T) {
 	t.Cleanup(func() { cleanupCadre(t, name, node1) })
 
 	parent := newCadre(t, name, map[string]string{
-		"rucher.yml":  "name: " + name + "\n",
+		"rucher.yml":  "{}\n",
 		"data.volume": volumeUnit,
 	})
 	if r := nodeApply(t, node1, parent, name); r.code != 0 {

@@ -25,7 +25,7 @@ func TestRunAppliesAssignedCadre(t *testing.T) {
 	os.WriteFile(filepath.Join(co, "placement.yml"), []byte("placements: {web: node-a}\n"), 0o644)
 	cdir := filepath.Join(co, "cadres", "web")
 	os.MkdirAll(cdir, 0o755)
-	os.WriteFile(filepath.Join(cdir, "rucher.yml"), []byte("name: web\n"), 0o644)
+	os.WriteFile(filepath.Join(cdir, "rucher.yml"), []byte("{}\n"), 0o644)
 	os.WriteFile(filepath.Join(cdir, "web.container"), []byte("[Container]\nImage=nginx\n"), 0o644)
 	os.WriteFile(filepath.Join(cdir, "identity.age"), sealed, 0o644)
 
@@ -109,7 +109,7 @@ func TestRunFailsCadreIsolated(t *testing.T) {
 	os.WriteFile(filepath.Join(co, "placement.yml"), []byte("placements: {web: node-a}\n"), 0o644)
 	cdir := filepath.Join(co, "cadres", "web")
 	os.MkdirAll(cdir, 0o755)
-	os.WriteFile(filepath.Join(cdir, "rucher.yml"), []byte("name: web\n"), 0o644)
+	os.WriteFile(filepath.Join(cdir, "rucher.yml"), []byte("{}\n"), 0o644)
 	os.WriteFile(filepath.Join(cdir, "web.container"), []byte("[Container]\nImage=nginx\n"), 0o644)
 	os.WriteFile(filepath.Join(cdir, "secrets.sops.yaml"), []byte("data: ENC[age]\n"), 0o644)
 	os.WriteFile(filepath.Join(cdir, "identity.age"), []byte("not-valid-age-ciphertext"), 0o644)

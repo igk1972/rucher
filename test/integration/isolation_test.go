@@ -32,7 +32,7 @@ func subidRange(t *testing.T, node, user string) (start, count int, ok bool) {
 func applyPlain(t *testing.T, name string) {
 	t.Helper()
 	parent := newCadre(t, name, map[string]string{
-		"rucher.yml":  "name: " + name + "\n",
+		"rucher.yml":  "{}\n",
 		"data.volume": volumeUnit,
 	})
 	if r := nodeApply(t, node1, parent, name); r.code != 0 {
@@ -92,7 +92,7 @@ func TestCrossCadreSecretIsolation(t *testing.T) {
 		t.Fatalf("new %s: %s", a, rec.stderr)
 	}
 	pa := newCadre(t, a, map[string]string{
-		"rucher.yml":  "name: " + a + "\nsecrets:\n  from: secrets.sops.yaml\n",
+		"rucher.yml":  "secrets:\n  from: secrets.sops.yaml\n",
 		"data.volume": volumeUnit,
 	})
 	sopsEncrypt(t, rec.out(), "db_password: hunter2\n", filepath.Join(pa, a, "secrets.sops.yaml"))
@@ -118,7 +118,7 @@ func TestResourceLimitsApplied(t *testing.T) {
 	cleanupCadre(t, name, node1)
 
 	parent := newCadre(t, name, map[string]string{
-		"rucher.yml":  "name: " + name + "\nresources:\n  memoryMax: 128M\n  cpuQuota: \"50%\"\n",
+		"rucher.yml":  "resources:\n  memoryMax: 128M\n  cpuQuota: \"50%\"\n",
 		"data.volume": volumeUnit,
 	})
 	if r := nodeApply(t, node1, parent, name); r.code != 0 {

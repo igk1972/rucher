@@ -11,7 +11,7 @@ import (
 )
 
 func comp(files map[string]string) cadre.Cadre {
-	c := cadre.Cadre{Name: "web", Manifest: manifest.Manifest{Name: "web"}}
+	c := cadre.Cadre{Name: "web"}
 	for name, body := range files {
 		c.Files = append(c.Files, cadre.File{
 			Name: name, Content: []byte(body), Hash: fileset.Hash([]byte(body)),

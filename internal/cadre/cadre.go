@@ -41,9 +41,8 @@ func Load(dir string) (Cadre, error) {
 	if err := m.Validate(); err != nil {
 		return Cadre{}, err
 	}
-	if base := filepath.Base(dir); m.Name != base {
-		return Cadre{}, fmt.Errorf("manifest name %q != directory %q", m.Name, base)
-	}
+	// A cadre's identity is its directory name; the manifest carries no name.
+	name := filepath.Base(dir)
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -63,7 +62,7 @@ func Load(dir string) (Cadre, error) {
 		}
 		return strings.HasPrefix(name, "identity.") && strings.HasSuffix(name, ".age")
 	}
-	c := Cadre{Name: m.Name, Dir: dir, Manifest: m}
+	c := Cadre{Name: name, Dir: dir, Manifest: m}
 	for _, e := range entries {
 		if e.IsDir() || service[e.Name()] || isServiceFile(e.Name()) {
 			if e.Name() == m.Secrets.From {

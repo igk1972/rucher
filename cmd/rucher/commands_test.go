@@ -12,7 +12,7 @@ func TestCmdPlanPrintsUnits(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "web")
 	os.MkdirAll(dir, 0o755)
-	os.WriteFile(filepath.Join(dir, "rucher.yml"), []byte("name: web\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "rucher.yml"), []byte("{}\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, "web.container"), []byte("[Container]\nImage=nginx\n"), 0o644)
 
 	var out bytes.Buffer
@@ -28,7 +28,7 @@ func TestCmdPlanPrintsUnits(t *testing.T) {
 func TestCmdPlanNamedNotFound(t *testing.T) {
 	root := t.TempDir()
 	// No subdirectory named "web": pointing --dir at a folder that lacks it.
-	os.WriteFile(filepath.Join(root, "rucher.yml"), []byte("name: web\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "rucher.yml"), []byte("{}\n"), 0o644)
 
 	var out bytes.Buffer
 	code := cmdPlan(root, []string{"web"}, &out)
@@ -42,7 +42,7 @@ func TestCmdPlanNamedNotFound(t *testing.T) {
 
 func TestCmdApplyNamedNotFound(t *testing.T) {
 	root := t.TempDir()
-	os.WriteFile(filepath.Join(root, "rucher.yml"), []byte("name: web\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "rucher.yml"), []byte("{}\n"), 0o644)
 
 	var out bytes.Buffer
 	code := cmdApply(root, []string{"web"}, &out)
