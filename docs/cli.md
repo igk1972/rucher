@@ -38,8 +38,10 @@ rucher <group> <command> [args]
     ├─ nodes [--dir DIR]
     │   ├─ status [--live] [--json] [node...]          [ssh]    gather nodes status over SSH
     │   └─ join <node> --address <addr> [--json]       [local]  record a node's management address
-    └─ key
-        └─ seal <name> --to <rcpt> [--to <rcpt> ...]   [local]  seal a cadre identity to node(s)
+    ├─ key
+    │   └─ seal <name> --to <rcpt> [--to <rcpt> ...]   [local]  seal a cadre identity to node(s)
+    └─ secrets
+        └─ encrypt --to <rcpt> [--to <rcpt> ...]       [local]  encrypt plaintext YAML (stdin) to a SOPS+age file
 ```
 
 Execution side: `[node]` shells out on the local machine (`runuser`/`systemctl`/`podman`) — the
@@ -184,7 +186,8 @@ sudo rucher node agent install
 ## ops
 
 Runs from the operator machine (any OS). `plan` is a read-only dry run; `key seal` seals a
-cadre identity to node(s); `nodes` reaches every node over SSH.
+cadre identity to node(s); `secrets encrypt` encrypts a cadre's secrets in-process; `nodes`
+reaches every node over SSH.
 
 ### `rucher ops plan [--dir DIR] [name...]`
 
@@ -206,6 +209,19 @@ de-duplicated. This is an operator-side command used when building the store. Se
 
 ```bash
 rucher ops key seal web --to age1nodeA... --to age1nodeB...   # -> web's recipient
+```
+
+### `rucher ops secrets encrypt --to <recipient> [--to <recipient> ...]`
+
+Read a flat `key: value` YAML map on stdin and write the encrypted `secrets.sops.yaml`
+(SOPS+age) to stdout, encrypted to every `--to` recipient (repeated values de-duplicated).
+This is the in-process replacement for `sops --encrypt --age <recipient>`; the output is
+byte-compatible with the `sops` CLI. See [secrets.md](secrets.md).
+
+```bash
+printf 'db_password: s3cr3t\n' \
+  | rucher ops secrets encrypt --to <cadre-recipient> \
+  > cadres/web/secrets.sops.yaml
 ```
 
 ### `rucher ops nodes [--dir DIR] join <node> --address <addr> [--json]`
