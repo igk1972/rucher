@@ -3,12 +3,28 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"rucher/internal/nodestatus"
 )
+
+func TestKnownHostsPath(t *testing.T) {
+	t.Run("env override returns verbatim", func(t *testing.T) {
+		t.Setenv("RUCHER_KNOWN_HOSTS", "/custom/known_hosts")
+		if got := knownHostsPath(); got != "/custom/known_hosts" {
+			t.Fatalf("knownHostsPath() = %q, want /custom/known_hosts", got)
+		}
+	})
+	t.Run("default when unset", func(t *testing.T) {
+		t.Setenv("RUCHER_KNOWN_HOSTS", "")
+		if got := knownHostsPath(); !strings.HasSuffix(got, filepath.Join(".config", "rucher", "known_hosts")) {
+			t.Fatalf("knownHostsPath() = %q, want a path ending in .config/rucher/known_hosts", got)
+		}
+	})
+}
 
 func TestRenderHostsJSON(t *testing.T) {
 	rows := []nodestatus.Row{

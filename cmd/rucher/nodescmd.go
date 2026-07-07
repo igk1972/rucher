@@ -23,7 +23,12 @@ func limaDir() string {
 }
 
 // knownHostsPath is where the native ssh client pins host keys (TOFU accept-new).
+// RUCHER_KNOWN_HOSTS overrides the location so the store can be isolated for
+// tests/CI or redirected per operator context.
 func knownHostsPath() string {
+	if p := os.Getenv("RUCHER_KNOWN_HOSTS"); p != "" {
+		return p
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "known_hosts"
