@@ -78,7 +78,9 @@ transport error, so callers use `err != nil || code != 0` as "unreachable". A pe
 timeout (30s) bounds a node that connects but stalls.
 
 Host keys are trusted **TOFU** (trust on first use), backed by a per-tool known_hosts store
-at `~/.config/rucher/known_hosts` (created mode 0600, separate from `~/.ssh/known_hosts`):
+at `~/.config/rucher/known_hosts` (created mode 0600, separate from `~/.ssh/known_hosts`).
+Set `RUCHER_KNOWN_HOSTS` to override this path (e.g. to isolate the store for tests/CI or a
+specific operator context):
 
 - an **unknown** node is accepted and its key pinned on first contact;
 - a later key **change** for a pinned node is **rejected**;
