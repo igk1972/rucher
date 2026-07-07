@@ -126,7 +126,7 @@ command -v newuidmap >/dev/null 2>&1 || { apt-get update -qq && DEBIAN_FRONTEND=
 grep -q "^$u:" /etc/subuid 2>/dev/null || echo "$u:100000:65536" >> /etc/subuid
 grep -q "^$u:" /etc/subgid 2>/dev/null || echo "$u:100000:65536" >> /etc/subgid
 modprobe tun 2>/dev/null || true
-echo tun > /etc/modules-load.d/rucher-tun.conf
+echo tun > /etc/modules-load.d/tun.conf
 echo 'KERNEL=="tun", SUBSYSTEM=="misc", MODE="0666"' > /etc/udev/rules.d/99-rucher-tun.rules
 udevadm control --reload-rules 2>/dev/null || true
 chmod 0666 /dev/net/tun 2>/dev/null || true
