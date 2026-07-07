@@ -1,7 +1,7 @@
-// Command setup-nodes creates the Lima node swarm and provisions it (podman + sops +
+// Command setup-nodes creates the Lima node swarm and provisions it (podman +
 // uidmap + /dev/net/tun) for the integration suite. Self-contained: the same recipe on
 // a Mac and in CI, with no external tooling. Distilled from the lima-essaim /
-// podman-essaim skills.
+// podman-essaim skills. Nodes need no sops binary — rucher decrypts in-process.
 //
 //	go run ./test/integration/cmd/setup-nodes            # create + provision + verify
 //	go run ./test/integration/cmd/setup-nodes create     # just create/start the VMs
@@ -9,7 +9,7 @@
 //	go run ./test/integration/cmd/setup-nodes verify      # just print per-node state
 //
 // Config via env: RUCHER_IT_PREFIX (lima-essaim), RUCHER_IT_COUNT (3),
-// RUCHER_IT_PODMAN (5.8.4), RUCHER_IT_SOPS (3.9.4), RUCHER_IT_TEMPLATE (template:debian),
+// RUCHER_IT_PODMAN (5.8.4), RUCHER_IT_TEMPLATE (template:debian),
 // RUCHER_IT_CPUS/MEMORY/DISK (2 / 0.5 / 4), RUCHER_IT_NODES_DIR (<module>/../nodes).
 package main
 
@@ -30,7 +30,6 @@ var (
 	prefix    = env("RUCHER_IT_PREFIX", "lima-essaim")
 	count     = envInt("RUCHER_IT_COUNT", 3)
 	podmanVer = env("RUCHER_IT_PODMAN", "5.8.4") // exact mgoltzsche/podman-static release
-	sopsVer   = env("RUCHER_IT_SOPS", "3.9.4")   // exact getsops/sops release
 	template  = env("RUCHER_IT_TEMPLATE", "template:debian")
 	cpus      = env("RUCHER_IT_CPUS", "2")
 	memory    = env("RUCHER_IT_MEMORY", "0.5")
@@ -170,27 +169,9 @@ func provisionOne(node string) error {
 		logf("%s: podman %s installed", node, podmanVer)
 	}
 
-	// 2. rootless prereqs + tun device.
+	// 2. rootless prereqs + tun device. No sops: rucher decrypts in-process.
 	if err := limaSudo(node, provScript); err != nil {
 		return fmt.Errorf("rootless/tun prereqs: %w", err)
-	}
-
-	// 3. sops (rucher runs `sops -d` on the node at apply). Skip if at target.
-	if ver, _ := limaShell(node, "sh", "-c", "sops --version 2>/dev/null || true"); strings.Contains(ver, sopsVer) {
-		logf("%s: sops %s already present", node, sopsVer)
-	} else {
-		sf := filepath.Join(cacheDir, fmt.Sprintf("sops-v%s.linux.%s", sopsVer, arch))
-		url := fmt.Sprintf("https://github.com/getsops/sops/releases/download/v%s/sops-v%s.linux.%s", sopsVer, sopsVer, arch)
-		if err := download(url, sf); err != nil {
-			return err
-		}
-		if err := limaCopy(sf, node+":/tmp/sops-new"); err != nil {
-			return err
-		}
-		if err := limaSudo(node, "install -m0755 /tmp/sops-new /usr/local/bin/sops && rm -f /tmp/sops-new"); err != nil {
-			return fmt.Errorf("sops install: %w", err)
-		}
-		logf("%s: sops %s installed", node, sopsVer)
 	}
 	return nil
 }
@@ -199,15 +180,14 @@ func provisionOne(node string) error {
 
 func verify() {
 	needCmd("limactl")
-	fmt.Printf("%-18s %-10s %-9s %-8s %-5s\n", "NODE", "PODMAN", "ROOTLESS", "SOPS", "TUN")
+	fmt.Printf("%-18s %-10s %-9s %-5s\n", "NODE", "PODMAN", "ROOTLESS", "TUN")
 	for _, n := range nodeNames() {
 		pv, _ := limaShell(n, "sh", "-c", `podman --version 2>/dev/null | sed "s/.*version //" || echo none`)
 		rl, _ := limaShell(n, "sh", "-c", "podman info >/dev/null 2>&1 && echo ok || echo FAIL")
-		sv, _ := limaShell(n, "sh", "-c", `sops --version 2>/dev/null | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1 || echo none`)
 		tun, _ := limaShell(n, "sh", "-c", "test -c /dev/net/tun && echo ok || echo FAIL")
-		fmt.Printf("%-18s %-10s %-9s %-8s %-5s\n",
+		fmt.Printf("%-18s %-10s %-9s %-5s\n",
 			n, dflt(strings.TrimSpace(pv), "none"), strings.TrimSpace(rl),
-			dflt(strings.TrimSpace(sv), "none"), strings.TrimSpace(tun))
+			strings.TrimSpace(tun))
 	}
 }
 

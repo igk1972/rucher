@@ -13,11 +13,11 @@ The tests **do not provision anything** — they **fail** when a node they need 
 `Running` (and likewise when a required host tool is missing); they never skip. Bringing
 the nodes up and installing their toolchain is a separate step (see Setup below).
 
-- Nodes `lima-essaim-01/02/03` `Running` (`limactl list`), each with `podman`, `sops`,
-  `uidmap`, and `/dev/net/tun`.
-- Host tooling: `go`, `limactl`, `git`, `sops` (secrets are encrypted on the host),
-  `openssl` + `gh` (headscale overlay test), `rclone` (S3 store test — that test skips
-  if absent).
+- Nodes `lima-essaim-01/02/03` `Running` (`limactl list`), each with `podman`, `uidmap`,
+  and `/dev/net/tun`. Nodes need no `sops` — rucher decrypts in-process.
+- Host tooling: `go`, `limactl`, `git`, `sops` (host-only: builds encrypted test fixtures
+  and backs the sops-cross-compat check; not a runtime dependency), `openssl` + `gh`
+  (headscale overlay test), `rclone` (S3 store test — that test skips if absent).
 
 The suite builds `rucher` **for each node's architecture** (arm64 or amd64, probed via
 `dpkg --print-architecture`), installs it at `/usr/local/bin/rucher`, and drives the
@@ -28,7 +28,7 @@ host-built binary, exercising the project's own `sshx` client against the Lima
 ## Setup (local and CI)
 
 `cmd/setup-nodes` (a small Go program) creates the Lima swarm and installs podman
-(static bundle) + sops + uidmap + `/dev/net/tun` on each node — the same self-contained
+(static bundle) + uidmap + `/dev/net/tun` on each node — the same self-contained
 recipe on a Mac and in CI (no external tooling; distilled from the `lima-essaim` /
 `podman-essaim` skills):
 
@@ -37,9 +37,9 @@ go run ./test/integration/cmd/setup-nodes            # create + provision + veri
 go run ./test/integration/cmd/setup-nodes verify     # just show per-node state
 ```
 
-It is idempotent (skips a node already at the target podman/sops version) and never
+It is idempotent (skips a node already at the target podman version) and never
 clobbers existing `../nodes/<name>/configuration.yml`. Tunables: `RUCHER_IT_COUNT`,
-`RUCHER_IT_PODMAN`, `RUCHER_IT_SOPS`, `RUCHER_IT_TEMPLATE`, `RUCHER_IT_CPUS/MEMORY/DISK`.
+`RUCHER_IT_PODMAN`, `RUCHER_IT_TEMPLATE`, `RUCHER_IT_CPUS/MEMORY/DISK`.
 
 CI: `.github/workflows/integration.yml` runs the nodes in real kernel VMs via Lima on an
 `ubuntu-latest` runner (`lima-vm/lima-actions/setup`, KVM enabled by a udev rule, VM
