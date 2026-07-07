@@ -56,7 +56,7 @@ type s3store struct {
 func startS3Store(t *testing.T) *s3store {
 	t.Helper()
 	if _, err := exec.LookPath("rclone"); err != nil {
-		t.Skip("rclone not found on host; skipping S3 store test")
+		t.Fatal("rclone not found on host")
 	}
 	s := &s3store{bucket: s3Bucket}
 	s.dir = homeTemp(t, "s3-")

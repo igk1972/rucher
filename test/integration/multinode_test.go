@@ -96,7 +96,7 @@ func TestCadreMigration(t *testing.T) {
 func TestSealedIdentityNegative(t *testing.T) {
 	requireNodes(t, node1, node2)
 	if _, err := exec.LookPath("sops"); err != nil {
-		t.Skip("sops not found on host; skipping sealed-identity test")
+		t.Fatal("sops not found on host")
 	}
 	const name = "itseal"
 	t.Cleanup(func() { cleanupCadre(t, name, node1, node2) })

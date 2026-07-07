@@ -10,7 +10,7 @@
 // (/usr/local/bin/rucher, the path the agent unit hard-codes), and drives the
 // nodes over `limactl shell`. Operator-side commands run from a host-built
 // binary, so `ops nodes status` exercises the project's own sshx client against
-// the Lima ssh.config. When the nodes are not running the whole suite skips.
+// the Lima ssh.config. When the nodes are not running the whole suite fails.
 package integration
 
 import (
@@ -207,15 +207,15 @@ func goBuild(root, out, goos, goarch string) (string, error) {
 	return string(b), err
 }
 
-// requireNodes skips the test unless limactl is present and every named node is Running.
+// requireNodes fails the test unless limactl is present and every named node is Running.
 func requireNodes(t *testing.T, names ...string) {
 	t.Helper()
 	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("limactl not found; skipping integration test")
+		t.Fatal("limactl not found")
 	}
 	out, err := exec.Command("limactl", "list", "--format", "{{.Name}}={{.Status}}").CombinedOutput()
 	if err != nil {
-		t.Skipf("limactl list failed (%v); skipping", err)
+		t.Fatalf("limactl list failed: %v", err)
 	}
 	status := map[string]string{}
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
@@ -225,7 +225,7 @@ func requireNodes(t *testing.T, names ...string) {
 	}
 	for _, n := range names {
 		if status[n] != "Running" {
-			t.Skipf("node %s not Running (status=%q); skipping", n, status[n])
+			t.Fatalf("node %s not Running (status=%q)", n, status[n])
 		}
 	}
 	build(t)
@@ -472,7 +472,7 @@ func resetAgentCache(t *testing.T, node string) {
 func prepareGitOps(t *testing.T, store string, nodes ...string) {
 	t.Helper()
 	if storeErr != nil {
-		t.Skipf("store server unavailable: %v", storeErr)
+		t.Fatalf("store server unavailable: %v", storeErr)
 	}
 	verifyStoreReachable(t, nodes[0])
 	for _, n := range nodes {

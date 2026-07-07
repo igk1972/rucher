@@ -120,7 +120,7 @@ func TestStoreLastGoodOnFetchFailure(t *testing.T) {
 func TestStoreURLChangeSwitchesStores(t *testing.T) {
 	requireNodes(t, node1)
 	if storeErr != nil {
-		t.Skipf("store server unavailable: %v", storeErr)
+		t.Fatalf("store server unavailable: %v", storeErr)
 	}
 	const a, b = "iturla", "iturlb"
 	t.Cleanup(func() { cleanupCadre(t, a, node1); cleanupCadre(t, b, node1) })

@@ -80,8 +80,8 @@ type headscale struct {
 }
 
 // ensureHeadscaleBinary returns a headscale binary: a system install if one is on
-// PATH, otherwise a release binary downloaded once into a shared cache. Skips the
-// test (rather than failing) if neither is available.
+// PATH, otherwise a release binary downloaded once into a shared cache. Fails the
+// test if neither is available.
 func ensureHeadscaleBinary(t *testing.T) string {
 	t.Helper()
 	if p, err := exec.LookPath("headscale"); err == nil {
@@ -101,12 +101,12 @@ func ensureHeadscaleBinary(t *testing.T) string {
 		return bin
 	}
 	if _, err := exec.LookPath("gh"); err != nil {
-		t.Skip("gh not found; cannot fetch headscale")
+		t.Fatal("gh not found; cannot fetch headscale")
 	}
 	cmd := exec.Command("gh", "release", "download", "v"+headscaleVersion,
 		"--repo", "juanfont/headscale", "--pattern", asset, "--output", bin)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Skipf("cannot download headscale: %v\n%s", err, out)
+		t.Fatalf("cannot download headscale: %v\n%s", err, out)
 	}
 	os.Chmod(bin, 0o755)
 	return bin
@@ -130,7 +130,7 @@ func hscli(t *testing.T, hs *headscale, args ...string) string {
 func startHeadscale(t *testing.T) *headscale {
 	t.Helper()
 	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl not found")
+		t.Fatal("openssl not found")
 	}
 	bin := ensureHeadscaleBinary(t)
 	dir := homeTemp(t, "hs-")
@@ -289,7 +289,7 @@ func TestHeadscaleOverlayCrossNode(t *testing.T) {
 	requireNodes(t, node1, node2)
 	// tun must be usable by the cadre user for a kernel-mode sidecar.
 	if r := nodeSudo(t, node1, "test", "-c", "/dev/net/tun"); r.code != 0 {
-		t.Skip("/dev/net/tun not present on node1")
+		t.Fatal("/dev/net/tun not present on node1")
 	}
 	hs := startHeadscale(t)
 	const a, b = "itovla", "itovlb"

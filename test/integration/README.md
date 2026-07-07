@@ -9,9 +9,9 @@ go test -tags integration ./test/integration/ -v
 
 ## Prerequisites
 
-The tests **do not provision anything** — they `t.Skip` (never fail) when a node they
-need is not `Running`. Bringing the nodes up and installing their toolchain is a
-separate step (see Setup below).
+The tests **do not provision anything** — they **fail** when a node they need is not
+`Running` (and likewise when a required host tool is missing); they never skip. Bringing
+the nodes up and installing their toolchain is a separate step (see Setup below).
 
 - Nodes `lima-essaim-01/02/03` `Running` (`limactl list`), each with `podman`, `sops`,
   `uidmap`, and `/dev/net/tun`.
