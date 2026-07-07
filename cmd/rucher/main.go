@@ -25,6 +25,7 @@ ops — from the operator machine:
   ops nodes [--dir DIR] status [--live] [--json] [node...]
   ops nodes [--dir DIR] join <node> --address <addr> [--json]
   ops key seal <name> --to <recipient> [--to <recipient> ...]
+  ops secrets encrypt --to <recipient> [--to <recipient> ...]   (plaintext YAML on stdin)
 `
 }
 
@@ -220,10 +221,22 @@ func runOps(args []string, stdout io.Writer) int {
 		return cmdKeygen(args[2:], stdout)
 	case "nodes":
 		return runOpsNodes(args[1:], stdout)
+	case "secrets":
+		return runOpsSecrets(args[1:], stdout)
 	default:
 		fmt.Fprintf(stdout, "unknown ops subcommand: %s\n\n%s", args[0], usage())
 		return 2
 	}
+}
+
+// runOpsSecrets dispatches `ops secrets encrypt` — in-process SOPS+age
+// encryption of a plaintext YAML map read from stdin.
+func runOpsSecrets(args []string, stdout io.Writer) int {
+	if len(args) == 0 || args[0] != "encrypt" {
+		fmt.Fprintln(stdout, "usage: ops secrets encrypt --to <recipient> [--to <recipient> ...]")
+		return 2
+	}
+	return cmdSecretsEncrypt(args[1:], os.Stdin, stdout)
 }
 
 // runOpsNodes dispatches the ops nodes plane (`ops nodes [--dir DIR] <status|join>`).
