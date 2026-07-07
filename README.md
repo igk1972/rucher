@@ -35,7 +35,7 @@ GOOS=linux go build -trimpath -ldflags="-s -w" -o rucher ./cmd/rucher
 ```
 
 Runs as **root** on the target node (it creates users, manages linger/subuids, and drives
-each user's systemd). Requires Go ≥ 1.23 to build; dependencies (age, go-git, minio-go,
+each user's systemd). Requires Go ≥ 1.26 to build; dependencies (age, go-git, minio-go,
 `golang.org/x/crypto`, yaml) are pulled as Go modules. `GOOS=linux` cross-compiles to Linux
 from any host; `GOARCH` defaults to your machine's — set it explicitly (e.g. `GOARCH=amd64`)
 when the nodes' architecture differs. `-trimpath` and `-ldflags="-s -w"` strip filesystem

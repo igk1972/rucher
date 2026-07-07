@@ -37,7 +37,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version-file: go.mod
 
       # Host tooling the suite drives on the runner. git, gh, jq, openssl are
       # preinstalled. sops encrypts secrets on the host; headscale is the overlay test's
