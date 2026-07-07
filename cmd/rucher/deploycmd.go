@@ -15,13 +15,14 @@ import (
 
 // deployFlags is the parsed `ops nodes deploy` command line.
 type deployFlags struct {
-	version    string
-	repo       string
-	binaryPath string
-	interval   string
-	store      agentcfg.StoreConfig
-	jsonOut    bool
-	names      []string
+	version       string
+	repo          string
+	binaryPath    string
+	podmanVersion string
+	interval      string
+	store         agentcfg.StoreConfig
+	jsonOut       bool
+	names         []string
 }
 
 // parseDeploy parses the deploy flags; remaining positionals are node names.
@@ -46,6 +47,9 @@ func parseDeploy(args []string) (deployFlags, error) {
 		case "--binary":
 			v, err = need(i)
 			df.binaryPath, i = v, i+1
+		case "--podman-version":
+			v, err = need(i)
+			df.podmanVersion, i = v, i+1
 		case "--interval":
 			v, err = need(i)
 			df.interval, i = v, i+1
@@ -110,10 +114,11 @@ func cmdNodesDeploy(nodesDir string, args []string, out io.Writer) int {
 		return 2
 	}
 	opts := deploy.Options{
-		Version:  df.version,
-		Repo:     df.repo,
-		Store:    df.store,
-		Interval: df.interval,
+		Version:       df.version,
+		Repo:          df.repo,
+		PodmanVersion: df.podmanVersion,
+		Store:         df.store,
+		Interval:      df.interval,
 		// A store URL (git) or bucket (s3) turns on agent bootstrap.
 		Bootstrap: df.store.URL != "" || df.store.Bucket != "",
 	}

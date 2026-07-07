@@ -22,19 +22,33 @@ const (
 	agentCfg    = "/etc/rucher/agent.yml"
 	// DefaultRepo is the GitHub owner/repo whose Release assets nodes download.
 	DefaultRepo = "igk1972/rucher"
-	// podmanVersion is the mgoltzsche/podman-static release installed when a node
-	// has no podman yet.
-	podmanVersion = "5.8.4"
+	// podmanRepo is the GitHub owner/repo whose static podman build a node installs
+	// when it has no podman yet.
+	podmanRepo = "mgoltzsche/podman-static"
 )
+
+// podmanURL is the podman-static tarball a node downloads for its arch; ${arch} is
+// left for dpkg to resolve on the node. A pinned version maps to that exact release;
+// empty resolves to the newest one via GitHub's /releases/latest/download/ redirect
+// (the asset name is stable across releases). Mirrors assetURL for the rucher binary.
+func podmanURL(version string) string {
+	const asset = "podman-linux-${arch}.tar.gz"
+	if version != "" {
+		return fmt.Sprintf("https://github.com/%s/releases/download/v%s/%s", podmanRepo, version, asset)
+	}
+	return fmt.Sprintf("https://github.com/%s/releases/latest/download/%s", podmanRepo, asset)
+}
 
 // provisionScript ensures the base platform: a static podman (only when absent),
 // the uidmap helpers, /etc/subuid+subgid, and /dev/net/tun for overlays. It is
 // idempotent and Debian-oriented (apt-get/dpkg), matching node-requirements.md.
+// podmanVersion pins the podman-static release; empty installs the latest.
 // Run via `sudo sh -s` with the script on stdin so sshx passes it intact.
-var provisionScript = `set -e
+func provisionScript(podmanVersion string) string {
+	return `set -e
 arch=$(dpkg --print-architecture)
 if ! command -v podman >/dev/null 2>&1; then
-  curl -fsSL "https://github.com/mgoltzsche/podman-static/releases/download/v` + podmanVersion + `/podman-linux-${arch}.tar.gz" -o /tmp/podman-static.tar.gz
+  curl -fsSL "` + podmanURL(podmanVersion) + `" -o /tmp/podman-static.tar.gz
   cd /tmp && tar -xzf podman-static.tar.gz && cp -r podman-linux-*/usr podman-linux-*/etc / && rm -rf podman-linux-* podman-static.tar.gz
 fi
 command -v newuidmap >/dev/null 2>&1 || { apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq uidmap; }
@@ -45,6 +59,7 @@ printf 'KERNEL=="tun", SUBSYSTEM=="misc", MODE="0666"\n' > /etc/udev/rules.d/99-
 udevadm control --reload-rules 2>/dev/null || true
 [ -e /dev/net/tun ] && chmod 0666 /dev/net/tun || true
 `
+}
 
 // Options controls a deploy run.
 type Options struct {
@@ -53,6 +68,10 @@ type Options struct {
 	Binary  []byte
 	Version string // release tag; empty => latest
 	Repo    string // owner/repo; empty => DefaultRepo
+
+	// PodmanVersion pins the podman-static release provisioned onto a node that
+	// lacks podman; empty installs the latest.
+	PodmanVersion string
 
 	// Agent bootstrap. When Bootstrap is true, deploy writes /etc/rucher/agent.yml
 	// from Store+Interval and runs `node agent install`.
@@ -112,7 +131,7 @@ func deployOne(r sshx.Runner, nodesDir, limaDir, name string, opts Options) Row 
 
 	// 2. Base platform (podman-static/uidmap/tun): idempotent — installs only what
 	//    is missing. Run over stdin so the multi-line script survives sshx's join.
-	if msg, ok := runStep(r, target, []string{"sudo", "sh", "-s"}, []byte(provisionScript)); !ok {
+	if msg, ok := runStep(r, target, []string{"sudo", "sh", "-s"}, []byte(provisionScript(opts.PodmanVersion))); !ok {
 		return fail(row, "provision base platform: "+msg)
 	}
 

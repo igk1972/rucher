@@ -4,13 +4,14 @@ import "testing"
 
 func TestParseDeploy(t *testing.T) {
 	df, err := parseDeploy([]string{
-		"--version", "v0.1.0", "--store-url", "git@example.com:store.git",
+		"--version", "v0.1.0", "--podman-version", "5.9.0",
+		"--store-url", "git@example.com:store.git",
 		"--store-branch", "prod", "--interval", "1m", "--json", "web", "db",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if df.version != "v0.1.0" || df.store.URL != "git@example.com:store.git" ||
+	if df.version != "v0.1.0" || df.podmanVersion != "5.9.0" || df.store.URL != "git@example.com:store.git" ||
 		df.store.Branch != "prod" || df.interval != "1m" || !df.jsonOut {
 		t.Fatalf("flags = %+v", df)
 	}

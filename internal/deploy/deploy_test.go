@@ -130,6 +130,47 @@ func TestDeployNodeFailureRecorded(t *testing.T) {
 	}
 }
 
+func TestPodmanURL(t *testing.T) {
+	// Empty version resolves to the newest release via the latest/download redirect.
+	if got, want := podmanURL(""),
+		"https://github.com/mgoltzsche/podman-static/releases/latest/download/podman-linux-${arch}.tar.gz"; got != want {
+		t.Errorf("podmanURL(\"\") = %q, want %q", got, want)
+	}
+	// A pinned version maps to that exact release tag.
+	if got, want := podmanURL("5.8.4"),
+		"https://github.com/mgoltzsche/podman-static/releases/download/v5.8.4/podman-linux-${arch}.tar.gz"; got != want {
+		t.Errorf("podmanURL(pinned) = %q, want %q", got, want)
+	}
+}
+
+// TestDeployPodmanVersionThreaded proves the deploy-time podman override reaches the
+// provision script that runs on the node (streamed as the `sudo sh -s` stdin).
+func TestDeployPodmanVersionThreaded(t *testing.T) {
+	provisionStdin := func(opts Options) string {
+		dir := nodesDirWith(t, "web", "10.0.0.1")
+		tg := target("10.0.0.1")
+		f := &sshx.Fake{Responses: map[string]sshx.Result{
+			sshx.Key(tg, []string{"dpkg", "--print-architecture"}):             {Stdout: "arm64\n"},
+			sshx.Key(tg, []string{"sudo", installPath, "node", "key", "init"}): {Stdout: "age1x\n"},
+		}}
+		opts.Binary = []byte("x")
+		if _, err := Run(f, dir, "", nil, opts); err != nil {
+			t.Fatal(err)
+		}
+		c := callWith(f, "sudo sh -s")
+		if c == nil {
+			t.Fatal("base-platform provision not run")
+		}
+		return string(c.Stdin)
+	}
+	if s := provisionStdin(Options{}); !strings.Contains(s, "/releases/latest/download/podman-linux-${arch}.tar.gz") {
+		t.Errorf("default deploy should provision the latest podman:\n%s", s)
+	}
+	if s := provisionStdin(Options{PodmanVersion: "5.9.0"}); !strings.Contains(s, "/download/v5.9.0/podman-linux-${arch}.tar.gz") {
+		t.Errorf("pinned deploy should provision the pinned podman:\n%s", s)
+	}
+}
+
 func TestRenderAgentConfigRoundTrips(t *testing.T) {
 	body, err := renderAgentConfig("web", Options{
 		Store:    agentcfg.StoreConfig{Kind: "git", URL: "git@example.com:store.git"},
