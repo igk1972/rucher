@@ -212,7 +212,7 @@ de-duplicated. This is an operator-side command used when building the store. Se
 rucher ops key seal web --to age1nodeA... --to age1nodeB...   # -> web's recipient
 ```
 
-### `rucher ops secrets encrypt [--to <rcpt> ... | --cadre <name> --seal-to <node-rcpt> ...]`
+### `rucher ops secrets encrypt [--to <rcpt> ... | --cadre <name> --seal-to <node-rcpt> ...] [--in FILE] [--out FILE]`
 
 Encrypt a flat `key: value` YAML map to SOPS+age — byte-compatible with the `sops` CLI, the
 in-process replacement for `sops --encrypt`. Two modes:
@@ -224,9 +224,9 @@ in-process replacement for `sops --encrypt`. Two modes:
   that identity, and write `<dir>/<name>/secrets.sops.yaml`. One command, no shell glue; it
   prints the cadre's recipient. `--dir` defaults to `cadres`.
 
-Plaintext comes from `--in FILE` (else stdin); output goes to `--out FILE` (else stdout, or
-the cadre's `secrets.sops.yaml` in seal mode). See [secrets.md](secrets.md) and
-[gitops-agent.md](gitops-agent.md).
+`--in` and `--out` are both **optional**: plaintext comes from `--in FILE` (else stdin);
+output goes to `--out FILE` (else stdout, or the cadre's `secrets.sops.yaml` in seal mode).
+See [secrets.md](secrets.md) and [gitops-agent.md](gitops-agent.md).
 
 ```bash
 # direct: encrypt to a known recipient (stdin -> stdout)
