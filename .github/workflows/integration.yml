@@ -5,9 +5,6 @@
 # builds the node binary for the node's arch (amd64 here), so this works even though the
 # suite was developed on arm64. The kernel-mode headscale overlay test is the part most
 # likely to need tuning in CI.
-#
-# STARTING SCAFFOLD, kept on workflow_dispatch until the runner is dialed in — flip on
-# push/PR when it goes green.
 name: integration
 
 on:

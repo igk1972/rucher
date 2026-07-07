@@ -43,9 +43,7 @@ clobbers existing `../nodes/<name>/configuration.yml`. Tunables: `RUCHER_IT_COUN
 
 CI: `.github/workflows/integration.yml` runs the nodes in real kernel VMs via Lima on an
 `ubuntu-latest` runner (`lima-vm/lima-actions/setup`, KVM enabled by a udev rule, VM
-images cached), then runs setup + `go test -tags integration`. It is a starting scaffold
-(the kernel-mode headscale overlay test is the part most likely to need tuning) kept on
-`workflow_dispatch` until the runner is dialed in.
+images cached), then runs setup + `go test -tags integration`.
 
 ## What runs where
 
