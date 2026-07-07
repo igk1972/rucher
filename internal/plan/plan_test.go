@@ -15,7 +15,8 @@ func comp(files map[string]string) cadre.Cadre {
 	for name, body := range files {
 		c.Files = append(c.Files, cadre.File{
 			Name: name, Content: []byte(body), Hash: fileset.Hash([]byte(body)),
-			IsUnit: fileset.IsUnitFile(name),
+			IsUnit:        fileset.IsUnitFile(name),
+			IsSystemdUnit: fileset.IsSystemdUnit(name),
 		})
 	}
 	return c
@@ -141,6 +142,70 @@ func TestResourceLimitsChange(t *testing.T) {
 	prior.Resources = c.Manifest.Resources // now equal
 	if p2 := Compute(c, nil, prior); p2.Resources != nil {
 		t.Fatalf("Resources = %v, want nil when unchanged", p2.Resources)
+	}
+}
+
+func TestSystemdTimerEnabledOnFreshInstall(t *testing.T) {
+	c := comp(map[string]string{
+		"backup.container": "[Container]\nImage=busybox\n",
+		"backup.timer":     "[Timer]\nOnCalendar=daily\n[Install]\nWantedBy=timers.target\n",
+	})
+	p := Compute(c, nil, state.State{})
+	if !slices.Contains(p.EnableUnits, "backup.timer") {
+		t.Fatalf("EnableUnits = %v, want backup.timer", p.EnableUnits)
+	}
+	if len(p.RestartSystemdUnits) != 0 {
+		t.Fatalf("RestartSystemdUnits = %v, want none on fresh install", p.RestartSystemdUnits)
+	}
+	if !slices.Contains(p.StartUnits, "backup.container") {
+		t.Fatalf("StartUnits = %v, want backup.container", p.StartUnits)
+	}
+	if !p.DaemonReload {
+		t.Fatal("a new .timer must trigger daemon-reload")
+	}
+}
+
+func TestSystemdTimerRestartOnChangeAndDisableOnRemoval(t *testing.T) {
+	timer := "[Timer]\nOnCalendar=hourly\n[Install]\nWantedBy=timers.target\n"
+	c := comp(map[string]string{"backup.timer": timer})
+	prior := state.State{
+		Files: map[string]string{
+			// backup.timer present but with a different body -> changed -> restart
+			"backup.timer": fileset.Hash([]byte("[Timer]\nOnCalendar=daily\n[Install]\nWantedBy=timers.target\n")),
+			// old.timer no longer desired -> disable + remove
+			"old.timer": fileset.Hash([]byte("[Timer]\nOnCalendar=weekly\n")),
+		},
+		SystemdUnits: []string{"backup.timer", "old.timer"},
+		SecretHashes: map[string]string{},
+	}
+	p := Compute(c, nil, prior)
+	if !slices.Equal(p.RestartSystemdUnits, []string{"backup.timer"}) {
+		t.Fatalf("RestartSystemdUnits = %v, want [backup.timer]", p.RestartSystemdUnits)
+	}
+	if len(p.EnableUnits) != 0 {
+		t.Fatalf("EnableUnits = %v, want none (already present)", p.EnableUnits)
+	}
+	if !slices.Contains(p.DisableUnits, "old.timer") {
+		t.Fatalf("DisableUnits = %v, want old.timer", p.DisableUnits)
+	}
+	if !slices.Contains(p.RemoveFiles, "old.timer") {
+		t.Fatalf("RemoveFiles = %v, want old.timer", p.RemoveFiles)
+	}
+	if !p.DaemonReload {
+		t.Fatal("a changed/removed systemd unit must trigger daemon-reload")
+	}
+}
+
+func TestSystemdTimerNoOpWhenUnchanged(t *testing.T) {
+	timer := "[Timer]\nOnCalendar=daily\n[Install]\nWantedBy=timers.target\n"
+	c := comp(map[string]string{"backup.timer": timer})
+	prior := state.State{
+		Files:        map[string]string{"backup.timer": fileset.Hash([]byte(timer))},
+		SystemdUnits: []string{"backup.timer"},
+		SecretHashes: map[string]string{},
+	}
+	if p := Compute(c, nil, prior); !p.Empty() {
+		t.Fatalf("expected an empty plan for an unchanged timer, got %+v", p)
 	}
 }
 

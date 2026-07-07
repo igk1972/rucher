@@ -19,16 +19,21 @@ type Plan struct {
 	RemoveSecrets []string
 	Resources     *manifest.Resources // non-nil when slice limits must be (re)applied
 	DaemonReload  bool
-	StartUnits    []string
-	RestartUnits  []string
-	StopUnits     []string
+	StartUnits    []string // Quadlet units to start (new)
+	RestartUnits  []string // Quadlet units to restart (changed / referencing changed input)
+	StopUnits     []string // Quadlet units to stop (removed)
+	// Native systemd units (.timer/.socket/.path), managed by their own unit name.
+	EnableUnits         []string // new -> `enable --now`
+	RestartSystemdUnits []string // changed -> `restart`
+	DisableUnits        []string // removed -> `disable --now`
 }
 
 func (p Plan) Empty() bool {
 	return len(p.WriteFiles) == 0 && len(p.RemoveFiles) == 0 &&
 		len(p.CreateSecrets) == 0 && len(p.RemoveSecrets) == 0 &&
 		p.Resources == nil && !p.DaemonReload &&
-		len(p.StartUnits) == 0 && len(p.RestartUnits) == 0 && len(p.StopUnits) == 0
+		len(p.StartUnits) == 0 && len(p.RestartUnits) == 0 && len(p.StopUnits) == 0 &&
+		len(p.EnableUnits) == 0 && len(p.RestartSystemdUnits) == 0 && len(p.DisableUnits) == 0
 }
 
 func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) Plan {
@@ -42,12 +47,16 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 	// Files: write changed/new, remember which support files changed.
 	changedSupport := map[string]bool{}
 	unitFileChanged := map[string]bool{}
+	systemdUnitChanged := map[string]bool{} // new or changed .timer/.socket/.path
 	for name, f := range desiredFiles {
 		if prior.Files[name] != f.Hash {
 			p.WriteFiles = append(p.WriteFiles, f)
-			if f.IsUnit {
+			switch {
+			case f.IsUnit:
 				unitFileChanged[name] = true
-			} else {
+			case f.IsSystemdUnit:
+				systemdUnitChanged[name] = true
+			default:
 				changedSupport[name] = true
 			}
 		}
@@ -78,8 +87,30 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 		p.Resources = &r
 	}
 
-	// Reload if any unit file was written or removed.
-	if len(unitFileChanged) > 0 || removedAnyUnit(p.RemoveFiles) {
+	// Native systemd units: enable new ones, restart changed ones, disable removed ones.
+	priorSystemd := map[string]bool{}
+	for _, u := range prior.SystemdUnits {
+		priorSystemd[u] = true
+	}
+	for _, f := range c.Files {
+		if !f.IsSystemdUnit {
+			continue
+		}
+		if !priorSystemd[f.Name] {
+			p.EnableUnits = append(p.EnableUnits, f.Name)
+		} else if systemdUnitChanged[f.Name] {
+			p.RestartSystemdUnits = append(p.RestartSystemdUnits, f.Name)
+		}
+	}
+	for u := range priorSystemd {
+		if _, ok := desiredFiles[u]; !ok {
+			p.DisableUnits = append(p.DisableUnits, u)
+		}
+	}
+
+	// Reload if any unit file (Quadlet or systemd) was written or removed.
+	if len(unitFileChanged) > 0 || len(systemdUnitChanged) > 0 ||
+		removedAnyUnit(p.RemoveFiles) || len(p.DisableUnits) > 0 {
 		p.DaemonReload = true
 	}
 
@@ -127,6 +158,9 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 	slices.Sort(p.StartUnits)
 	slices.Sort(p.RestartUnits)
 	slices.Sort(p.StopUnits)
+	slices.Sort(p.EnableUnits)
+	slices.Sort(p.RestartSystemdUnits)
+	slices.Sort(p.DisableUnits)
 	slices.Sort(p.RemoveFiles)
 	slices.Sort(p.CreateSecrets)
 	slices.Sort(p.RemoveSecrets)

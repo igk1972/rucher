@@ -71,6 +71,53 @@ func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
 	}
 }
 
+func TestApplyRoutesSystemdUnitToUserDirAndEnables(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+
+	container := "[Container]\nImage=busybox\n"
+	timer := "[Timer]\nOnCalendar=daily\n[Install]\nWantedBy=timers.target\n"
+	c := cadre.Cadre{Name: "web", Manifest: manifest.Manifest{Name: "web"}}
+	c.Files = []cadre.File{
+		{Name: "backup.container", Content: []byte(container), Hash: fileset.Hash([]byte(container)), IsUnit: true},
+		{Name: "backup.timer", Content: []byte(timer), Hash: fileset.Hash([]byte(timer)), IsSystemdUnit: true},
+	}
+
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
+	}}
+	if _, err := Apply(f, c); err != nil {
+		t.Fatal(err)
+	}
+
+	wantTimerTee := "tee " + userUnitDir("web") + "/backup.timer"        // -> user unit dir
+	wantContainerTee := "tee " + systemdDir("web") + "/backup.container" // -> Quadlet dir
+	wantEnable := "systemctl --user enable --now backup.timer"
+	var sawTimerTee, sawContainerTee, sawEnable bool
+	for _, call := range f.Calls {
+		switch strings.Join(call.Argv, " ") {
+		case wantTimerTee:
+			sawTimerTee = true
+			if string(call.Stdin) != timer {
+				t.Fatalf("timer body via stdin = %q, want %q", call.Stdin, timer)
+			}
+		case wantContainerTee:
+			sawContainerTee = true
+		case wantEnable:
+			sawEnable = true
+		}
+	}
+	if !sawTimerTee {
+		t.Errorf("timer must be written to the user unit dir (%s)", wantTimerTee)
+	}
+	if !sawContainerTee {
+		t.Errorf("container must stay in the Quadlet dir (%s)", wantContainerTee)
+	}
+	if !sawEnable {
+		t.Error("timer must be enabled with `systemctl --user enable --now`")
+	}
+}
+
 func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 	idp := provision.HomeDir("web") + "/.config/rucher/age/identity.txt"
 	recp := provision.HomeDir("web") + "/.config/rucher/age/recipient.txt"

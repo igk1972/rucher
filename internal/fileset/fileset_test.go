@@ -24,3 +24,18 @@ func TestIsUnitFile(t *testing.T) {
 		}
 	}
 }
+
+func TestIsSystemdUnit(t *testing.T) {
+	for _, n := range []string{"backup.timer", "api.socket", "watch.path"} {
+		if !IsSystemdUnit(n) {
+			t.Fatalf("%q should be a systemd unit", n)
+		}
+	}
+	// Quadlet units, support files, and .service (Quadlet generates those) are not
+	// native systemd units routed to the user unit dir.
+	for _, n := range []string{"web.container", "data.volume", "app.env", "backup.service"} {
+		if IsSystemdUnit(n) {
+			t.Fatalf("%q should NOT be a systemd unit", n)
+		}
+	}
+}

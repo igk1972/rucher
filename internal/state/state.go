@@ -16,7 +16,8 @@ type State struct {
 	UID          int                `json:"uid"`
 	Files        map[string]string  `json:"files"`
 	SecretHashes map[string]string  `json:"secretHashes"`
-	Units        []string           `json:"units"`
+	Units        []string           `json:"units"`                  // Quadlet units
+	SystemdUnits []string           `json:"systemdUnits,omitempty"` // native .timer/.socket/.path
 	Resources    manifest.Resources `json:"resources"`
 }
 

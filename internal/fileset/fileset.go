@@ -21,3 +21,16 @@ var unitExts = map[string]bool{
 func IsUnitFile(name string) bool {
 	return unitExts[filepath.Ext(name)]
 }
+
+// systemdUnitExts are native systemd unit types a cadre may ship to schedule or
+// activate its Quadlet services (a `.timer` firing a generated `.service`, a
+// `.socket`/`.path` activating one). Unlike Quadlet files, systemd does not read
+// them from the Quadlet dir, so they are installed into the user unit directory
+// (~/.config/systemd/user) and enabled directly.
+var systemdUnitExts = map[string]bool{
+	".timer": true, ".socket": true, ".path": true,
+}
+
+func IsSystemdUnit(name string) bool {
+	return systemdUnitExts[filepath.Ext(name)]
+}

@@ -14,10 +14,11 @@ import (
 )
 
 type File struct {
-	Name    string
-	Content []byte
-	Hash    string
-	IsUnit  bool
+	Name          string
+	Content       []byte
+	Hash          string
+	IsUnit        bool // Quadlet unit -> ~/.config/containers/systemd/
+	IsSystemdUnit bool // native systemd unit (.timer/.socket/.path) -> ~/.config/systemd/user/
 }
 
 type Cadre struct {
@@ -75,10 +76,11 @@ func Load(dir string) (Cadre, error) {
 			return Cadre{}, err
 		}
 		c.Files = append(c.Files, File{
-			Name:    e.Name(),
-			Content: content,
-			Hash:    fileset.Hash(content),
-			IsUnit:  fileset.IsUnitFile(e.Name()),
+			Name:          e.Name(),
+			Content:       content,
+			Hash:          fileset.Hash(content),
+			IsUnit:        fileset.IsUnitFile(e.Name()),
+			IsSystemdUnit: fileset.IsSystemdUnit(e.Name()),
 		})
 	}
 	if err := c.Validate(); err != nil {
@@ -102,7 +104,7 @@ func (c Cadre) Validate() error {
 		have[f.Name] = true
 	}
 	for _, f := range c.Files {
-		if !f.IsUnit {
+		if !f.IsUnit && !f.IsSystemdUnit {
 			continue
 		}
 		if err := validateUnit(f, have); err != nil {

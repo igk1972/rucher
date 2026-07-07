@@ -57,6 +57,37 @@ func TestStartStopUseStartStopNotEnableDisable(t *testing.T) {
 	}
 }
 
+func TestSystemdUnitLifecycleUsesRawUnitName(t *testing.T) {
+	// Native systemd units are managed by their own name (no Quadlet .service mapping),
+	// and — unlike Quadlet units — a .timer/.socket/.path is enabled/disabled.
+	f := &node.Fake{Responses: map[string]node.Result{}}
+	o := Ops{R: f, User: "rucher-web", UID: 1234}
+
+	if err := o.EnableNow("backup.timer"); err != nil {
+		t.Fatal(err)
+	}
+	if err := o.RestartUnit("backup.timer"); err != nil {
+		t.Fatal(err)
+	}
+	if err := o.DisableNow("backup.timer"); err != nil {
+		t.Fatal(err)
+	}
+
+	want := [][]string{
+		{"systemctl", "--user", "enable", "--now", "backup.timer"},
+		{"systemctl", "--user", "restart", "backup.timer"},
+		{"systemctl", "--user", "disable", "--now", "backup.timer"},
+	}
+	if len(f.Calls) != len(want) {
+		t.Fatalf("calls = %d, want %d: %+v", len(f.Calls), len(want), f.Calls)
+	}
+	for i := range want {
+		if !equalArgv(f.Calls[i].Argv, want[i]) {
+			t.Fatalf("call %d argv = %v, want %v", i, f.Calls[i].Argv, want[i])
+		}
+	}
+}
+
 func equalArgv(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

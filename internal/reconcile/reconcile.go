@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"rucher/internal/cadre"
+	"rucher/internal/fileset"
 	"rucher/internal/node"
 	"rucher/internal/ops"
 	"rucher/internal/plan"
@@ -33,6 +34,12 @@ func statePath(name string) string {
 
 func systemdDir(name string) string {
 	return provision.HomeDir(name) + "/.config/containers/systemd"
+}
+
+// userUnitDir is where a cadre's native systemd units (.timer/.socket/.path) are
+// installed. systemd's user manager reads this path; it does not read the Quadlet dir.
+func userUnitDir(name string) string {
+	return provision.HomeDir(name) + "/.config/systemd/user"
 }
 
 func ageDir(name string) string {
@@ -111,15 +118,18 @@ func Status(r node.Runner, name string) ([]UnitStatus, error) {
 	}
 	user := provision.UserName(name)
 	var out []UnitStatus
-	for _, u := range prior.Units {
-		argv := []string{"systemctl", "--user", "show", ops.UnitService(u), "-p", "ActiveState", "-p", "SubState", "--value"}
+	// show queries one unit; target is the systemd name to query (the Quadlet-generated
+	// service for a Quadlet unit, or the unit itself for a native systemd unit), while
+	// unit is the cadre-facing filename reported back.
+	show := func(unit, target string) error {
+		argv := []string{"systemctl", "--user", "show", target, "-p", "ActiveState", "-p", "SubState", "--value"}
 		res, err := r.User(user, prior.UID, argv, nil)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		// --value prints the properties' values one per line, in the -p order.
 		lines := strings.Split(strings.TrimRight(res.Stdout, "\n"), "\n")
-		st := UnitStatus{Unit: u}
+		st := UnitStatus{Unit: unit}
 		if len(lines) > 0 {
 			st.Active = lines[0]
 		}
@@ -127,6 +137,17 @@ func Status(r node.Runner, name string) ([]UnitStatus, error) {
 			st.Sub = lines[1]
 		}
 		out = append(out, st)
+		return nil
+	}
+	for _, u := range prior.Units {
+		if err := show(u, ops.UnitService(u)); err != nil {
+			return nil, err
+		}
+	}
+	for _, u := range prior.SystemdUnits {
+		if err := show(u, u); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -146,7 +167,11 @@ func Remove(r node.Runner, name string, purge bool) error {
 		for _, u := range prior.Units {
 			o.Stop(u)
 		}
+		for _, u := range prior.SystemdUnits {
+			o.DisableNow(u)
+		}
 		r.User(o.User, prior.UID, []string{"rm", "-rf", systemdDir(name)}, nil)
+		r.User(o.User, prior.UID, []string{"rm", "-rf", userUnitDir(name)}, nil)
 		o.DaemonReload()
 	}
 
@@ -225,15 +250,31 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	for _, u := range p.StopUnits {
 		o.Stop(u)
 	}
-	// 3. write/remove files (as the cadre user, into the systemd dir)
-	dir := systemdDir(c.Name)
-	r.User(o.User, uid, []string{"mkdir", "-p", dir}, nil)
+	for _, u := range p.DisableUnits {
+		o.DisableNow(u) // best-effort: stop + unlink while the unit file still exists
+	}
+	// 3. write/remove files as the cadre user. Quadlet units + support files go to the
+	//    Quadlet dir; native systemd units go to the user unit dir (~/.config/systemd/user).
+	qDir := systemdDir(c.Name)
+	uDir := userUnitDir(c.Name)
+	r.User(o.User, uid, []string{"mkdir", "-p", qDir}, nil)
+	if writesSystemdUnit(p.WriteFiles) {
+		r.User(o.User, uid, []string{"mkdir", "-p", uDir}, nil)
+	}
 	for _, f := range p.WriteFiles {
+		dir := qDir
+		if f.IsSystemdUnit {
+			dir = uDir
+		}
 		if _, err := r.User(o.User, uid, []string{"tee", filepath.Join(dir, f.Name)}, f.Content); err != nil {
 			return p, err
 		}
 	}
 	for _, name := range p.RemoveFiles {
+		dir := qDir
+		if fileset.IsSystemdUnit(name) {
+			dir = uDir
+		}
 		r.User(o.User, uid, []string{"rm", "-f", filepath.Join(dir, name)}, nil)
 	}
 	// 4. secrets
@@ -271,6 +312,16 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 			return p, err
 		}
 	}
+	for _, u := range p.EnableUnits {
+		if err := o.EnableNow(u); err != nil {
+			return p, err
+		}
+	}
+	for _, u := range p.RestartSystemdUnits {
+		if err := o.RestartUnit(u); err != nil {
+			return p, err
+		}
+	}
 
 	// 7. persist new state
 	next := nextState(c, uid, secretHashes)
@@ -293,9 +344,23 @@ func nextState(c cadre.Cadre, uid int, secretHashes map[string]string) state.Sta
 	}
 	for _, f := range c.Files {
 		s.Files[f.Name] = f.Hash
-		if f.IsUnit {
+		switch {
+		case f.IsUnit:
 			s.Units = append(s.Units, f.Name)
+		case f.IsSystemdUnit:
+			s.SystemdUnits = append(s.SystemdUnits, f.Name)
 		}
 	}
 	return s
+}
+
+// writesSystemdUnit reports whether any file to write is a native systemd unit, so the
+// user unit dir is created only for cadres that ship one.
+func writesSystemdUnit(files []cadre.File) bool {
+	for _, f := range files {
+		if f.IsSystemdUnit {
+			return true
+		}
+	}
+	return false
 }

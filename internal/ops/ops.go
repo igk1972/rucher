@@ -27,6 +27,14 @@ func (o Ops) Start(u string) error   { return o.sc("start", UnitService(u)) }
 func (o Ops) Restart(u string) error { return o.sc("restart", UnitService(u)) }
 func (o Ops) Stop(u string) error    { return o.sc("stop", UnitService(u)) }
 
+// Native systemd units (.timer/.socket/.path) are their own unit name — no Quadlet
+// service mapping. EnableNow arms a new one (and persists it via the wants symlink so
+// it survives reboot under linger); RestartUnit re-reads a changed one; DisableNow
+// stops and unlinks a removed one.
+func (o Ops) EnableNow(u string) error   { return o.sc("enable", "--now", u) }
+func (o Ops) RestartUnit(u string) error { return o.sc("restart", u) }
+func (o Ops) DisableNow(u string) error  { return o.sc("disable", "--now", u) }
+
 func (o Ops) SecretRemove(name string) error {
 	// ignore "no such secret"; treat only real failures as errors
 	o.R.User(o.User, o.UID, []string{"podman", "secret", "rm", name}, nil)
