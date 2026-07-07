@@ -24,6 +24,7 @@ ops — from the operator machine:
   ops plan [--dir DIR] [name...]
   ops nodes [--dir DIR] status [--live] [--json] [node...]
   ops nodes [--dir DIR] join <node> --address <addr> [--json]
+  ops nodes [--dir DIR] deploy [--version TAG | --binary PATH] [--store-url URL ...] [node...]
   ops key seal <name> --to <recipient> [--to <recipient> ...]
   ops secrets encrypt --to <recipient> [--to <recipient> ...]   (plaintext YAML on stdin)
 `
@@ -268,6 +269,8 @@ func runOpsNodes(args []string, stdout io.Writer) int {
 		return cmdNodesStatus(nodesDir, names, live, jsonOut, stdout)
 	case "join":
 		return cmdNetJoin(nodesDir, rest[1:], stdout)
+	case "deploy":
+		return cmdNodesDeploy(nodesDir, rest[1:], stdout)
 	default:
 		fmt.Fprintf(stdout, "unknown ops nodes subcommand: %s\n", rest[0])
 		return 2
