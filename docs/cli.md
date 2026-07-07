@@ -276,6 +276,12 @@ Binary source: by default the node downloads `rucher_linux_<arch>` from the GitH
 (`--version <tag>`, else `latest`; `--repo <owner/repo>` defaults to `igk1972/rucher`).
 `--binary <path>` uploads a local linux binary instead (dev).
 
+podman: when a node has no podman, deploy installs a static
+[`mgoltzsche/podman-static`](https://github.com/mgoltzsche/podman-static) build. The **latest**
+release is used by default (resolved on the node via GitHub's `latest/download` redirect);
+`--podman-version <tag>` pins a specific one (e.g. `--podman-version 5.8.4`). A node that
+already has podman is left untouched.
+
 Agent bootstrap turns on when a store is given: `--store-url <url>` (git) or `--store-bucket`
 (s3), with `--store-kind git|s3` (default git), `--store-branch` (default main),
 `--interval` (default 30s), and auth passthroughs (`--store-ssh-key`, `--store-token`,
@@ -291,6 +297,9 @@ rucher ops nodes deploy --store-url git@example.com:store.git node-a node-b
 
 # pin a version; binary + key init only (no agent):
 rucher ops nodes deploy --version v0.1.0 node-a
+
+# pin the podman-static release provisioned onto fresh nodes:
+rucher ops nodes deploy --podman-version 5.8.4 node-a
 
 # push a locally built binary (dev):
 rucher ops nodes deploy --binary ./rucher node-a

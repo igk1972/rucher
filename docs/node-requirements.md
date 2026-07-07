@@ -14,8 +14,10 @@ tooling ensures on every node; the manager assumes they are present.
 
 ## podman (rootless)
 
-- **podman**, rootless-capable. The provisioning tooling installs a statically linked podman
-  build with all dependencies bundled.
+- **podman**, rootless-capable. When a node has none, `ops nodes deploy` installs a statically
+  linked [`mgoltzsche/podman-static`](https://github.com/mgoltzsche/podman-static) build with all
+  dependencies bundled — the **latest** release by default, or a pinned one via
+  `--podman-version <tag>` (see [cli.md](cli.md)). A node that already has podman is left as-is.
 - **Rootless prerequisites**:
   - the `uidmap` package providing the setuid helpers `newuidmap` / `newgidmap`;
   - `/etc/subuid` and `/etc/subgid` present. The manager allocates a unique,
