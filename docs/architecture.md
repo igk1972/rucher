@@ -48,7 +48,7 @@ and applies the minimal set of changes: write/remove files, create/remove podman
 
 Each cadre has its own age identity, generated in-process on the node. Its
 `secrets.sops.yaml` is encrypted to that identity's recipient and is safe to commit to the
-store. At `apply` time, root decrypts it (`sops -d`), keeps the plaintext in memory, and
+store. At `apply` time, root decrypts it **in-process**, keeps the plaintext in memory, and
 feeds selected keys to podman as secrets over stdin — never to disk, never on argv. See
 [secrets.md](secrets.md).
 
@@ -85,8 +85,8 @@ to the operator management plane in (5). See [overlays.md](overlays.md).
    every support/unit file, validate units.
 3. **Provision** — ensure the `rucher-<name>` user exists, has linger, a non-overlapping
    subuid/subgid block, and a live user systemd manager.
-4. **Decrypt secrets** (if any) — root runs `sops -d` using the cadre's age identity;
-   plaintext stays in memory.
+4. **Decrypt secrets** (if any) — root decrypts in-process (the built-in SOPS+age codec)
+   using the cadre's age identity; plaintext stays in memory.
 5. **Plan** — diff desired file/secret/resource hashes against the last-applied state.
 6. **Apply** — apply resource limits, stop removed units, write/remove files, create/remove
    secrets, perform registry logins, `daemon-reload`, then start/restart units.

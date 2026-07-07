@@ -28,11 +28,10 @@ podman secret store and a running user systemd manager (see [cadres.md](cadres.m
 
 ## Secret decryption
 
-- The **`sops` binary** on `PATH`. `apply` decrypts each cadre's `secrets.sops.yaml`
-  with `sops -d`, using the cadre's age identity via `SOPS_AGE_KEY_FILE`.
-- **No separate age tooling is needed.** age identities are generated in-process by the
-  manager, and decryption uses SOPS's built-in age backend — there is no age CLI dependency
-  on the node. See [secrets.md](secrets.md).
+- **No secret-decryption tooling is required on the node.** `apply` decrypts each cadre's
+  `secrets.sops.yaml` **in-process**: the SOPS+age format is implemented inside the manager
+  (`internal/sopsage`), so there is no `sops` binary and no age CLI to install. age
+  identities are generated in-process too. See [secrets.md](secrets.md).
 
 ## GitOps store access (if the agent is used)
 
@@ -63,6 +62,5 @@ podman secret store and a running user systemd manager (see [cadres.md](cadres.m
 | systemd + per-user managers | always | linger, `runuser`, `user@.service`, `journalctl` |
 | podman (static build) | always | rootless |
 | `uidmap`, `/etc/subuid`+`/etc/subgid` | always | per-cadre subuid/subgid ranges |
-| `sops` binary | secrets | age backend is built into sops |
 | standard `sshd` | operator plane | native Go SSH client from the operator |
 | `tun` module + `/dev/net/tun` | overlays only | kernel-mode sidecar |

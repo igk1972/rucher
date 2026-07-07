@@ -31,7 +31,7 @@ are run from this directory:
 #    (into overlay-demo/secrets.sops.yaml, next to rucher.yml):
 rucher node cadre recipient overlay-demo              # -> age1...
 printf 'ts-authkey: <your-tailscale-authkey>\n' \
-  | sops --encrypt --input-type yaml --output-type yaml --age <recipient> /dev/stdin \
+  | rucher ops secrets encrypt --to <recipient> \
   > overlay-demo/secrets.sops.yaml
 
 # 2. lay down and start (--dir = parent, overlay-demo = subdirectory; or via a GitOps agent):

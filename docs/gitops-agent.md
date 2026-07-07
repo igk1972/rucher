@@ -141,7 +141,7 @@ sudo rucher node key init                   # -> node recipient
 # on the operator, in the store checkout:
 rucher ops key seal web --to <node-a-recipient>   # writes cadres/web/identity.age; prints web's recipient
 printf 'db_password: s3cr3t\n' \
-  | sops --encrypt --input-type yaml --output-type yaml --age <web-recipient> /dev/stdin \
+  | rucher ops secrets encrypt --to <web-recipient> \
   > cadres/web/secrets.sops.yaml
 # add rucher.yml, units, support files, and placement.yml, then commit + push
 

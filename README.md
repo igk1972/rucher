@@ -43,9 +43,10 @@ paths and the symbol/DWARF tables for a smaller, reproducible binary (~⅓ small
 
 ## Node prerequisites
 
-Debian (arm64/amd64) with: `podman` (rootless-capable), `sops`, `uidmap`
+Debian (arm64/amd64) with: `podman` (rootless-capable), `uidmap`
 (`newuidmap`/`newgidmap`), and systemd with `loginctl`/`runuser`. Run as root (or via
-passwordless sudo). age identities are generated in-process — no age CLI is required.
+passwordless sudo). Secrets are decrypted **in-process** — no `sops` binary and no age CLI
+on the node.
 
 ## Cadre layout
 
@@ -101,14 +102,15 @@ No `--dir` defaults to `./cadres`; no names means all cadres. Full reference:
 ```bash
 sudo rucher node cadre new web                                   # prints age1... recipient
 printf 'db_password: s3cr3t\n' \
-  | sops --encrypt --input-type yaml --output-type yaml --age <recipient> /dev/stdin \
+  | rucher ops secrets encrypt --to <recipient> \
   > cadres/web/secrets.sops.yaml              # encrypt to that recipient
 sudo rucher node cadre apply --dir ./cadres web            # decrypt + create podman secret + start
 ```
 
-At apply time the root agent decrypts the SOPS file using the cadre's age identity
-(root can read both the file and the identity), then creates the podman secret and any
-registry logins as the cadre user via stdin.
+At apply time the root agent decrypts the SOPS file **in-process** using the cadre's age
+identity (root can read both the file and the identity), then creates the podman secret and
+any registry logins as the cadre user via stdin. Both `ops secrets encrypt` and the decrypt
+path are byte-compatible with the `sops` CLI, so no `sops` binary is required.
 
 ## On-node layout
 

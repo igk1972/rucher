@@ -35,12 +35,14 @@ sudo rucher node cadre new web                         # prints the cadre recipi
 REC=$(sudo rucher node cadre recipient web)
 
 printf 'db_password: s3cr3t\n' \
-  | sops --encrypt --input-type yaml --output-type yaml --age "$REC" /dev/stdin \
+  | rucher ops secrets encrypt --to "$REC" \
   > cadres/web/secrets.sops.yaml
 ```
 
-`--input-type yaml` matters: without it SOPS may treat the input as binary and wrap the whole
-document under a single `data` key, so the individual keys would not be addressable.
+`ops secrets encrypt` reads a flat `key: value` YAML map on stdin and writes the SOPS+age
+document encrypted to each `--to` recipient. It is the in-process replacement for
+`sops --encrypt --age <recipient>`; the output is byte-compatible with the `sops` CLI, so
+either tool can decrypt the other's files.
 
 The manifest points at this file and (optionally) narrows which keys become podman secrets:
 
@@ -54,15 +56,11 @@ secrets:
 
 ## Decryption at `apply`
 
-When a cadre ships a SOPS file, `apply` decrypts it as **root**:
-
-```
-env SOPS_AGE_KEY_FILE=<home>/.../age/identity.txt \
-    sops -d --output-type json <secrets.sops.yaml>
-```
-
-Root can read both the (root-owned) SOPS file and the cadre user's age identity. The
-decrypted JSON is parsed into an in-memory key/value map. From there:
+When a cadre ships a SOPS file, `apply` decrypts it as **root**, **in-process** — no `sops`
+binary. Root can read both the (root-owned) SOPS file and the cadre user's age identity
+(`<home>/.../age/identity.txt`); the SOPS+age codec (`internal/sopsage`) unwraps the data
+key with the identity, decrypts each value, verifies the MAC, and returns an in-memory
+key/value map. From there:
 
 - keys selected by `secrets.create` (or all keys, if `create` is omitted) are turned into
   podman secrets via `podman secret create <key> -`, the value piped over stdin, run as the
@@ -74,16 +72,17 @@ decrypted JSON is parsed into an in-memory key/value map. From there:
 Units consume the resulting podman secrets the normal Quadlet way, e.g.
 `Secret=db_password,type=env,target=DB_PASSWORD`.
 
-## Node tooling
+## Tooling
 
-The node needs the **`sops` binary** on `PATH` for decryption. age is **not** a separate node
-dependency:
+Both sides are self-contained — **no `sops` binary and no age CLI** on the node or the
+operator:
 
-- identity **generation** is in-process (built into the manager);
-- identity **decryption** uses SOPS's built-in age backend, driven by the
-  `SOPS_AGE_KEY_FILE` environment variable — there is no separate age CLI to install.
+- on the **node**, decryption is in-process (the SOPS+age codec is built into the manager);
+- on the **operator**, encryption is in-process too — `rucher ops secrets encrypt`;
+- age identities are generated in-process.
 
-See [node-requirements.md](node-requirements.md).
+The external `sops` CLI stays fully interoperable (files are byte-compatible), so it can be
+used interchangeably if preferred. See [node-requirements.md](node-requirements.md).
 
 ## Relation to the GitOps agent
 
