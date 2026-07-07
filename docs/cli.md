@@ -52,11 +52,12 @@ and `./nodes` for `ops nodes`; `--config /etc/rucher/agent.yml`. Exit codes: `0`
 ### `--dir DIR` for cadres (node apply, node cadre apply, ops plan)
 
 `--dir` is the **parent** directory whose immediate subdirectories are cadres; the
-subdirectory name is the cadre name. It defaults to `./cadres`. `node apply` and
-`ops plan` take positional cadre names to act on; with none, every subdirectory is
-selected. `node cadre apply` requires at least one name. A requested name that is not a
-subdirectory of `--dir` is an error (this guards against pointing `--dir` at a single cadre
-folder instead of its parent).
+subdirectory name is the cadre name. It defaults to `./cadres`. `node apply` reconciles
+**every** cadre under `--dir` and takes no positional names (use `node cadre apply
+<name...>` for specific ones). `ops plan` takes optional positional names — with none,
+every subdirectory is selected; `node cadre apply` requires at least one. A requested name
+that is not a subdirectory of `--dir` is an error (this guards against pointing `--dir` at a
+single cadre folder instead of its parent).
 
 ```bash
 rucher node cadre apply --dir ./cadres web   # reconcile ./cadres/web
@@ -86,7 +87,8 @@ cadres under `--dir`; `node cadre apply <name...>` reconciles **only the named**
 Reconcile **every** cadre under `--dir` onto the node: for each one ensure the user, decrypt
 secrets, diff against the last-applied state, and apply the minimal changes (write files, create
 secrets, registry logins, resource limits, `daemon-reload`, start/restart/stop units). Idempotent.
-Prints `started=<n> restarted=<n>` per cadre. Positional names, if given, narrow the set.
+Prints `started=<n> restarted=<n>` per cadre. It takes no positional names — for a single
+cadre use `node cadre apply <name>`.
 
 ```bash
 sudo rucher node apply --dir ./cadres
@@ -170,9 +172,9 @@ sudo rucher node key show
 
 `run` performs one pull-based reconcile pass from the store described by the agent config
 (default `/etc/rucher/agent.yml`); `install` writes a systemd oneshot service + timer
-that run `node agent run` periodically and enables the timer. Prints
-`revision <rev>: applied=<n> removed=<n>`. `--config`, when given, must come immediately
-after `run`/`install`. See [gitops-agent.md](gitops-agent.md).
+that run `node agent run` periodically and enables the timer. `run` prints
+`revision <rev>: applied=<n> removed=<n>`; `install` prints `installed rucher-agent.timer`.
+`--config`, when given, must come immediately after `run`/`install`. See [gitops-agent.md](gitops-agent.md).
 
 ```bash
 sudo rucher node agent run --config /etc/rucher/agent.yml

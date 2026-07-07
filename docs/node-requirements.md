@@ -8,7 +8,7 @@ tooling ensures on every node; the manager assumes they are present.
 
 - A Linux node with **systemd**, including per-user managers: `loginctl` (for
   `enable-linger`), `runuser`, the `user@<uid>.service` template, and `journalctl` (used by
-  `rucher node cadre logs` and `rucher node cadre status`).
+  `rucher node cadre logs`; `node cadre status` uses `systemctl --user show`).
 - The `rucher` binary installed and runnable as root. For the GitOps timer, install it at
   `/usr/local/bin/rucher` — the unit written by `rucher node agent install` invokes that exact path.
 
