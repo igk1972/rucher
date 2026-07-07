@@ -1,15 +1,16 @@
 # rucher
 
-Single-node manager for **podman Quadlet** workloads. It reconciles a directory of
-*cadres* into running rootless-podman services under per-user systemd. Each
-cadre is an isolated environment backed by a dedicated Linux system user, its own
-podman secret and registry-credential store, its own age identity, and (optionally) a
-systemd resource slice.
+Multi-node manager for **podman Quadlet** workloads. It runs each workload group as an
+isolated *cadre* — a directory of Quadlet units reconciled into rootless-podman services
+under per-user systemd — and manages many nodes from one place. Each cadre is an isolated
+environment backed by a dedicated Linux system user, its own podman secret and
+registry-credential store, its own age identity, and (optionally) a systemd resource slice.
 
-On top of this single-node core there are optional layers — a pull-based GitOps agent (each
-node reconciles the cadres a `placement.yml` assigns it, from a git or S3 store), an
-operator status plane that queries every node over SSH, and per-cadre overlay
-networking. See [`docs/`](docs/) for the full reference.
+At its core is an idempotent single-node reconciler; on top of it, optional layers extend it
+across many nodes — a pull-based GitOps agent (each node reconciles the cadres a
+`placement.yml` assigns it, from a git or S3 store), an operator status plane that queries
+every node over SSH, and per-cadre overlay networking. See [`docs/`](docs/) for the full
+reference.
 
 ## What it does
 

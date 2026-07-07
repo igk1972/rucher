@@ -1,6 +1,6 @@
 # rucher
 
-`rucher` (the built binary is `rucher`) is a config-driven
+`rucher` (the built binary is `rucher`) is a config-driven, multi-node
 manager that runs each workload group as an isolated **cadre**. A cadre is a
 dedicated rootless-podman environment owned by its own Linux user, materialized from
 [Quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) unit files
