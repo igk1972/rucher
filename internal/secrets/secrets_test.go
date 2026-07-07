@@ -2,40 +2,24 @@ package secrets
 
 import (
 	"testing"
-
-	"rucher/internal/node"
 )
 
-func TestDecryptParsesJSON(t *testing.T) {
-	f := &node.Fake{Responses: map[string]node.Result{
-		"root:env SOPS_AGE_KEY_FILE=/id.txt sops -d --output-type json /c/secrets.sops.yaml": {
-			Stdout: `{"db_password":"s3cr3t","ghcr_token":"tok"}`,
-		},
-	}}
-	got, err := Decrypt(f, "/id.txt", "/c/secrets.sops.yaml")
+// TestDecryptFixture decrypts a real secrets.sops.yaml (produced by the sops
+// CLI, age backend) with its committed identity — fully in-process, no sops
+// binary. The codec itself is exhaustively tested in internal/sopsage.
+func TestDecryptFixture(t *testing.T) {
+	got, err := Decrypt("testdata/identity.txt", "testdata/secrets.sops.yaml")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Decrypt: %v", err)
 	}
 	if got["db_password"] != "s3cr3t" || got["ghcr_token"] != "tok" {
 		t.Fatalf("decoded = %v", got)
 	}
-	// decryption runs as root, with the cadre identity via SOPS_AGE_KEY_FILE
-	rootOK, envOK := false, false
-	for _, c := range f.Calls {
-		if c.Root {
-			rootOK = true
-		}
-		for _, tok := range c.Argv {
-			if tok == "SOPS_AGE_KEY_FILE=/id.txt" {
-				envOK = true
-			}
-		}
-	}
-	if !rootOK {
-		t.Fatal("decrypt must run as root")
-	}
-	if !envOK {
-		t.Fatal("SOPS_AGE_KEY_FILE not set")
+}
+
+func TestDecryptMissingIdentity(t *testing.T) {
+	if _, err := Decrypt("testdata/nope.txt", "testdata/secrets.sops.yaml"); err == nil {
+		t.Fatal("expected an error for a missing identity file")
 	}
 }
 

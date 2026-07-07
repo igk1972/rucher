@@ -12,7 +12,7 @@ func TestUserNameAndHome(t *testing.T) {
 	if UserName("web") != "rucher-web" {
 		t.Fatalf("UserName = %q", UserName("web"))
 	}
-	if HomeDir("web") != BaseDir+"/web" {
+	if HomeDir("web") != BaseDir()+"/web" {
 		t.Fatalf("HomeDir = %q", HomeDir("web"))
 	}
 }

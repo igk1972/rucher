@@ -3,6 +3,7 @@ package provision
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -10,15 +11,22 @@ import (
 	"rucher/internal/node"
 )
 
-const BaseDir = "/var/lib/rucher/cadres"
-
 const (
 	subidCount = 65536
 	subidBase  = 100000
 )
 
+// BaseDir is the root of every cadre's home. RUCHER_CADRES_DIR overrides it
+// (tests and alternative layouts); empty falls back to the system path.
+func BaseDir() string {
+	if d := os.Getenv("RUCHER_CADRES_DIR"); d != "" {
+		return d
+	}
+	return "/var/lib/rucher/cadres"
+}
+
 func UserName(name string) string { return "rucher-" + name }
-func HomeDir(name string) string  { return BaseDir + "/" + name }
+func HomeDir(name string) string  { return BaseDir() + "/" + name }
 
 // nextSubidStart returns the next free subid start, scanning both /etc/subuid and
 // /etc/subgid contents so the allocated block overlaps neither map.

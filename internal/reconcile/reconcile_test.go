@@ -1,6 +1,8 @@
 package reconcile
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -11,8 +13,37 @@ import (
 	"rucher/internal/manifest"
 	"rucher/internal/node"
 	"rucher/internal/provision"
+	"rucher/internal/sopsage"
 	"rucher/internal/state"
 )
+
+// writeCadreSecrets provisions a real age identity for the cadre under the
+// (test-overridden) base dir and writes a SOPS+age file with the given values,
+// so the in-process secrets.Decrypt runs for real. Returns the sops file path.
+// Set RUCHER_CADRES_DIR before calling so IdentityPath lands in a temp dir.
+func writeCadreSecrets(t *testing.T, name string, kv []sopsage.KV) string {
+	t.Helper()
+	id, rec, err := age.GenerateIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	idp := IdentityPath(name)
+	if err := os.MkdirAll(filepath.Dir(idp), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(idp, []byte(id+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	enc, err := sopsage.Encrypt([]string{rec}, kv, "2026-01-01T00:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sopsPath := filepath.Join(t.TempDir(), "secrets.sops.yaml")
+	if err := os.WriteFile(sopsPath, enc, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return sopsPath
+}
 
 func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
 	c := cadre.Cadre{Name: "web", Manifest: manifest.Manifest{Name: "web"}}
@@ -213,14 +244,14 @@ func TestRemovePurgeDeletesUser(t *testing.T) {
 }
 
 func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 
-	sopsPath := "/etc/rucher/web/secrets.sops.yaml"
-	idp := IdentityPath("web")
-	decrypted := `{"db_password":"pw1","ghcr_token":"tok"}`
+	sopsPath := writeCadreSecrets(t, "web", []sopsage.KV{
+		{Key: "db_password", Value: "pw1"}, {Key: "ghcr_token", Value: "tok"},
+	})
 	f := &node.Fake{Responses: map[string]node.Result{
 		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
-		"root:env SOPS_AGE_KEY_FILE=" + idp + " sops -d --output-type json " + sopsPath: {Stdout: decrypted},
 	}}
 
 	c := cadre.Cadre{
@@ -254,14 +285,12 @@ func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 }
 
 func TestApplyErrorsOnMissingLoginPasswordKey(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 
-	sopsPath := "/etc/rucher/web/secrets.sops.yaml"
-	idp := IdentityPath("web")
-	decrypted := `{"db_password":"pw1"}`
+	sopsPath := writeCadreSecrets(t, "web", []sopsage.KV{{Key: "db_password", Value: "pw1"}})
 	f := &node.Fake{Responses: map[string]node.Result{
 		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
-		"root:env SOPS_AGE_KEY_FILE=" + idp + " sops -d --output-type json " + sopsPath: {Stdout: decrypted},
 	}}
 
 	c := cadre.Cadre{

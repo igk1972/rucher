@@ -2,32 +2,31 @@
 package secrets
 
 import (
-	"encoding/json"
 	"fmt"
+	"os"
 
 	"rucher/internal/fileset"
-	"rucher/internal/node"
+	"rucher/internal/sopsage"
 )
 
-func Decrypt(r node.Runner, identityPath, sopsPath string) (map[string]string, error) {
-	// Decrypt as root (the agent): root can read both the root-owned source file and
-	// the cadre user's age identity. Plaintext stays in the agent's memory and
-	// is fed to podman via stdin. The per-cadre identity scopes at-rest access
-	// in the store, not runtime access on the host (root already sees all secrets).
-	argv := []string{
-		"env", "SOPS_AGE_KEY_FILE=" + identityPath,
-		"sops", "-d", "--output-type", "json", sopsPath,
-	}
-	res, err := r.Root(argv, nil)
+// Decrypt decrypts a cadre's SOPS+age file into an in-memory key/value map,
+// entirely in-process (no external `sops` binary). It runs on the node as root,
+// which can read both the root-owned SOPS file and the cadre user's 0600 age
+// identity. Plaintext stays in the agent's memory and is fed to podman over
+// stdin; the per-cadre identity scopes at-rest access in the store, not runtime
+// access on the host (root already sees every cadre's secrets).
+func Decrypt(identityPath, sopsPath string) (map[string]string, error) {
+	idData, err := os.ReadFile(identityPath)
 	if err != nil {
-		return nil, fmt.Errorf("sops decrypt: %w", err)
+		return nil, fmt.Errorf("read cadre age identity: %w", err)
 	}
-	if res.Code != 0 {
-		return nil, fmt.Errorf("sops decrypt %s exited %d: %s", sopsPath, res.Code, res.Stderr)
+	sopsData, err := os.ReadFile(sopsPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", sopsPath, err)
 	}
-	var m map[string]string
-	if err := json.Unmarshal([]byte(res.Stdout), &m); err != nil {
-		return nil, fmt.Errorf("parse decrypted secrets: %w", err)
+	m, err := sopsage.Decrypt(idData, sopsData)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt %s: %w", sopsPath, err)
 	}
 	return m, nil
 }

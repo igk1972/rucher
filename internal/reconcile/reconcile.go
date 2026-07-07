@@ -19,12 +19,12 @@ import (
 )
 
 // stateBaseDir is where per-cadre state files live. RUCHER_STATE_DIR overrides the
-// default (useful for tests and alternative layouts); empty falls back to provision.BaseDir.
+// default (useful for tests and alternative layouts); empty falls back to provision.BaseDir().
 func stateBaseDir() string {
 	if d := os.Getenv("RUCHER_STATE_DIR"); d != "" {
 		return d
 	}
-	return provision.BaseDir
+	return provision.BaseDir()
 }
 
 func statePath(name string) string {
@@ -189,7 +189,7 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	var secretHashes map[string]string
 	var secretValues map[string]string
 	if c.SopsPath != "" {
-		secretValues, err = secrets.Decrypt(r, IdentityPath(c.Name), c.SopsPath)
+		secretValues, err = secrets.Decrypt(IdentityPath(c.Name), c.SopsPath)
 		if err != nil {
 			return plan.Plan{}, fmt.Errorf("cadre %s: %w", c.Name, err)
 		}
