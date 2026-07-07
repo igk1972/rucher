@@ -1,0 +1,72 @@
+# Integration suite on Lima nodes.
+#
+# The nodes run in real kernel VMs via Lima on an x86_64 runner with KVM — real
+# /dev/net/tun and kernel-mode tailscale, which the overlay test needs. The harness
+# builds the node binary for the node's arch (amd64 here), so this works even though the
+# suite was developed on arm64. The kernel-mode headscale overlay test is the part most
+# likely to need tuning in CI.
+#
+# STARTING SCAFFOLD, kept on workflow_dispatch until the runner is dialed in — flip on
+# push/PR when it goes green.
+name: integration
+
+on:
+  workflow_dispatch: {}
+  # push:
+  #   branches: [main]
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # KVM must be group-accessible for Lima's VM backend on GitHub runners.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: lima-vm/lima-actions/setup@v1
+        id: lima
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/lima
+          key: lima-${{ steps.lima.outputs.version }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      # Host tooling the suite drives on the runner. git, gh, jq, openssl are
+      # preinstalled. sops encrypts secrets on the host; headscale is the overlay test's
+      # coordination server; rclone backs the S3-store tests (they skip if it is absent).
+      - name: Install host tooling
+        run: |
+          curl -fsSL -o /tmp/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          sudo install -m0755 /tmp/sops /usr/local/bin/sops
+          curl -fsSL -o /tmp/headscale https://github.com/juanfont/headscale/releases/download/v0.29.2/headscale_0.29.2_linux_amd64
+          sudo install -m0755 /tmp/headscale /usr/local/bin/headscale
+          curl -fsSL -o /tmp/rclone.zip https://github.com/rclone/rclone/releases/download/v1.74.3/rclone-v1.74.3-linux-amd64.zip
+          unzip -j -o /tmp/rclone.zip 'rclone-*/rclone' -d /tmp
+          sudo install -m0755 /tmp/rclone /usr/local/bin/rclone
+
+      # Creates 3 Lima nodes and installs podman + sops + uidmap + tun. The suite stages
+      # cadre files onto the nodes over limactl copy, so it needs no host mount.
+      - name: Create + provision the Lima nodes
+        run: go run ./test/integration/cmd/setup-nodes
+        env:
+          RUCHER_IT_COUNT: "3"
+          RUCHER_IT_TEMPLATE: "template:debian"
+
+      - name: Node toolchain
+        run: go run ./test/integration/cmd/setup-nodes verify
+
+      - name: Run the integration suite
+        run: go test -tags integration ./test/integration/ -v -timeout 40m
+        env:
+          GH_TOKEN: ${{ github.token }} # headscale release download
