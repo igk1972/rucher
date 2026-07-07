@@ -193,6 +193,7 @@ func startHeadscale(t *testing.T) *headscale {
 		t.Fatalf("read cert: %v", err)
 	}
 	hs.certPEM = string(cert)
+	t.Log("headscale up (HTTPS + embedded DERP)")
 	return hs
 }
 
@@ -338,4 +339,5 @@ func TestHeadscaleOverlayCrossNode(t *testing.T) {
 	if !strings.Contains(body, "nginx") {
 		t.Fatalf("node-01 app could not fetch nginx on node-02 over the overlay:\n%s", body)
 	}
+	t.Logf("overlay reachable: %s app on %s fetched nginx on %s", a, node1, node2)
 }

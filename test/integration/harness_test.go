@@ -358,6 +358,7 @@ func stageCadre(t *testing.T, node, hostParent string) string {
 // nodeApply stages a host-built cadre onto the node and applies it from there.
 func nodeApply(t *testing.T, node, hostParent, name string) result {
 	t.Helper()
+	t.Logf("apply cadre %q on %s", name, node)
 	return rucherNode(t, node, "node", "cadre", "apply", "--dir", stageCadre(t, node, hostParent), name)
 }
 
@@ -453,6 +454,7 @@ func nodeKeyInit(t *testing.T, node string) string {
 // a non-zero code means one or more cadres failed to apply.
 func agentRun(t *testing.T, node string) result {
 	t.Helper()
+	t.Logf("agent run on %s", node)
 	return rucherNode(t, node, "node", "agent", "run")
 }
 
