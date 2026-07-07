@@ -91,6 +91,7 @@ rucher ops key seal <name> --to <node-rcpt>   # seal a cadre identity to node(s)
 rucher node agent run|install [--config P]    # pull-based reconcile from a git/S3 store
 rucher ops nodes [--dir DIR] join <node> --address <addr>  # record a node's management address
 rucher ops nodes [--dir DIR] status [--live] [--json]  # nodes status over SSH
+rucher ops nodes [--dir DIR] deploy [--store-url URL] <node...>  # provision + install rucher + bootstrap the agent
 ```
 
 No `--dir` defaults to `./cadres`; no names means all cadres. Full reference:

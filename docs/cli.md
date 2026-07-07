@@ -37,7 +37,8 @@ rucher <group> <command> [args]
     ├─ plan   [--dir DIR] [name...]                    [local]  dry-run: what apply would change
     ├─ nodes [--dir DIR]
     │   ├─ status [--live] [--json] [node...]          [ssh]    gather nodes status over SSH
-    │   └─ join <node> --address <addr> [--json]       [local]  record a node's management address
+    │   ├─ join <node> --address <addr> [--json]       [local]  record a node's management address
+    │   └─ deploy [--version TAG|--binary PATH] [...]  [ssh]    provision + install rucher + bootstrap the agent
     ├─ key
     │   └─ seal <name> --to <rcpt> [--to <rcpt> ...]   [local]  seal a cadre identity to node(s)
     └─ secrets
@@ -249,4 +250,37 @@ unreachable. See [management-network.md](management-network.md).
 rucher ops nodes status
 rucher ops nodes status --live node-a
 rucher ops nodes status --json
+```
+
+### `rucher ops nodes [--dir DIR] deploy [--version TAG | --binary PATH] [store flags] [--json] [node...]`
+
+Install/update rucher on the named nodes over SSH and bootstrap them, from the operator.
+For each node (all under `--dir` when none named): probe its architecture, **provision the
+base platform idempotently** (static podman if absent, `uidmap`, `/dev/net/tun`), deliver
+the `rucher` binary to `/usr/local/bin/rucher`, run `node key init` (printing the node's age
+recipient), and — when a store is configured — write `/etc/rucher/agent.yml` and run
+`node agent install` (systemd timer).
+
+Binary source: by default the node downloads `rucher_linux_<arch>` from the GitHub Release
+(`--version <tag>`, else `latest`; `--repo <owner/repo>` defaults to `igk1972/rucher`).
+`--binary <path>` uploads a local linux binary instead (dev).
+
+Agent bootstrap turns on when a store is given: `--store-url <url>` (git) or `--store-bucket`
+(s3), with `--store-kind git|s3` (default git), `--store-branch` (default main),
+`--interval` (default 30s), and auth passthroughs (`--store-ssh-key`, `--store-token`,
+`--store-insecure-host-key`; S3: `--store-endpoint/-prefix/-access-key/-secret-key/-region`,
+`--store-ssl`). Without a store, deploy stops after the binary + `node key init`.
+
+Output is a table (`NODE ADDRESS ARCH AGENT RECIPIENT OK`) with per-node errors below, or a
+JSON array with `--json`. Exit code is 1 if any node failed.
+
+```bash
+# download latest release, provision + bootstrap the git-store agent on two nodes:
+rucher ops nodes deploy --store-url git@example.com:store.git node-a node-b
+
+# pin a version; binary + key init only (no agent):
+rucher ops nodes deploy --version v0.1.0 node-a
+
+# push a locally built binary (dev):
+rucher ops nodes deploy --binary ./rucher node-a
 ```

@@ -134,17 +134,15 @@ rucher-agent.timer`.
 ## Operator workflow (sketch)
 
 ```bash
-# on each node:
-sudo rucher node key init                   # -> node recipient
+# on the operator — provision + install rucher + bootstrap the agent on the node,
+# printing node-a's recipient (nodes are configured under ./nodes):
+rucher ops nodes deploy --store-url git@example.com:store.git node-a
 
-# on the operator, in the store checkout:
+# in the store checkout — seal the cadre to that node and encrypt its secrets:
 rucher ops key seal web --to <node-a-recipient>   # writes cadres/web/identity.age; prints web's recipient
 printf 'db_password: s3cr3t\n' \
   | rucher ops secrets encrypt --to <web-recipient> \
   > cadres/web/secrets.sops.yaml
-# add rucher.yml, units, support files, and placement.yml, then commit + push
-
-# on the node:
-sudo rucher node agent run      # applied=1
-sudo rucher node agent install  # reconcile on a timer
+# add rucher.yml, units, support files, and placement.yml, then commit + push —
+# the agent installed by deploy picks it up on its timer.
 ```
