@@ -39,7 +39,9 @@ Two backends are supported (chosen by `store.kind` in the agent config):
   endpoint into the local checkout. The revision is a deterministic hash over the object set
   (sorted `key<TAB>etag`). Object keys that would escape the cache directory are rejected.
 
-The checkout is cached at `/var/lib/rucher/store`.
+The checkout is cached at `/var/lib/rucher/store`. If `store.url` or `branch` changes, the
+agent detects that the cache no longer matches the configured remote and re-clones it fresh
+(no need to delete the cache by hand).
 
 ## `placement.yml`
 
