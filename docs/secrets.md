@@ -56,8 +56,8 @@ secrets:
 
 ## Decryption at `apply`
 
-When a cadre ships a SOPS file, `apply` decrypts it as **root**, **in-process** — no `sops`
-binary. Root can read both the (root-owned) SOPS file and the cadre user's age identity
+When a cadre ships a SOPS file, `apply` decrypts it as **root**, **in-process**. Root can
+read both the (root-owned) SOPS file and the cadre user's age identity
 (`<home>/.../age/identity.txt`); the SOPS+age codec (`internal/sopsage`) unwraps the data
 key with the identity, decrypts each value, verifies the MAC, and returns an in-memory
 key/value map. From there:
@@ -74,10 +74,9 @@ Units consume the resulting podman secrets the normal Quadlet way, e.g.
 
 ## Tooling
 
-Both sides are self-contained — **no `sops` binary and no age CLI** on the node or the
-operator:
+Both sides are self-contained and built into the manager:
 
-- on the **node**, decryption is in-process (the SOPS+age codec is built into the manager);
+- on the **node**, decryption is in-process (the SOPS+age codec);
 - on the **operator**, encryption is in-process too — `rucher ops secrets encrypt`;
 - age identities are generated in-process.
 

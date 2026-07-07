@@ -14,7 +14,7 @@ The tests **do not provision anything** — they **fail** when a node they need 
 the nodes up and installing their toolchain is a separate step (see Setup below).
 
 - Nodes `lima-essaim-01/02/03` `Running` (`limactl list`), each with `podman`, `uidmap`,
-  and `/dev/net/tun`. Nodes need no `sops` — rucher decrypts in-process.
+  and `/dev/net/tun`.
 - Host tooling: `go`, `limactl`, `git`, `sops` (host-only: builds encrypted test fixtures
   and backs the sops-cross-compat check; not a runtime dependency), `openssl` + `gh`
   (headscale overlay test), `rclone` (S3 store test — that test skips if absent).

@@ -28,10 +28,9 @@ podman secret store and a running user systemd manager (see [cadres.md](cadres.m
 
 ## Secret decryption
 
-- **No secret-decryption tooling is required on the node.** `apply` decrypts each cadre's
-  `secrets.sops.yaml` **in-process**: the SOPS+age format is implemented inside the manager
-  (`internal/sopsage`), so there is no `sops` binary and no age CLI to install. age
-  identities are generated in-process too. See [secrets.md](secrets.md).
+- **Secret decryption is in-process.** `apply` decrypts each cadre's `secrets.sops.yaml`
+  with the SOPS+age codec built into the manager (`internal/sopsage`); age identities are
+  generated in-process too. See [secrets.md](secrets.md).
 
 ## GitOps store access (if the agent is used)
 

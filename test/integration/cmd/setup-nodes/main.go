@@ -1,7 +1,7 @@
 // Command setup-nodes creates the Lima node swarm and provisions it (podman +
 // uidmap + /dev/net/tun) for the integration suite. Self-contained: the same recipe on
 // a Mac and in CI, with no external tooling. Distilled from the lima-essaim /
-// podman-essaim skills. Nodes need no sops binary — rucher decrypts in-process.
+// podman-essaim skills.
 //
 //	go run ./test/integration/cmd/setup-nodes            # create + provision + verify
 //	go run ./test/integration/cmd/setup-nodes create     # just create/start the VMs
@@ -169,7 +169,7 @@ func provisionOne(node string) error {
 		logf("%s: podman %s installed", node, podmanVer)
 	}
 
-	// 2. rootless prereqs + tun device. No sops: rucher decrypts in-process.
+	// 2. rootless prereqs + tun device.
 	if err := limaSudo(node, provScript); err != nil {
 		return fmt.Errorf("rootless/tun prereqs: %w", err)
 	}

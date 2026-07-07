@@ -45,8 +45,7 @@ paths and the symbol/DWARF tables for a smaller, reproducible binary (~⅓ small
 
 Debian (arm64/amd64) with: `podman` (rootless-capable), `uidmap`
 (`newuidmap`/`newgidmap`), and systemd with `loginctl`/`runuser`. Run as root (or via
-passwordless sudo). Secrets are decrypted **in-process** — no `sops` binary and no age CLI
-on the node.
+passwordless sudo). Secrets are decrypted **in-process**.
 
 ## Cadre layout
 
@@ -110,7 +109,7 @@ sudo rucher node cadre apply --dir ./cadres web            # decrypt + create po
 At apply time the root agent decrypts the SOPS file **in-process** using the cadre's age
 identity (root can read both the file and the identity), then creates the podman secret and
 any registry logins as the cadre user via stdin. Both `ops secrets encrypt` and the decrypt
-path are byte-compatible with the `sops` CLI, so no `sops` binary is required.
+path are byte-compatible with the `sops` CLI.
 
 ## On-node layout
 
