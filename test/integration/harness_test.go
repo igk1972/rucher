@@ -50,8 +50,8 @@ var (
 )
 
 // The store is served to the guests over smart HTTP (git-http-backend behind an
-// in-process Go server) so the nodes need no git binary — go-git is pure Go over
-// http, matching how a real deployment pulls from https://. The server lives inside
+// in-process Go server); go-git is pure Go over http, matching how a real
+// deployment pulls from https://. The server lives inside
 // the test process (no external daemon to be reaped mid-run) and the guests reach it
 // over the Lima gateway at host.lima.internal. git runs only on the host, as CGI.
 const storePort = "9418"

@@ -25,8 +25,7 @@ The store holds all nodes' desired state:
 
 Two backends are supported (chosen by `store.kind` in the agent config):
 
-- **git** (`kind: git`) — clone/pull a branch with an in-process git client (`go-git`), so no
-  system `git` binary is required on the worker. Auth is optional:
+- **git** (`kind: git`) — clone/pull a branch with an in-process git client (`go-git`). Auth is optional:
   - `sshKey` → git-over-SSH with that private key. By default the SSH transport verifies the
     server against `~/.ssh/known_hosts` (pre-seed it, or set `insecureHostKey: true` to skip
     verification for freshly provisioned nodes).

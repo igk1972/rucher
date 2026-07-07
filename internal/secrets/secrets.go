@@ -10,7 +10,7 @@ import (
 )
 
 // Decrypt decrypts a cadre's SOPS+age file into an in-memory key/value map,
-// entirely in-process (no external `sops` binary). It runs on the node as root,
+// entirely in-process. It runs on the node as root,
 // which can read both the root-owned SOPS file and the cadre user's 0600 age
 // identity. Plaintext stays in the agent's memory and is fed to podman over
 // stdin; the per-cadre identity scopes at-rest access in the store, not runtime

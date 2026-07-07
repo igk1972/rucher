@@ -64,7 +64,7 @@ status summary is written to `/var/lib/rucher/agent-status.json`. See
 ## 5. Management network (operator status plane)
 
 `rucher ops nodes status` reaches every node over SSH (a native Go client with TOFU host-key
-pinning — no system `ssh` binary required), reads each node's agent status file, and prints
+pinning), reads each node's agent status file, and prints
 an aggregated table or JSON. `rucher ops nodes join` records a node's reachability address into its
 node config so the status plane can find it. See [management-network.md](management-network.md).
 

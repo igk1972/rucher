@@ -128,7 +128,7 @@ Each cadre user gets a unique, non-overlapping subuid/subgid block (allocated fr
 ## Host keys
 
 `rucher ops nodes status` (and the rest of the operator control plane) reaches nodes with a
-built-in Go SSH client — no system `ssh` binary is required. Host keys are trusted
+built-in Go SSH client. Host keys are trusted
 **TOFU**: an unknown node is accepted and pinned on first contact into
 `~/.config/rucher/known_hosts` (created mode 0600); a later key **change** for the
 same node is rejected.

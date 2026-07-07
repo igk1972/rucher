@@ -1,8 +1,8 @@
 // Package sopsage decrypts and encrypts SOPS files that use the age backend,
-// entirely in-process — no external `sops` binary and, deliberately, no getsops
-// import (which would drag in every cloud KMS SDK). It implements the SOPS v3
-// wire format for flat YAML maps (key: value), which is all cadres use. The
-// data key is wrapped/unwrapped with filippo.io/age via internal/age.
+// entirely in-process. It deliberately avoids the getsops import (which would drag
+// in every cloud KMS SDK) and implements the SOPS v3 wire format for flat YAML maps
+// (key: value), which is all cadres use. The data key is wrapped/unwrapped with
+// filippo.io/age via internal/age.
 package sopsage
 
 import (

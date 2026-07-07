@@ -15,7 +15,7 @@ tooling ensures on every node; the manager assumes they are present.
 ## podman (rootless)
 
 - **podman**, rootless-capable. The provisioning tooling installs a statically linked podman
-  build with all dependencies bundled, so the node needs no distro podman packaging.
+  build with all dependencies bundled.
 - **Rootless prerequisites**:
   - the `uidmap` package providing the setuid helpers `newuidmap` / `newgidmap`;
   - `/etc/subuid` and `/etc/subgid` present. The manager allocates a unique,
@@ -34,8 +34,8 @@ podman secret store and a running user systemd manager (see [cadres.md](cadres.m
 
 ## GitOps store access (if the agent is used)
 
-- The git store uses an **in-process** git client, so **no system `git` binary** is required
-  on the worker. For a git-over-SSH store, `~/.ssh/known_hosts` must be seeded for the remote
+- The git store uses an **in-process** git client (`go-git`). For a git-over-SSH store,
+  `~/.ssh/known_hosts` must be seeded for the remote
   (or the agent config sets `insecureHostKey: true`). The S3 store needs only network access
   to the endpoint. See [gitops-agent.md](gitops-agent.md).
 - The node's own age key is created by `rucher node key init` at
@@ -45,8 +45,7 @@ podman secret store and a running user systemd manager (see [cadres.md](cadres.m
 
 - Nodes are reached from the operator over SSH by the manager's built-in Go SSH client, so a
   node only needs a standard **sshd** and a reachable address (recorded via `rucher ops nodes join`).
-  No `ssh` binary is required on the operator machine. See
-  [management-network.md](management-network.md).
+  See [management-network.md](management-network.md).
 
 ## Cadre overlays (only if used)
 
