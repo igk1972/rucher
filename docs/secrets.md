@@ -48,7 +48,6 @@ The manifest points at this file and (optionally) narrows which keys become podm
 
 ```yaml
 # rucher.yml
-name: web
 secrets:
   from: secrets.sops.yaml
   create: [db_password]     # only this key -> a podman secret; omit `create` to take all keys

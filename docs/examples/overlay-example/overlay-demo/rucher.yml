@@ -1,5 +1,5 @@
 # rucher.yml — overlay cadre demo (L3 mesh via tailscale sidecar)
-name: overlay-demo
+# The cadre's name is its directory name (overlay-demo); the manifest carries no name.
 secrets:
   from: secrets.sops.yaml   # keys from this SOPS file (defaults to secrets.sops.yaml)
   create:

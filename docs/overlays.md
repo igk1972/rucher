@@ -48,7 +48,6 @@ path (see [secrets.md](secrets.md)):
 
 ```yaml
 # rucher.yml
-name: overlay-demo
 secrets:
   from: secrets.sops.yaml
   create:

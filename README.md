@@ -58,8 +58,7 @@ cadres/<name>/
 ```
 
 ```yaml
-# rucher.yml
-name: web                  # must equal the directory name
+# rucher.yml — the cadre's name is its directory name (no name field)
 secrets:
   from: secrets.sops.yaml  # keys in this file become podman secrets
 registries:

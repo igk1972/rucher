@@ -1,7 +1,8 @@
 # Cadres
 
 A **cadre** is one workload group, defined by a directory and reconciled onto a node as
-a dedicated rootless-podman environment owned by its own Linux user.
+a dedicated rootless-podman environment owned by its own Linux user. Its name is the
+directory's name — the manifest carries no name field.
 
 ## Directory layout
 
@@ -38,7 +39,7 @@ Decoded strictly: an unknown key (e.g. a typo like `memmoryMax`) is a hard error
 being silently dropped.
 
 ```yaml
-name: web                    # required; MUST equal the directory name
+# The cadre's name is its directory name; the manifest has no name field.
 secrets:
   from: secrets.sops.yaml    # SOPS file whose keys are available (default: secrets.sops.yaml)
   create:                    # optional allowlist: only these keys become podman secrets.
@@ -56,7 +57,6 @@ resources:                   # optional -> systemd slice drop-in on the cadre us
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `name` | string, required | Must equal the directory basename, else load fails. |
 | `secrets.from` | string | SOPS file inside the directory; default `secrets.sops.yaml`. |
 | `secrets.create` | list of strings | Keys to materialize as podman secrets. Empty/absent = all decrypted keys. A listed key absent from the SOPS file is an error. |
 | `registries.login[].registry` | string, required | Registry host. |
@@ -68,7 +68,7 @@ resources:                   # optional -> systemd slice drop-in on the cadre us
 
 ### Validation at load
 
-Beyond strict decode and the `name == directory` check, each unit file is validated: it must
+Beyond strict decode, each unit file is validated: it must
 contain at least one `[Section]` header, and any `EnvironmentFile=` pointing at a
 cadre-local file (a bare filename, or a path under `%h/.config/containers/systemd/`)
 must resolve to a file the cadre actually ships. Secret keys and resource-limit
