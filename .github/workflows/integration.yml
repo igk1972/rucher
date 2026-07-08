@@ -44,7 +44,9 @@ jobs:
       # coordination server; rclone backs the S3-store tests (they skip if it is absent).
       - name: Install host tooling
         run: |
-          curl -fsSL -o /tmp/sops https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64
+          SOPS_VERSION=$(sed -n 's/^const version = "\(.*\)"$/\1/p' internal/sopsage/encrypt.go)
+          test -n "$SOPS_VERSION" || { echo "no sops version in internal/sopsage/encrypt.go"; exit 1; }
+          curl -fsSL -o /tmp/sops "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64"
           sudo install -m0755 /tmp/sops /usr/local/bin/sops
           curl -fsSL -o /tmp/headscale https://github.com/juanfont/headscale/releases/download/v0.29.2/headscale_0.29.2_linux_amd64
           sudo install -m0755 /tmp/headscale /usr/local/bin/headscale
