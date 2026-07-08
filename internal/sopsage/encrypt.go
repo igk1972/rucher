@@ -9,7 +9,7 @@ import (
 
 // version is written into the sops metadata block. It is informational; the
 // wire format is stable across sops 3.x, and the sops CLI accepts it on decrypt.
-const version = "3.9.4"
+const version = "3.13.2"
 
 // KV is one plaintext entry. Encrypt preserves the given order, which fixes the
 // MAC hash order — the sops CLI recomputes the MAC in file order, so any
@@ -46,12 +46,18 @@ func Encrypt(recipients []string, values []KV, lastModified string) ([]byte, err
 	macValues := make([][]byte, 0, len(values))
 	for _, kv := range values {
 		plain := []byte(kv.Value)
+		macValues = append(macValues, plain)
+		// sops never encrypts empty values (its decrypt regex needs non-empty data),
+		// so carry them as plaintext for byte-compatibility.
+		if kv.Value == "" {
+			pairs = append(pairs, encPair{Key: kv.Key, Enc: ""})
+			continue
+		}
 		enc, err := encryptScalar(plain, "str", dataKey, kv.Key+":")
 		if err != nil {
 			return nil, fmt.Errorf("encrypt %q: %w", kv.Key, err)
 		}
 		pairs = append(pairs, encPair{Key: kv.Key, Enc: enc})
-		macValues = append(macValues, plain)
 	}
 
 	encMac, err := encryptMAC(computeMAC(macValues), dataKey, lastModified)

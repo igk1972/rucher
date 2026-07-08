@@ -30,6 +30,13 @@ func Decrypt(identityData, sopsData []byte) (map[string]string, error) {
 	out := make(map[string]string, len(pairs))
 	macValues := make([][]byte, 0, len(pairs))
 	for _, p := range pairs {
+		// sops leaves empty values as plaintext; pass non-ENC values through (their
+		// bytes still feed the MAC).
+		if !isEncValue(p.Enc) {
+			out[p.Key] = p.Enc
+			macValues = append(macValues, []byte(p.Enc))
+			continue
+		}
 		// SOPS binds each value to its path; for a flat map the AAD is "<key>:".
 		plain, _, err := decryptScalar(p.Enc, dataKey, p.Key+":")
 		if err != nil {

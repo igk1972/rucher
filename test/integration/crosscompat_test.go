@@ -32,9 +32,10 @@ func TestSopsCLICrossCompat(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Our encrypt.
+	// The empty value guards sops compat: an encrypted empty would make sops -d
+	// reject the whole file.
 	enc := runCmd(t, exec.Command(hostBin, "ops", "secrets", "encrypt", "--to", rec),
-		[]byte("db_password: s3cr3t\napi_key: k-123\n"))
+		[]byte("db_password: s3cr3t\napi_key: k-123\nempty: \"\"\n"))
 	if enc.code != 0 {
 		t.Fatalf("ops secrets encrypt exited %d: %s", enc.code, enc.stderr)
 	}
@@ -46,7 +47,8 @@ func TestSopsCLICrossCompat(t *testing.T) {
 	if dec.code != 0 {
 		t.Fatalf("sops -d rejected our output: %s", dec.stderr)
 	}
-	if !strings.Contains(dec.stdout, `"s3cr3t"`) || !strings.Contains(dec.stdout, `"k-123"`) {
+	if !strings.Contains(dec.stdout, `"s3cr3t"`) || !strings.Contains(dec.stdout, `"k-123"`) ||
+		!strings.Contains(dec.stdout, `"empty": ""`) {
 		t.Fatalf("sops decrypt = %s", dec.stdout)
 	}
 }

@@ -3,6 +3,7 @@ package sopsage
 import (
 	"bytes"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -51,6 +52,34 @@ func TestDecryptFixture(t *testing.T) {
 	}
 }
 
+// TestEmptyValueStaysPlaintext: empty values are emitted as plaintext `key: ""`
+// (never ENC[...], which the sops CLI rejects) and still round-trip.
+func TestEmptyValueStaysPlaintext(t *testing.T) {
+	// Recipient matching testdata/identity.txt.
+	const recipient = "age1haymk3vfcphhzwyl4rh7f2ed907x77vgcrdfkmnf9lvy0sns3smqk905gu"
+	enc, err := Encrypt([]string{recipient}, []KV{{"tok", "abc"}, {"empty", ""}}, "2026-07-08T00:00:00Z")
+	if err != nil {
+		t.Fatalf("Encrypt: %v", err)
+	}
+	if !strings.Contains(string(enc), `empty: ""`) {
+		t.Errorf("empty value not emitted as plaintext `empty: \"\"`:\n%s", enc)
+	}
+	if strings.Contains(string(enc), "empty: ENC[") {
+		t.Errorf("empty value was encrypted; sops cannot decrypt data:<empty>:\n%s", enc)
+	}
+	id, err := os.ReadFile("testdata/identity.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Decrypt(id, enc)
+	if err != nil {
+		t.Fatalf("Decrypt: %v", err)
+	}
+	if got["empty"] != "" || got["tok"] != "abc" {
+		t.Errorf("round-trip = %v, want map[empty: tok:abc]", got)
+	}
+}
+
 // TestRoundTrip encrypts then decrypts, and confirms the MAC verifies.
 func TestRoundTrip(t *testing.T) {
 	id, err := os.ReadFile("testdata/identity.txt")
@@ -59,7 +88,7 @@ func TestRoundTrip(t *testing.T) {
 	}
 	// Recipient matching testdata/identity.txt.
 	const recipient = "age1haymk3vfcphhzwyl4rh7f2ed907x77vgcrdfkmnf9lvy0sns3smqk905gu"
-	in := []KV{{"alpha", "one"}, {"beta", "two two"}, {"gamma", ""}}
+	in := []KV{{"alpha", "one"}, {"beta", "two two"}, {"gamma", "three"}}
 	enc, err := Encrypt([]string{recipient}, in, "2026-07-07T00:00:00Z")
 	if err != nil {
 		t.Fatalf("Encrypt: %v", err)

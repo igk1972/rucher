@@ -23,6 +23,9 @@ const (
 // encRE parses an `ENC[AES256_GCM,data:...,iv:...,tag:...,type:...]` value.
 var encRE = regexp.MustCompile(`^ENC\[AES256_GCM,data:(.*),iv:(.*),tag:(.*),type:(.*)\]$`)
 
+// isEncValue reports whether s is a SOPS ENC[...] token (vs a plaintext value).
+func isEncValue(s string) bool { return encRE.MatchString(s) }
+
 // encryptScalar encrypts plaintext to a SOPS `ENC[...]` string. additionalData
 // binds the value to its position (SOPS uses the path with a trailing colon).
 // A fresh 32-byte nonce is generated per call.
@@ -80,5 +83,7 @@ func newGCM(key []byte) (cipher.AEAD, error) {
 	if err != nil {
 		return nil, fmt.Errorf("aes cipher: %w", err)
 	}
+	// Required, not a bug: SOPS uses a 32-byte GCM nonce, so a 12-byte-default
+	// cipher.NewGCM would be wire-incompatible and fail to decrypt sops files.
 	return cipher.NewGCMWithNonceSize(block, nonceSize)
 }

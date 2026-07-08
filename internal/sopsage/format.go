@@ -6,10 +6,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ageStanza is one recipient's armored age-encrypted copy of the data key.
+// ageStanza is one recipient's armored age-encrypted copy of the data key. Field
+// order (enc, recipient) matches the sops CLI's emitted block.
 type ageStanza struct {
-	Recipient string `yaml:"recipient"`
 	Enc       string `yaml:"enc"`
+	Recipient string `yaml:"recipient"`
 }
 
 // sopsMeta is the `sops:` metadata block for the age backend.
@@ -66,9 +67,15 @@ func parseEncryptedFile(data []byte) ([]encPair, sopsMeta, error) {
 func emitEncryptedFile(pairs []encPair, meta sopsMeta) ([]byte, error) {
 	root := &yaml.Node{Kind: yaml.MappingNode}
 	for _, p := range pairs {
+		val := &yaml.Node{Kind: yaml.ScalarNode, Value: p.Enc}
+		if p.Enc == "" {
+			// force `key: ""`, not `key:` (which reads back as null)
+			val.Tag = "!!str"
+			val.Style = yaml.DoubleQuotedStyle
+		}
 		root.Content = append(root.Content,
 			&yaml.Node{Kind: yaml.ScalarNode, Value: p.Key},
-			&yaml.Node{Kind: yaml.ScalarNode, Value: p.Enc})
+			val)
 	}
 	var metaNode yaml.Node
 	if err := metaNode.Encode(meta); err != nil {
