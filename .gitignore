@@ -2,3 +2,8 @@
 /rucher
 # Go test binaries
 *.test
+# Agents
+.claude/
+.gemini/
+# macOS
+.DS_Store
