@@ -124,24 +124,18 @@ func installIdentity(r node.Runner, name string, uid int, dir, nodeIdentity stri
 	return nil
 }
 
+// readSealed returns the cadre's sealed identity.age, or nil if it ships none.
+// One identity.age is sealed to every node that runs the cadre (age.SealTo writes
+// a stanza per recipient), so there is no per-node file to choose between.
 func readSealed(dir string) ([]byte, error) {
-	entries, err := os.ReadDir(dir)
+	data, err := os.ReadFile(filepath.Join(dir, "identity.age"))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	var generic []byte
-	for _, e := range entries {
-		n := e.Name()
-		if n == "identity.age" {
-			generic, err = os.ReadFile(filepath.Join(dir, n))
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	// prefer a node-specific file if present is handled by the caller via naming; here we
-	// return the generic identity.age (node-specific selection lives in Task-9 wiring if used).
-	return generic, nil
+	return data, nil
 }
 
 func WriteStatus(path string, st Status) error {
