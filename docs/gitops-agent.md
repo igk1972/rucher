@@ -34,13 +34,17 @@ Two backends are supported (chosen by `store.kind` in the agent config):
   - neither → anonymous / local-path / shared-mount access.
   If a pull fails transiently but a valid checkout already exists, the agent keeps running on
   the last-good revision rather than aborting reconciliation.
-- **S3** (`kind: s3`) — list and download every object under a prefix from an S3-compatible
-  endpoint into the local checkout. The revision is a deterministic hash over the object set
-  (sorted `key<TAB>etag`). Object keys that would escape the cache directory are rejected.
+- **S3** (`kind: s3`) — list the objects under a prefix on an S3-compatible endpoint and
+  download only those whose ETag changed (new or modified) into the local checkout, dropping
+  ones that disappeared — an incremental sync, not a full re-download each pass. The revision
+  is a deterministic hash over the object set (sorted `key<TAB>etag`). Object keys that would
+  escape the cache directory are rejected.
 
-The checkout is cached at `/var/lib/rucher/store`. If `store.url` or `branch` changes, the
-agent detects that the cache no longer matches the configured remote and re-clones it fresh
-(no need to delete the cache by hand).
+The checkout is cached at `/var/lib/rucher/store`. For **git**, if `store.url` or `branch`
+changes, the agent detects that the cache no longer matches the configured remote and re-clones
+it fresh. For **S3**, the ETags of the cached objects are tracked in a sidecar state file, and a
+change of endpoint/bucket/prefix triggers a clean re-download (no need to delete the cache by
+hand in either case).
 
 ## `placement.yml`
 
