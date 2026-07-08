@@ -2,7 +2,8 @@
 // entirely in-process. It deliberately avoids the getsops import (which would drag
 // in every cloud KMS SDK) and implements the SOPS v3 wire format for flat YAML maps
 // (key: value), which is all cadres use. The data key is wrapped/unwrapped with
-// filippo.io/age via internal/age.
+// filippo.io/age via internal/age. Scope: values are always type:str and files must be
+// flat and fully encrypted; nested maps, sequences and mac_only_encrypted are unsupported.
 package sopsage
 
 import (

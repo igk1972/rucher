@@ -79,8 +79,24 @@ Both sides are self-contained and built into the manager:
 - on the **operator**, encryption is in-process too — `rucher ops secrets encrypt`;
 - age identities are generated in-process.
 
-The external `sops` CLI stays fully interoperable (files are byte-compatible), so it can be
-used interchangeably if preferred. See [node-requirements.md](node-requirements.md).
+The external `sops` CLI stays interoperable within the scope below (either tool decrypts the
+other's files), so it can be used interchangeably if preferred. See
+[node-requirements.md](node-requirements.md).
+
+## Compatibility scope
+
+The built-in codec implements the subset of the SOPS format a cadre needs and is
+wire-compatible with the `sops` CLI within it. The bounds:
+
+- **Flat maps of strings.** A single level of `key: value` pairs; nested maps, sequences
+  and comments are not supported.
+- **`type:str` only.** Every value is encrypted as a string. sops infers `int`/`bool`/`float`
+  for typed scalars, so a rucher-written file is not byte-identical to a sops-written one for
+  non-string inputs — though both still decrypt either way. Cadre secrets are strings, so
+  this is moot in practice.
+- **Empty values** are carried as plaintext, exactly as sops does.
+- **`mac_only_encrypted`** files use a MAC scheme this codec does not reproduce and are
+  rejected with a clear error (a cadre's fully-encrypted secrets never set it).
 
 ## Relation to the GitOps agent
 
