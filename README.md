@@ -160,3 +160,9 @@ Pure logic and the shell-out layer are unit-tested with a fake command runner
 GitOps agent (git + S3), the operator plane, cadre isolation, and a headscale overlay; see
 [`test/integration/`](test/integration/). One manual record remains for the real-tailnet overlay
 with direct kernel routing: [integration-overlay](docs/validation/integration-overlay.md).
+
+## License
+
+Licensed under the GNU Affero General Public License v3.0 or later
+(`AGPL-3.0-or-later`) — see [`LICENSE`](LICENSE). Every source file carries an
+`SPDX-License-Identifier` header.
