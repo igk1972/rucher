@@ -96,6 +96,37 @@ func saveS3State(path string, st s3State) error {
 	return os.Rename(tmp, path)
 }
 
+// lastGood returns the cached checkout and the last synced revision, for use when a
+// fresh listing fails transiently. It applies only when the cache still belongs to
+// this store (same endpoint/bucket/prefix) and is present on disk.
+func (s S3) lastGood(prev s3State) (string, string, bool) {
+	if prev.Store != s.storeIdentity() {
+		return "", "", false
+	}
+	if _, err := os.Stat(s.CachePath); err != nil {
+		return "", "", false
+	}
+	objs := make([]objInfo, 0, len(prev.Objects))
+	for k, e := range prev.Objects {
+		objs = append(objs, objInfo{Key: k, ETag: e})
+	}
+	return s.CachePath, revisionOf(objs), true
+}
+
+// pruneEmptyDirs removes the now-empty parent directories of a deleted file, up to
+// but not including base, stopping at the first directory that is not empty.
+func pruneEmptyDirs(base, file string) {
+	for dir := filepath.Dir(file); ; dir = filepath.Dir(dir) {
+		rel, err := filepath.Rel(base, dir)
+		if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return // reached base or escaped it
+		}
+		if os.Remove(dir) != nil {
+			return // non-empty (or already gone) -> stop
+		}
+	}
+}
+
 func (s S3) Sync(ctx context.Context) (string, string, error) {
 	client, err := minio.New(s.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(s.AccessKey, s.SecretKey, ""),
@@ -113,15 +144,21 @@ func (s S3) Sync(ctx context.Context) (string, string, error) {
 		prefix += "/"
 	}
 
+	prev := loadS3State(s.statePath())
+
 	var objects []objInfo
 	for obj := range client.ListObjects(ctx, s.Bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
 		if obj.Err != nil {
+			// Transient list failure: keep running on the last-good checkout if one exists,
+			// mirroring the git store rather than aborting reconciliation.
+			if co, rev, ok := s.lastGood(prev); ok {
+				return co, rev, nil
+			}
 			return "", "", fmt.Errorf("s3 list: %w", obj.Err)
 		}
 		objects = append(objects, objInfo{Key: obj.Key, ETag: obj.ETag})
 	}
 
-	prev := loadS3State(s.statePath())
 	// The cache belongs to one store; if the endpoint/bucket/prefix changed its files
 	// no longer match, so start clean rather than mix two stores.
 	if prev.Store != s.storeIdentity() {
@@ -153,13 +190,14 @@ func (s S3) Sync(ctx context.Context) (string, string, error) {
 		}
 	}
 
-	// Drop objects that left the store.
+	// Drop objects that left the store, tidying up any directory they emptied.
 	for key := range prev.Objects {
 		if _, ok := next[key]; ok {
 			continue
 		}
 		if dest, err := resolveDest(s.CachePath, strings.TrimPrefix(key, prefix)); err == nil {
 			os.Remove(dest) // best-effort
+			pruneEmptyDirs(s.CachePath, dest)
 		}
 	}
 

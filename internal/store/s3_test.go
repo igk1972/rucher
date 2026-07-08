@@ -281,4 +281,54 @@ func TestS3IncrementalSync(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(co, "cadres", "old", "rucher.yml")); !os.IsNotExist(err) {
 		t.Errorf("removed file still present (err=%v)", err)
 	}
+	if _, err := os.Stat(filepath.Join(co, "cadres", "old")); !os.IsNotExist(err) {
+		t.Errorf("emptied cadres/old dir was not pruned (err=%v)", err)
+	}
+}
+
+// TestS3LastGoodOnListFailure: when a fresh listing fails but a valid cache exists, the
+// sync keeps running on the last-good checkout and revision instead of erroring.
+func TestS3LastGoodOnListFailure(t *testing.T) {
+	if _, err := exec.LookPath("rclone"); err != nil {
+		t.Skip("rclone not installed")
+	}
+	src := t.TempDir()
+	bucket := filepath.Join(src, "infra")
+	if err := os.MkdirAll(filepath.Join(bucket, "cadres", "web"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bucket, "placement.yml"), []byte("placements: {web: node-a}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bucket, "cadres", "web", "rucher.yml"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	addr := fmt.Sprintf("127.0.0.1:%d", freePort(t))
+	stop := startRclone(t, src, addr)
+	s := S3{
+		Endpoint: addr, Bucket: "infra",
+		AccessKey: "TESTKEY", SecretKey: "TESTSECRET", Region: "us-east-1",
+		CachePath: filepath.Join(t.TempDir(), "cache"),
+	}
+
+	co, rev1, err := s.Sync(context.Background())
+	if err != nil {
+		t.Fatalf("sync1: %v", err)
+	}
+
+	// Take the endpoint down; the next listing fails on the same store identity.
+	stop()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	co2, rev2, err := s.Sync(ctx)
+	if err != nil {
+		t.Fatalf("expected last-good, got error: %v", err)
+	}
+	if co2 != co || rev2 != rev1 {
+		t.Fatalf("last-good = (%q,%q), want (%q,%q)", co2, rev2, co, rev1)
+	}
+	if _, err := os.Stat(filepath.Join(co, "placement.yml")); err != nil {
+		t.Errorf("cached checkout lost: %v", err)
+	}
 }
