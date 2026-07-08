@@ -7,3 +7,5 @@
 .gemini/
 # macOS
 .DS_Store
+# Scratch
+/tmp/
