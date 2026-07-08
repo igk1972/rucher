@@ -71,6 +71,43 @@ func TestResolveDest(t *testing.T) {
 	}
 }
 
+func TestS3State(t *testing.T) {
+	// A missing state file yields an empty (non-nil) state that forces a full download.
+	missing := loadS3State(filepath.Join(t.TempDir(), "none.json"))
+	if missing.Store != "" || len(missing.Objects) != 0 || missing.Objects == nil {
+		t.Fatalf("missing state = %+v, want empty non-nil Objects", missing)
+	}
+
+	// A round trip preserves the store identity and object ETags.
+	path := filepath.Join(t.TempDir(), "s3state.json")
+	in := s3State{Store: "h|b|p/", Objects: map[string]string{"placement.yml": "e1", "cadres/web/x": "e2"}}
+	if err := saveS3State(path, in); err != nil {
+		t.Fatal(err)
+	}
+	out := loadS3State(path)
+	if out.Store != in.Store || out.Objects["placement.yml"] != "e1" || out.Objects["cadres/web/x"] != "e2" {
+		t.Fatalf("round trip = %+v, want %+v", out, in)
+	}
+
+	// A corrupt file degrades to an empty state (full resync) rather than an error.
+	if err := os.WriteFile(path, []byte("{ not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if bad := loadS3State(path); len(bad.Objects) != 0 {
+		t.Fatalf("corrupt state = %+v, want empty", bad)
+	}
+}
+
+func TestS3StoreIdentity(t *testing.T) {
+	base := S3{Endpoint: "h:9000", Bucket: "infra", Prefix: "store/"}
+	if base.storeIdentity() == (S3{Endpoint: "h:9000", Bucket: "infra", Prefix: "other/"}).storeIdentity() {
+		t.Fatal("different prefixes must yield different identities")
+	}
+	if base.storeIdentity() != (S3{Endpoint: "h:9000", Bucket: "infra", Prefix: "store/"}).storeIdentity() {
+		t.Fatal("same config must yield the same identity")
+	}
+}
+
 // freePort asks the OS for an ephemeral TCP port, then releases it.
 func freePort(t *testing.T) int {
 	t.Helper()
@@ -81,6 +118,42 @@ func freePort(t *testing.T) int {
 	port := l.Addr().(*net.TCPAddr).Port
 	l.Close()
 	return port
+}
+
+// startRclone runs `rclone serve s3` over src on addr and returns a stop func once
+// the server accepts connections. Restarting on the same addr makes a fresh process
+// re-read src (rclone caches directory listings), which the incremental test needs.
+func startRclone(t *testing.T, src, addr string) func() {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, "rclone", "serve", "s3", src,
+		"--addr", addr,
+		"--auth-key", "TESTKEY,TESTSECRET",
+	)
+	if err := cmd.Start(); err != nil {
+		cancel()
+		t.Fatalf("start rclone: %v", err)
+	}
+	stop := func() { cancel(); cmd.Wait() }
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond); err == nil {
+			conn.Close()
+			return stop
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	stop()
+	t.Fatalf("rclone s3 server never came up on %s", addr)
+	return nil
+}
+
+// serveRcloneS3 starts rclone on a fresh port and returns its address.
+func serveRcloneS3(t *testing.T, src string) string {
+	t.Helper()
+	addr := fmt.Sprintf("127.0.0.1:%d", freePort(t))
+	t.Cleanup(startRclone(t, src, addr))
+	return addr
 }
 
 func TestS3SyncAgainstRclone(t *testing.T) {
@@ -101,39 +174,7 @@ func TestS3SyncAgainstRclone(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	port := freePort(t)
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, "rclone", "serve", "s3", src,
-		"--addr", addr,
-		"--auth-key", "TESTKEY,TESTSECRET",
-	)
-	if err := cmd.Start(); err != nil {
-		cancel()
-		t.Fatalf("start rclone: %v", err)
-	}
-	t.Cleanup(func() {
-		cancel()
-		cmd.Wait()
-	})
-
-	// Wait for the server to accept connections (up to ~5s).
-	ready := false
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			ready = true
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	if !ready {
-		t.Fatalf("rclone s3 server never came up on %s", addr)
-	}
-
+	addr := serveRcloneS3(t, src)
 	s := S3{
 		Endpoint:  addr,
 		Bucket:    "infrastructure",
@@ -143,7 +184,7 @@ func TestS3SyncAgainstRclone(t *testing.T) {
 		Region:    "us-east-1",
 		CachePath: filepath.Join(t.TempDir(), "cache"),
 	}
-	co, rev, err := s.Sync(ctx)
+	co, rev, err := s.Sync(context.Background())
 	if err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
@@ -165,5 +206,79 @@ func TestS3SyncAgainstRclone(t *testing.T) {
 	}
 	if string(got) != "{}\n" {
 		t.Fatalf("rucher.yml = %q", got)
+	}
+}
+
+// TestS3IncrementalSync proves a second sync fetches only changed/new objects, keeps
+// unchanged ones untouched, and drops removed ones.
+func TestS3IncrementalSync(t *testing.T) {
+	if _, err := exec.LookPath("rclone"); err != nil {
+		t.Skip("rclone not installed")
+	}
+	src := t.TempDir()
+	bucket := filepath.Join(src, "infra")
+	write := func(rel, content string) {
+		t.Helper()
+		p := filepath.Join(bucket, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("placement.yml", "placements: {web: node-a}\n")
+	write("cadres/web/rucher.yml", "{}\n")
+	write("cadres/old/rucher.yml", "{}\n")
+
+	addr := fmt.Sprintf("127.0.0.1:%d", freePort(t))
+	stop := startRclone(t, src, addr)
+	s := S3{
+		Endpoint: addr, Bucket: "infra",
+		AccessKey: "TESTKEY", SecretKey: "TESTSECRET", Region: "us-east-1",
+		CachePath: filepath.Join(t.TempDir(), "cache"),
+	}
+	ctx := context.Background()
+
+	co, rev1, err := s.Sync(ctx)
+	if err != nil {
+		t.Fatalf("sync1: %v", err)
+	}
+
+	// Replace an unchanged object's cached copy with a sentinel; if sync2 skips it (no
+	// re-download), the sentinel survives — proving the fetch was incremental.
+	const sentinel = "LOCAL-SENTINEL\n"
+	if err := os.WriteFile(filepath.Join(co, "placement.yml"), []byte(sentinel), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Change one object, add one, remove one, then restart rclone on the same addr so a
+	// fresh process serves the updated tree (same endpoint keeps the sync incremental).
+	write("cadres/web/rucher.yml", "memoryMax: 1\n")
+	write("cadres/new/rucher.yml", "{}\n")
+	if err := os.Remove(filepath.Join(bucket, "cadres", "old", "rucher.yml")); err != nil {
+		t.Fatal(err)
+	}
+	stop()
+	t.Cleanup(startRclone(t, src, addr))
+
+	_, rev2, err := s.Sync(ctx)
+	if err != nil {
+		t.Fatalf("sync2: %v", err)
+	}
+	if rev1 == rev2 {
+		t.Fatal("revision unchanged after the store changed")
+	}
+	if got, _ := os.ReadFile(filepath.Join(co, "placement.yml")); string(got) != sentinel {
+		t.Errorf("unchanged placement.yml was re-downloaded: %q", got)
+	}
+	if got, _ := os.ReadFile(filepath.Join(co, "cadres", "web", "rucher.yml")); string(got) != "memoryMax: 1\n" {
+		t.Errorf("changed rucher.yml = %q, want refetched content", got)
+	}
+	if _, err := os.Stat(filepath.Join(co, "cadres", "new", "rucher.yml")); err != nil {
+		t.Errorf("added file missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(co, "cadres", "old", "rucher.yml")); !os.IsNotExist(err) {
+		t.Errorf("removed file still present (err=%v)", err)
 	}
 }
