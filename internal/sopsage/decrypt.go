@@ -18,6 +18,12 @@ func Decrypt(identityData, sopsData []byte) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// mac_only_encrypted uses a MAC computation this codec does not reproduce; reject
+	// such files rather than fail later with a confusing MAC mismatch. sops sets it only
+	// with --mac-only-encrypted, which a cadre's fully-encrypted secrets never use.
+	if meta.MacOnlyEncrypted {
+		return nil, fmt.Errorf("unsupported sops file: mac_only_encrypted")
+	}
 	ids, err := age.ParseIdentities(bytes.NewReader(identityData))
 	if err != nil {
 		return nil, fmt.Errorf("parse age identity: %w", err)

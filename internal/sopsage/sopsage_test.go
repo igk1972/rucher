@@ -52,6 +52,24 @@ func TestDecryptFixture(t *testing.T) {
 	}
 }
 
+// TestDecryptRejectsMacOnlyEncrypted: sops --mac-only-encrypted uses a MAC scheme
+// this codec does not reproduce, so such files are rejected with a clear error
+// rather than silently mis-verified.
+func TestDecryptRejectsMacOnlyEncrypted(t *testing.T) {
+	id, err := os.ReadFile("testdata/identity.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile("testdata/mac_only_encrypted.sops.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Decrypt(id, data)
+	if err == nil || !strings.Contains(err.Error(), "mac_only_encrypted") {
+		t.Fatalf("want a mac_only_encrypted rejection, got %v", err)
+	}
+}
+
 // TestEmptyValueStaysPlaintext: empty values are emitted as plaintext `key: ""`
 // (never ENC[...], which the sops CLI rejects) and still round-trip.
 func TestEmptyValueStaysPlaintext(t *testing.T) {
