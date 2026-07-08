@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package nodestatus collects agent status from every node over ssh and aggregates it.
 package nodestatus
 

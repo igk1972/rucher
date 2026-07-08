@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Command setup-nodes creates the Lima node swarm and provisions it (podman +
 // uidmap + /dev/net/tun) for the integration suite. Self-contained: the same recipe on
 // a Mac and in CI.

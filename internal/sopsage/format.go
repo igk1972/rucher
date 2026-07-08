@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package sopsage
 
 import (
@@ -20,7 +22,7 @@ type sopsMeta struct {
 	Mac               string      `yaml:"mac"`
 	UnencryptedSuffix string      `yaml:"unencrypted_suffix"`
 	Version           string      `yaml:"version"`
-	MacOnlyEncrypted  bool         `yaml:"mac_only_encrypted,omitempty"`
+	MacOnlyEncrypted  bool        `yaml:"mac_only_encrypted,omitempty"`
 }
 
 // encPair is one data entry preserving file order (order matters for the MAC).

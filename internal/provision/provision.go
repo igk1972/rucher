@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package provision ensures the OS user and resource limits for a cadre.
 package provision
 

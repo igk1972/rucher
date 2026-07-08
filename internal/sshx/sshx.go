@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package sshx is a native SSH client (golang.org/x/crypto/ssh) that replaces
 // shelling out to the system ssh binary. It runs a single remote command and
 // reports stdout/stderr plus the remote exit code, using TOFU accept-new host

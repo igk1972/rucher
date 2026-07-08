@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package state persists the last-applied state of a cadre (hashes only).
 package state
 

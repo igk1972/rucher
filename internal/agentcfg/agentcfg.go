@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package agentcfg loads the on-node agent configuration.
 package agentcfg
 

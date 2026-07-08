@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package reconcile applies a cadre's desired state to the host.
 package reconcile
 

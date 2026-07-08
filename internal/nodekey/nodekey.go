@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package nodekey manages the node's own age key (born on the node, private key never leaves).
 package nodekey
 

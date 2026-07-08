@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package sopsage decrypts and encrypts SOPS files that use the age backend,
 // entirely in-process. It deliberately avoids the getsops import (which would drag
 // in every cloud KMS SDK) and implements the SOPS v3 wire format for flat YAML maps

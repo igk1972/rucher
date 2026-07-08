@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package secrets decrypts a SOPS+age file to an in-memory key/value map.
 package secrets
 

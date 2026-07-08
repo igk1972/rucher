@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package sshresolve resolves a node config to a native sshx.Target, per config
 // precedence (network.address -> lima ssh.config -> connection block).
 package sshresolve

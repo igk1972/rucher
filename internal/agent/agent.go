@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package agent runs one GitOps reconcile pass: fetch the store, apply this node's
 // assigned cadres (installing their unsealed identity first), remove the rest.
 package agent

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package age wraps filippo.io/age for the node/cadre key operations B needs:
 // generating identities, sealing (encrypting to a recipient) and unsealing.
 package age

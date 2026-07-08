@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package deploy installs/updates the rucher binary on nodes over SSH and, when
 // a store is configured, bootstraps the GitOps agent — all from the operator.
 // It mirrors internal/nodestatus.Collect: iterate nodes, resolve each to an

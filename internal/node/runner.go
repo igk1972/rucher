@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package node runs commands as root or as a cadre user (shell-out).
 package node
 

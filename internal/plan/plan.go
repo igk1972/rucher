@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package plan computes an idempotent reconcile plan from desired state vs prior state.
 package plan
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package store fetches all nodes' desired state into a local checkout.
 package store
 

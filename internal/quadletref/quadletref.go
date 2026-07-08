@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Package quadletref extracts support-file and secret references from a unit.
 package quadletref
 

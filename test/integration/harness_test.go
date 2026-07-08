@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //go:build integration
 
 // Package integration drives the real Lima nodes end-to-end. It is gated behind
