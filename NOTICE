@@ -1,0 +1,62 @@
+rucher — THIRD-PARTY NOTICES
+============================
+
+rucher is licensed under AGPL-3.0-or-later (see LICENSE). Its binary statically
+links Go modules distributed under the Apache License, Version 2.0. As required
+by section 4(d) of that license, the attribution notices from the dependencies
+that ship a NOTICE file are reproduced verbatim below.
+
+(Other Apache-2.0 dependencies — such as github.com/go-git/go-git — ship no
+NOTICE file and therefore require no additional attribution notice here.)
+
+===============================================================================
+github.com/minio/minio-go/v7 v7.0.70 (Apache-2.0)
+===============================================================================
+
+MinIO Cloud Storage, (C) 2014-2020 MinIO, Inc.
+
+This product includes software developed at MinIO, Inc.
+(https://min.io/).
+
+The MinIO project contains unmodified/modified subcomponents too with
+separate copyright notices and license terms. Your use of the source
+code for these subcomponents is subject to the terms and conditions
+of Apache License Version 2.0
+
+
+===============================================================================
+github.com/skeema/knownhosts v1.2.2 (Apache-2.0)
+===============================================================================
+
+Copyright 2024 Skeema LLC and the Skeema Knownhosts authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+===============================================================================
+gopkg.in/yaml.v3 v3.0.1 (MIT AND Apache-2.0)
+===============================================================================
+
+Copyright 2011-2016 Canonical Ltd.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
