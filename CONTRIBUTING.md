@@ -83,7 +83,26 @@ By making a contribution to this project, I certify that:
 
 - Keep commits focused; sign off each one.
 - Run `go test ./...`; if the change touches on-node behavior, run the
-  integration suite: `go test -tags integration ./test/integration/`.
+  integration suite (see below).
 - New source files should carry the SPDX header:
   `// SPDX-License-Identifier: AGPL-3.0-or-later`.
+
+## Running the integration tests (Lima)
+
+The end-to-end suite drives **real Lima VMs** and is gated behind the `integration`
+build tag, so plain `go test ./...` never touches a node. You need `limactl`, `go`,
+`git`, and `sops` on the host (plus `openssl`/`gh` for the headscale overlay test and
+`rclone` for the S3 store test, which skips if absent).
+
+Bring up the node swarm (idempotent; creates the VMs and installs podman + `uidmap` +
+`/dev/net/tun`), then run the suite:
+
+```bash
+go run ./test/integration/cmd/setup-nodes    # create + provision + verify the Lima nodes
+go test -tags integration ./test/integration/ -v
+```
+
+The tests **do not provision anything** — they fail (never skip) if a node they need is
+not `Running`. Full details, per-test coverage, and caveats live in
+[`test/integration/README.md`](test/integration/README.md).
 
