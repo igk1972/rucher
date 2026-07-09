@@ -82,6 +82,7 @@ Units reference support files by their in-place path, e.g.
 ```
 rucher node cadre new <name>                  # create the user + age identity; print the recipient
 rucher node cadre recipient <name>            # print a cadre's age recipient
+rucher ops validate [--dir DIR] [name...]     # check manifests + unit files (no node)
 rucher ops plan [--dir DIR] [name...]         # dry-run: show what apply would change
 rucher node apply [--dir DIR]                 # reconcile cadres onto the node
 rucher node cadre apply [--dir DIR] <name...> # reconcile the named cadre(s)

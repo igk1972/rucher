@@ -68,9 +68,15 @@ if you add secrets), and prints the cadre's age recipient:
 sudo rucher node cadre new hello
 ```
 
-## 4. Preview, then apply
+## 4. Validate, preview, then apply
 
-Dry-run first to see exactly what will change:
+Statically check the cadre (manifest + unit files + paths) — no node needed:
+
+```bash
+rucher ops validate --dir ./cadres hello   # -> hello: OK
+```
+
+Then dry-run to see exactly what will change:
 
 ```bash
 rucher ops plan --dir ./cadres hello

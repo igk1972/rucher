@@ -34,6 +34,7 @@ rucher <group> <command> [args]
 │       ├─ run     [--config PATH]                     [node]   one pull-based reconcile pass
 │       └─ install [--config PATH]                     [node]   write + enable the systemd service + timer
 └─ ops                                                 from the operator machine
+    ├─ validate [--dir DIR] [name...]                  [local]  check cadre manifests + unit files
     ├─ plan   [--dir DIR] [name...]                    [local]  dry-run: what apply would change
     ├─ nodes [--dir DIR]
     │   ├─ status [--live] [--json] [node...]          [ssh]    gather nodes status over SSH
@@ -52,13 +53,13 @@ and `./nodes` for `ops nodes`; `--config /etc/rucher/agent.yml`. Exit codes: `0`
 
 ## Shared conventions
 
-### `--dir DIR` for cadres (node apply, node cadre apply, ops plan)
+### `--dir DIR` for cadres (node apply, node cadre apply, ops validate, ops plan)
 
 `--dir` is the **parent** directory whose immediate subdirectories are cadres; the
 subdirectory name is the cadre name. It defaults to `./cadres`. `node apply` reconciles
 **every** cadre under `--dir` and takes no positional names (use `node cadre apply
-<name...>` for specific ones). `ops plan` takes optional positional names — with none,
-every subdirectory is selected; `node cadre apply` requires at least one. A requested name
+<name...>` for specific ones). `ops validate` and `ops plan` take optional positional names —
+with none, every subdirectory is selected; `node cadre apply` requires at least one. A requested name
 that is not a subdirectory of `--dir` is an error (this guards against pointing `--dir` at a
 single cadre folder instead of its parent).
 
@@ -186,9 +187,27 @@ sudo rucher node agent install
 
 ## ops
 
-Runs from the operator machine (any OS). `plan` is a read-only dry run; `key seal` seals a
-cadre identity to node(s); `secrets encrypt` encrypts a cadre's secrets in-process; `nodes`
-reaches every node over SSH.
+Runs from the operator machine (any OS). `validate` statically checks cadre definitions;
+`plan` is a read-only dry run; `key seal` seals a cadre identity to node(s); `secrets encrypt`
+encrypts a cadre's secrets in-process; `nodes` reaches every node over SSH.
+
+### `rucher ops validate [--dir DIR] [name...]`
+
+Statically check each selected cadre without touching a node — a fast pre-commit gate. It
+loads every cadre and reports the first structural problem in each: a manifest that fails
+strict decode (an unknown/misspelled key like `memmoryMax`) or `manifest.Validate`, a unit
+file with no `[Section]` header, or a unit whose `EnvironmentFile=` points at a cadre-local
+file the directory does not ship. Prints `<name>: OK` or `<name>: ERROR <reason>` per cadre;
+exits `0` only when all pass, `1` if any fail.
+
+It deliberately does **not** check secret keys or resource-limit formats — those need
+decrypted secrets and systemd's own parsing, so they are validated later (see
+[cadres.md](cadres.md) and [secrets.md](secrets.md)).
+
+```bash
+rucher ops validate --dir ./cadres          # all cadres
+rucher ops validate --dir ./cadres web      # just one
+```
 
 ### `rucher ops plan [--dir DIR] [name...]`
 
