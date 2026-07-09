@@ -37,7 +37,7 @@ rucher <group> <command> [args]
     ├─ validate [--dir DIR] [name...]                  [local]  check cadre manifests + unit files
     ├─ plan   [--dir DIR] [name...]                    [local]  dry-run: what apply would change
     ├─ nodes [--dir DIR]
-    │   ├─ status [--live] [--json] [node...]          [ssh]    gather nodes status over SSH
+    │   ├─ status [--live] [--json] [--concurrency N] [node...]  [ssh]  gather nodes status over SSH
     │   ├─ join <node> --address <addr> [--json]       [local]  record a node's management address
     │   └─ deploy [--version TAG|--binary PATH] [...]  [ssh]    provision + install rucher + bootstrap the agent
     ├─ key
@@ -267,7 +267,7 @@ rucher ops nodes join node-a --address 100.64.0.1
 rucher ops nodes join node-a --address 100.64.0.1 --json
 ```
 
-### `rucher ops nodes [--dir DIR] status [--live] [--json] [node...]`
+### `rucher ops nodes [--dir DIR] status [--live] [--json] [--concurrency N] [node...]`
 
 Gather each node's agent status over SSH and print it. Default output is a table
 (`NODE ADDRESS REACHABLE REVISION APPLIED REMOVED ERRORS`) followed by an errors detail
@@ -276,13 +276,16 @@ on each reachable node and appends the live per-unit output. With no node names,
 `--dir` that has a `configuration.yml` is queried. Exit code is 1 if any node is
 unreachable. See [management-network.md](management-network.md).
 
+Nodes are queried in parallel, at most `--concurrency` at a time (default 8; must be `>= 1`).
+The output order always matches the node list, independent of the concurrency level.
+
 ```bash
 rucher ops nodes status
 rucher ops nodes status --live node-a
 rucher ops nodes status --json
 ```
 
-### `rucher ops nodes [--dir DIR] deploy [--version TAG | --binary PATH] [store flags] [--json] [node...]`
+### `rucher ops nodes [--dir DIR] deploy [--version TAG | --binary PATH] [store flags] [--concurrency N] [--json] [node...]`
 
 Install/update rucher on the named nodes over SSH and bootstrap them, from the operator.
 For each node (all under `--dir` when none named): probe its architecture, **provision the
@@ -306,6 +309,10 @@ Agent bootstrap turns on when a store is given: `--store-url <url>` (git) or `--
 `--interval` (default 30s), and auth passthroughs (`--store-ssh-key`, `--store-token`,
 `--store-insecure-host-key`; S3: `--store-endpoint/-prefix/-access-key/-secret-key/-region`,
 `--store-ssl`). Without a store, deploy stops after the binary + `node key init`.
+
+Nodes deploy in parallel, at most `--concurrency` at a time (default 4 — lower than `status`
+because each deploy is heavy: base-platform provisioning and multi-MB binary transfers; must be
+`>= 1`). The output order always matches the node list.
 
 Output is a table (`NODE ADDRESS ARCH AGENT RECIPIENT OK`) with per-node errors below, or a
 JSON array with `--json`. Exit code is 1 if any node failed.
