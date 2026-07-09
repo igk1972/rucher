@@ -9,22 +9,33 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
+
+// knownHostsMu serializes access to the known_hosts file so concurrent per-node
+// SSH (operator plane) cannot corrupt it on first-contact TOFU pinning. It
+// guards only the short file read/write sections below — never an ssh.Dial, so
+// handshakes still run in parallel.
+var knownHostsMu sync.Mutex
 
 // acceptNewHostKey returns a TOFU accept-new host-key callback backed by the
 // known_hosts file at path: an unknown host is trusted and pinned on first
 // contact, a later key change against a pinned entry is rejected.
 func acceptNewHostKey(path string) ssh.HostKeyCallback {
 	// Set up eagerly; the signature carries no error, so any failure is
-	// surfaced when the callback is invoked.
+	// surfaced when the callback is invoked. The setup reads/creates the file,
+	// so hold the lock for it — but not for the returned callback, which runs
+	// during the (concurrent) handshake and only locks its brief append.
+	knownHostsMu.Lock()
 	setupErr := ensureFile(path)
 	var inner ssh.HostKeyCallback
 	if setupErr == nil {
 		inner, setupErr = knownhosts.New(path)
 	}
+	knownHostsMu.Unlock()
 
 	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 		if setupErr != nil {
@@ -83,6 +94,8 @@ func (a probeAddr) String() string  { return string(a) }
 // MUST leave ssh.ClientConfig.HostKeyAlgorithms unset in that case: an empty
 // constraint would break negotiation and defeat TOFU accept-new.
 func pinnedHostKeyAlgorithms(knownHostsPath, addr string) []string {
+	knownHostsMu.Lock()
+	defer knownHostsMu.Unlock()
 	if err := ensureFile(knownHostsPath); err != nil {
 		return nil
 	}
@@ -146,6 +159,8 @@ func throwawayHostKey() ssh.PublicKey {
 // appendKnownHost pins the presented key for hostname in the known_hosts file.
 func appendKnownHost(path, hostname string, key ssh.PublicKey) error {
 	line := knownhosts.Line([]string{knownhosts.Normalize(hostname)}, key)
+	knownHostsMu.Lock()
+	defer knownHostsMu.Unlock()
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err

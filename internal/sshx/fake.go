@@ -2,7 +2,10 @@
 
 package sshx
 
-import "strings"
+import (
+	"strings"
+	"sync"
+)
 
 type Call struct {
 	Target Target
@@ -12,12 +15,17 @@ type Call struct {
 
 // Fake is a Runner test double: it records calls and returns canned responses.
 type Fake struct {
+	mu        sync.Mutex
 	Calls     []Call
 	Responses map[string]Result // keyed by Key(target, cmd); missing key -> zero Result, nil error
 	Err       error             // if set, returned by every Run
 }
 
+// Run is safe for concurrent use: callers reconcile many nodes in parallel, so
+// the call log and canned responses are guarded by a mutex.
 func (f *Fake) Run(t Target, cmd []string, stdin []byte) (Result, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.Calls = append(f.Calls, Call{Target: t, Cmd: cmd, Stdin: stdin})
 	return f.Responses[Key(t, cmd)], f.Err
 }
