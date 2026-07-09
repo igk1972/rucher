@@ -82,6 +82,55 @@ func TestCmdApplyEmptyDirNoNames(t *testing.T) {
 	}
 }
 
+func TestCmdValidateOK(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "web")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "rucher.yml"), []byte("{}\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "web.container"), []byte("[Container]\nImage=nginx\n"), 0o644)
+
+	var out bytes.Buffer
+	code := cmdValidate(root, nil, &out)
+	if code != 0 {
+		t.Fatalf("code = %d, want 0; output = %q", code, out.String())
+	}
+	if !strings.Contains(out.String(), "web: OK") {
+		t.Fatalf("validate output = %q, want \"web: OK\"", out.String())
+	}
+}
+
+func TestCmdValidateReportsBadPath(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "web")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "rucher.yml"), []byte("{}\n"), 0o644)
+	// The unit references a support file the cadre does not ship.
+	os.WriteFile(filepath.Join(dir, "web.container"),
+		[]byte("[Container]\nImage=nginx\nEnvironmentFile=app.env\n"), 0o644)
+
+	var out bytes.Buffer
+	code := cmdValidate(root, nil, &out)
+	if code == 0 {
+		t.Fatalf("code = 0, want non-zero; output = %q", out.String())
+	}
+	if !strings.Contains(out.String(), "web: ERROR") || !strings.Contains(out.String(), "app.env") {
+		t.Fatalf("validate output = %q, want \"web: ERROR ... app.env\"", out.String())
+	}
+}
+
+func TestCmdValidateEmptyDirNoNames(t *testing.T) {
+	root := t.TempDir()
+
+	var out bytes.Buffer
+	code := cmdValidate(root, nil, &out)
+	if code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if !strings.Contains(out.String(), "no cadres found") {
+		t.Fatalf("validate output = %q, want \"no cadres found\" notice", out.String())
+	}
+}
+
 func TestDiscover(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "web"), 0o755)

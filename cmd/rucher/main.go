@@ -23,6 +23,7 @@ node — on the Linux node (runuser/systemctl/podman):
   node agent run | install [--config PATH]
 
 ops — from the operator machine:
+  ops validate [--dir DIR] [name...]           check cadre manifests + unit files (no node)
   ops plan [--dir DIR] [name...]
   ops nodes [--dir DIR] status [--live] [--json] [node...]
   ops nodes [--dir DIR] join <node> --address <addr> [--json]
@@ -209,6 +210,13 @@ func runOps(args []string, stdout io.Writer) int {
 		return 2
 	}
 	switch args[0] {
+	case "validate":
+		dir, names, err := parseDir(args[1:])
+		if err != nil {
+			fmt.Fprintln(stdout, "error:", err)
+			return 2
+		}
+		return cmdValidate(dir, names, stdout)
 	case "plan":
 		dir, names, err := parseDir(args[1:])
 		if err != nil {

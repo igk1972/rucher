@@ -89,6 +89,34 @@ func cmdPlan(dir string, names []string, out io.Writer) int {
 	return rc
 }
 
+// cmdValidate loads every discovered cadre and reports the first structural
+// problem in each: a bad manifest (strict decode / manifest.Validate) or a bad
+// unit file (missing [Section], an EnvironmentFile pointing at a file the cadre
+// does not ship). It touches no node — a pure, pre-commit check of the cadre
+// directory. Secret keys and resource-limit formats are not checked here; they
+// need decrypted secrets / systemd's own parsing (see cadre.Validate).
+func cmdValidate(dir string, names []string, out io.Writer) int {
+	dirs, err := discover(dir, names)
+	if err != nil {
+		fmt.Fprintln(out, "error:", err)
+		return 1
+	}
+	if len(dirs) == 0 {
+		fmt.Fprintf(out, "no cadres found in %s\n", dir)
+		return 0
+	}
+	rc := 0
+	for _, d := range dirs {
+		if _, err := cadre.Load(d); err != nil {
+			fmt.Fprintf(out, "%s: ERROR %v\n", filepath.Base(d), err)
+			rc = 1
+			continue
+		}
+		fmt.Fprintf(out, "%s: OK\n", filepath.Base(d))
+	}
+	return rc
+}
+
 // cmdNew provisions a cadre's OS user and age identity, printing its recipient.
 func cmdNew(name string, out io.Writer) int {
 	rec, err := reconcile.New(node.NewExec(), name)
