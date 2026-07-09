@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"text/tabwriter"
 	"time"
 
@@ -24,12 +25,13 @@ type deployFlags struct {
 	interval      string
 	store         agentcfg.StoreConfig
 	jsonOut       bool
+	concurrency   int
 	names         []string
 }
 
 // parseDeploy parses the deploy flags; remaining positionals are node names.
 func parseDeploy(args []string) (deployFlags, error) {
-	df := deployFlags{}
+	df := deployFlags{concurrency: 4} // deploy is heavy (large uploads); default modest
 	need := func(i int) (string, error) {
 		if i+1 >= len(args) {
 			return "", fmt.Errorf("%s needs a value", args[i])
@@ -92,6 +94,15 @@ func parseDeploy(args []string) (deployFlags, error) {
 			df.store.InsecureHostKey = true
 		case "--store-ssl":
 			df.store.UseSSL = true
+		case "--concurrency":
+			v, err = need(i)
+			if err == nil {
+				var n int
+				if n, err = strconv.Atoi(v); err == nil && n < 1 {
+					err = fmt.Errorf("--concurrency must be >= 1")
+				}
+				df.concurrency, i = n, i+1
+			}
 		case "--json":
 			df.jsonOut = true
 		default:
@@ -121,6 +132,7 @@ func cmdNodesDeploy(nodesDir string, args []string, out io.Writer) int {
 		PodmanVersion: df.podmanVersion,
 		Store:         df.store,
 		Interval:      df.interval,
+		Concurrency:   df.concurrency,
 		// A store URL (git) or bucket (s3) turns on agent bootstrap.
 		Bootstrap: df.store.URL != "" || df.store.Bucket != "",
 	}

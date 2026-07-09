@@ -14,6 +14,7 @@ import (
 
 	"rucher/internal/agentcfg"
 	"rucher/internal/nodecfg"
+	"rucher/internal/parallel"
 	"rucher/internal/sshresolve"
 	"rucher/internal/sshx"
 )
@@ -80,6 +81,10 @@ type Options struct {
 	Bootstrap bool
 	Store     agentcfg.StoreConfig
 	Interval  string
+
+	// Concurrency bounds how many nodes deploy in parallel; <= 0 means one worker
+	// per node (see parallel.Map).
+	Concurrency int
 }
 
 // Row is the per-node outcome.
@@ -102,10 +107,10 @@ func Run(r sshx.Runner, nodesDir, limaDir string, names []string, opts Options) 
 		}
 		names = listed
 	}
-	rows := make([]Row, 0, len(names))
-	for _, name := range names {
-		rows = append(rows, deployOne(r, nodesDir, limaDir, name, opts))
-	}
+	// Rows come back in the order of names regardless of opts.Concurrency.
+	rows := parallel.Map(names, opts.Concurrency, func(name string) Row {
+		return deployOne(r, nodesDir, limaDir, name, opts)
+	})
 	return rows, nil
 }
 

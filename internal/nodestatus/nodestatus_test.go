@@ -4,6 +4,7 @@ package nodestatus
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -35,7 +36,7 @@ func TestCollectAggregatesAndIsolates(t *testing.T) {
 		// node b: ssh fails (unreachable)
 		sshx.Key(targetB, catCmd): {Code: 255, Stderr: "conn refused"},
 	}}
-	rows, err := Collect(f, nodes, "/nonexistent", nil, false)
+	rows, err := Collect(f, nodes, "/nonexistent", nil, false, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +82,7 @@ func TestCollectInheritsGlobalConnection(t *testing.T) {
 	f := &sshx.Fake{Responses: map[string]sshx.Result{
 		sshx.Key(target, catCmd): {Stdout: statusJSON},
 	}}
-	rows, err := Collect(f, nodes, "/nonexistent", nil, false)
+	rows, err := Collect(f, nodes, "/nonexistent", nil, false, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,13 +94,46 @@ func TestCollectInheritsGlobalConnection(t *testing.T) {
 	}
 }
 
+// TestCollectPreservesOrderUnderConcurrency runs with a bounded worker pool and
+// asserts the rows still come back in the order of names. Also exercises the
+// concurrent path for the race detector.
+func TestCollectPreservesOrderUnderConcurrency(t *testing.T) {
+	nodes := t.TempDir()
+	names := []string{"n0", "n1", "n2", "n3", "n4"}
+	catCmd := []string{"cat", statusPath}
+	resp := map[string]sshx.Result{}
+	for i, name := range names {
+		addr := fmt.Sprintf("10.0.0.%d", i)
+		writeNode(t, nodes, name, "network: {address: "+addr+"}\n")
+		target := sshx.Target{Addr: addr + ":22", User: "root"}
+		resp[sshx.Key(target, catCmd)] = sshx.Result{Stdout: `{"revision":"r","applied":[],"removed":[]}`}
+	}
+	f := &sshx.Fake{Responses: resp}
+
+	rows, err := Collect(f, nodes, "/nonexistent", names, false, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != len(names) {
+		t.Fatalf("rows = %d, want %d", len(rows), len(names))
+	}
+	for i, name := range names {
+		if rows[i].Node != name {
+			t.Fatalf("rows[%d].Node = %q, want %q (order not preserved)", i, rows[i].Node, name)
+		}
+		if !rows[i].Reachable {
+			t.Fatalf("rows[%d] unreachable: %+v", i, rows[i])
+		}
+	}
+}
+
 func TestCollectCapturesTransportError(t *testing.T) {
 	nodes := t.TempDir()
 	writeNode(t, nodes, "c", "network: {address: 3.3.3.3}\n")
 
 	// A transport failure makes Run return a non-nil error rather than a Result.
 	f := &sshx.Fake{Err: errors.New("ssh spawn failed")}
-	rows, err := Collect(f, nodes, "/nonexistent", nil, false)
+	rows, err := Collect(f, nodes, "/nonexistent", nil, false, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

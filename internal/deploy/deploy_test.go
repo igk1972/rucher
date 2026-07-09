@@ -3,6 +3,7 @@
 package deploy
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -129,6 +130,46 @@ func TestDeployNodeFailureRecorded(t *testing.T) {
 	r := rows[0]
 	if r.OK || len(r.Errors) == 0 || !strings.Contains(r.Errors[0], "node key init") {
 		t.Fatalf("expected a recorded key-init failure, got %+v", r)
+	}
+}
+
+// TestDeployPreservesOrderUnderConcurrency deploys several nodes with a bounded
+// pool and asserts rows come back in the order of names. Also exercises the
+// concurrent path for the race detector.
+func TestDeployPreservesOrderUnderConcurrency(t *testing.T) {
+	root := t.TempDir()
+	names := []string{"n0", "n1", "n2", "n3"}
+	resp := map[string]sshx.Result{}
+	for i, name := range names {
+		addr := fmt.Sprintf("10.0.0.%d", i)
+		nd := filepath.Join(root, name)
+		if err := os.MkdirAll(nd, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(nd, "configuration.yml"),
+			[]byte("network:\n  address: "+addr+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		tg := target(addr)
+		resp[sshx.Key(tg, []string{"dpkg", "--print-architecture"})] = sshx.Result{Stdout: "arm64\n"}
+		resp[sshx.Key(tg, []string{"sudo", installPath, "node", "key", "init"})] = sshx.Result{Stdout: "age1" + name + "\n"}
+	}
+	f := &sshx.Fake{Responses: resp}
+
+	rows, err := Run(f, root, "", names, Options{Binary: []byte("x"), Concurrency: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != len(names) {
+		t.Fatalf("rows = %d, want %d", len(rows), len(names))
+	}
+	for i, name := range names {
+		if rows[i].Node != name {
+			t.Fatalf("rows[%d].Node = %q, want %q (order not preserved)", i, rows[i].Node, name)
+		}
+		if !rows[i].OK {
+			t.Fatalf("rows[%d] not OK: %+v", i, rows[i])
+		}
 	}
 }
 

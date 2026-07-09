@@ -40,9 +40,9 @@ func knownHostsPath() string {
 
 // cmdNodesStatus gathers per-node status over ssh and renders it as either a
 // human-readable table or, when jsonOut is set, a machine-readable JSON array.
-func cmdNodesStatus(nodesDir string, names []string, live, jsonOut bool, out io.Writer) int {
+func cmdNodesStatus(nodesDir string, names []string, live, jsonOut bool, concurrency int, out io.Writer) int {
 	client := sshx.NewClient(knownHostsPath(), 10*time.Second)
-	rows, err := nodestatus.Collect(client, nodesDir, limaDir(), names, live)
+	rows, err := nodestatus.Collect(client, nodesDir, limaDir(), names, live, concurrency)
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
 		return 1

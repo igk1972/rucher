@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 )
 
 func usage() string {
@@ -25,9 +26,9 @@ node — on the Linux node (runuser/systemctl/podman):
 ops — from the operator machine:
   ops validate [--dir DIR] [name...]           check cadre manifests + unit files (no node)
   ops plan [--dir DIR] [name...]
-  ops nodes [--dir DIR] status [--live] [--json] [node...]
+  ops nodes [--dir DIR] status [--live] [--json] [--concurrency N] [node...]
   ops nodes [--dir DIR] join <node> --address <addr> [--json]
-  ops nodes [--dir DIR] deploy [--version TAG | --binary PATH] [--store-url URL ...] [node...]
+  ops nodes [--dir DIR] deploy [--version TAG | --binary PATH] [--store-url URL ...] [--concurrency N] [node...]
   ops key seal <name> --to <recipient> [--to <recipient> ...]
   ops secrets encrypt [--to <rcpt>... | --cadre <name> --seal-to <node-rcpt>...] [--in F] [--out F]
 `
@@ -265,18 +266,31 @@ func runOpsNodes(args []string, stdout io.Writer) int {
 	switch rest[0] {
 	case "status":
 		live, jsonOut := false, false
+		concurrency := 8 // status is light (1-2 cats per node); a higher default is fine
 		var names []string
-		for _, a := range rest[1:] {
-			switch a {
+		sargs := rest[1:]
+		for i := 0; i < len(sargs); i++ {
+			switch a := sargs[i]; a {
 			case "--live":
 				live = true
 			case "--json":
 				jsonOut = true
+			case "--concurrency":
+				if i+1 >= len(sargs) {
+					fmt.Fprintln(stdout, "error: --concurrency needs a value")
+					return 2
+				}
+				n, err := strconv.Atoi(sargs[i+1])
+				if err != nil || n < 1 {
+					fmt.Fprintln(stdout, "error: --concurrency must be a positive integer")
+					return 2
+				}
+				concurrency, i = n, i+1
 			default:
 				names = append(names, a)
 			}
 		}
-		return cmdNodesStatus(nodesDir, names, live, jsonOut, stdout)
+		return cmdNodesStatus(nodesDir, names, live, jsonOut, concurrency, stdout)
 	case "join":
 		return cmdNetJoin(nodesDir, rest[1:], stdout)
 	case "deploy":
