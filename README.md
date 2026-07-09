@@ -12,6 +12,9 @@ across many nodes — a pull-based GitOps agent (each node reconciles the cadres
 every node over SSH, and per-cadre overlay networking. See [`docs/`](docs/) for the full
 reference.
 
+**New here?** Follow the [Quick start](docs/quickstart.md) — from install to a running
+cadre in about five minutes.
+
 ## What it does
 
 - You author Quadlet units (`.container`/`.volume`/`.network`/`.pod`/…) plus any support

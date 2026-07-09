@@ -16,6 +16,7 @@ connectivity between workloads across nodes.
 
 | Document | What it covers |
 |----------|----------------|
+| [quickstart.md](quickstart.md) | From install to a first running cadre on one node, in ~5 minutes |
 | [architecture.md](architecture.md) | Components and how they fit; the reconcile data flow |
 | [cli.md](cli.md) | Reference for every `rucher` command, its flags and an example |
 | [cadres.md](cadres.md) | Cadre directory layout, manifest schema, the per-user rootless model, and how `plan`/`apply` reconcile |
