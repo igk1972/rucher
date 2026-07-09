@@ -2,6 +2,12 @@
 
 Thanks for your interest in contributing.
 
+## Code of Conduct
+
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By
+participating, you are expected to uphold it. Report unacceptable behavior to
+igk@igk.one.
+
 ## License of contributions
 
 rucher is licensed under **AGPL-3.0-or-later**. By submitting a contribution,
