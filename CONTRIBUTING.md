@@ -16,8 +16,8 @@ you agree that it is provided under the same license (inbound = outbound).
 ## Developer Certificate of Origin (DCO)
 
 We use the Developer Certificate of Origin to track provenance of contributions.
-Every commit must be signed off, certifying that you wrote the code (or otherwise
-have the right to submit it under the project's license). This is a lightweight,
+Every commit in a pull request must be signed off, certifying that you wrote the code
+(or otherwise have the right to submit it under the project's license). This is a lightweight,
 CLA-free alternative and requires no separate paperwork.
 
 ### How to sign off
