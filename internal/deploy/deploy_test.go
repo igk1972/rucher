@@ -173,22 +173,22 @@ func TestDeployPreservesOrderUnderConcurrency(t *testing.T) {
 	}
 }
 
-func TestPodmanURL(t *testing.T) {
+func TestPodmanTarballURL(t *testing.T) {
 	// Empty version resolves to the newest release via the latest/download redirect.
-	if got, want := podmanURL(""),
-		"https://github.com/mgoltzsche/podman-static/releases/latest/download/podman-linux-${arch}.tar.gz"; got != want {
-		t.Errorf("podmanURL(\"\") = %q, want %q", got, want)
+	if got, want := podmanTarballURL(""),
+		"https://github.com/igk1972/podman-6-deb/releases/latest/download/podman6-trixie-${arch}.tar.gz"; got != want {
+		t.Errorf("podmanTarballURL(\"\") = %q, want %q", got, want)
 	}
-	// A pinned version maps to that exact release tag.
-	if got, want := podmanURL("5.8.4"),
-		"https://github.com/mgoltzsche/podman-static/releases/download/v5.8.4/podman-linux-${arch}.tar.gz"; got != want {
-		t.Errorf("podmanURL(pinned) = %q, want %q", got, want)
+	// A pinned version maps to that release tag.
+	if got, want := podmanTarballURL("v6.0.1"),
+		"https://github.com/igk1972/podman-6-deb/releases/download/v6.0.1/podman6-trixie-${arch}.tar.gz"; got != want {
+		t.Errorf("podmanTarballURL(pinned) = %q, want %q", got, want)
 	}
 }
 
-// TestDeployPodmanVersionThreaded proves the deploy-time podman override reaches the
-// provision script that runs on the node (streamed as the `sudo sh -s` stdin).
-func TestDeployPodmanVersionThreaded(t *testing.T) {
+// TestDeployPodmanSourceThreaded proves the deploy-time podman source/version reaches
+// the provision script that runs on the node (streamed as the `sudo sh -s` stdin).
+func TestDeployPodmanSourceThreaded(t *testing.T) {
 	provisionStdin := func(opts Options) string {
 		dir := nodesDirWith(t, "web", "10.0.0.1")
 		tg := target("10.0.0.1")
@@ -206,11 +206,17 @@ func TestDeployPodmanVersionThreaded(t *testing.T) {
 		}
 		return string(c.Stdin)
 	}
-	if s := provisionStdin(Options{}); !strings.Contains(s, "/releases/latest/download/podman-linux-${arch}.tar.gz") {
-		t.Errorf("default deploy should provision the latest podman:\n%s", s)
+	// Default: the distro apt package.
+	if s := provisionStdin(Options{}); !strings.Contains(s, "apt-get install -y -qq -o Dpkg::Options::=--force-confold podman") {
+		t.Errorf("default deploy should apt-install podman:\n%s", s)
 	}
-	if s := provisionStdin(Options{PodmanVersion: "5.9.0"}); !strings.Contains(s, "/download/v5.9.0/podman-linux-${arch}.tar.gz") {
-		t.Errorf("pinned deploy should provision the pinned podman:\n%s", s)
+	// Prebuilt, pinned tag: the per-arch .deb tarball for that release.
+	if s := provisionStdin(Options{PodmanSource: "prebuilt", PodmanVersion: "v6.0.1"}); !strings.Contains(s, "/releases/download/v6.0.1/podman6-trixie-${arch}.tar.gz") {
+		t.Errorf("prebuilt deploy should provision the pinned tarball:\n%s", s)
+	}
+	// Prebuilt, no version: the latest tarball.
+	if s := provisionStdin(Options{PodmanSource: "prebuilt"}); !strings.Contains(s, "/releases/latest/download/podman6-trixie-${arch}.tar.gz") {
+		t.Errorf("prebuilt deploy (latest) should provision the latest tarball:\n%s", s)
 	}
 }
 

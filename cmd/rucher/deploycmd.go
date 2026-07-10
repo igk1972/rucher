@@ -18,15 +18,16 @@ import (
 
 // deployFlags is the parsed `ops nodes deploy` command line.
 type deployFlags struct {
-	version       string
-	repo          string
-	binaryPath    string
-	podmanVersion string
-	interval      string
-	store         agentcfg.StoreConfig
-	jsonOut       bool
-	concurrency   int
-	names         []string
+	version        string
+	repo           string
+	binaryPath     string
+	podmanPrebuilt bool
+	podmanVersion  string
+	interval       string
+	store          agentcfg.StoreConfig
+	jsonOut        bool
+	concurrency    int
+	names          []string
 }
 
 // parseDeploy parses the deploy flags; remaining positionals are node names.
@@ -51,6 +52,8 @@ func parseDeploy(args []string) (deployFlags, error) {
 		case "--binary":
 			v, err = need(i)
 			df.binaryPath, i = v, i+1
+		case "--podman-prebuilt":
+			df.podmanPrebuilt = true
 		case "--podman-version":
 			v, err = need(i)
 			df.podmanVersion, i = v, i+1
@@ -115,6 +118,9 @@ func parseDeploy(args []string) (deployFlags, error) {
 	if df.binaryPath != "" && df.version != "" {
 		return deployFlags{}, fmt.Errorf("specify either --binary or --version, not both")
 	}
+	if df.podmanVersion != "" && !df.podmanPrebuilt {
+		return deployFlags{}, fmt.Errorf("--podman-version requires --podman-prebuilt")
+	}
 	return df, nil
 }
 
@@ -126,9 +132,14 @@ func cmdNodesDeploy(nodesDir string, args []string, out io.Writer) int {
 		fmt.Fprintln(out, "error:", err)
 		return 2
 	}
+	source := ""
+	if df.podmanPrebuilt {
+		source = "prebuilt"
+	}
 	opts := deploy.Options{
 		Version:       df.version,
 		Repo:          df.repo,
+		PodmanSource:  source,
 		PodmanVersion: df.podmanVersion,
 		Store:         df.store,
 		Interval:      df.interval,

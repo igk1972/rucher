@@ -25,36 +25,58 @@ const (
 	agentCfg    = "/etc/rucher/agent.yml"
 	// DefaultRepo is the GitHub owner/repo whose Release assets nodes download.
 	DefaultRepo = "igk1972/rucher"
-	// podmanRepo is the GitHub owner/repo whose static podman build a node installs
-	// when it has no podman yet.
-	podmanRepo = "mgoltzsche/podman-static"
+	// podmanDebRepo is the GitHub owner/repo whose Release carries prebuilt podman .deb
+	// (per-arch tarballs) a node installs when Podman.Source is "prebuilt".
+	podmanDebRepo = "igk1972/podman-6-deb"
 )
 
-// podmanURL is the podman-static tarball a node downloads for its arch; ${arch} is
-// left for dpkg to resolve on the node. A pinned version maps to that exact release;
-// empty resolves to the newest one via GitHub's /releases/latest/download/ redirect
-// (the asset name is stable across releases). Mirrors assetURL for the rucher binary.
-func podmanURL(version string) string {
-	const asset = "podman-linux-${arch}.tar.gz"
+// podmanTarballURL is the prebuilt per-arch .deb tarball a node downloads; ${arch} is
+// left for the shell to resolve on the node. A pinned version maps to that release tag;
+// empty resolves to the newest one via GitHub's /releases/latest/download/ redirect.
+func podmanTarballURL(version string) string {
+	const asset = "podman6-trixie-${arch}.tar.gz"
 	if version != "" {
-		return fmt.Sprintf("https://github.com/%s/releases/download/v%s/%s", podmanRepo, version, asset)
+		return fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", podmanDebRepo, version, asset)
 	}
-	return fmt.Sprintf("https://github.com/%s/releases/latest/download/%s", podmanRepo, asset)
+	return fmt.Sprintf("https://github.com/%s/releases/latest/download/%s", podmanDebRepo, asset)
 }
 
-// provisionScript ensures the base platform: a static podman (only when absent),
-// the uidmap helpers, /etc/subuid+subgid, and /dev/net/tun for overlays. It is
-// idempotent and Debian-oriented (apt-get/dpkg), matching node-requirements.md.
-// podmanVersion pins the podman-static release; empty installs the latest.
-// Run via `sudo sh -s` with the script on stdin so sshx passes it intact.
-func provisionScript(podmanVersion string) string {
-	return `set -e
-arch=$(dpkg --print-architecture)
-if ! command -v podman >/dev/null 2>&1; then
-  curl -fsSL "` + podmanURL(podmanVersion) + `" -o /tmp/podman-static.tar.gz
-  cd /tmp && tar -xzf podman-static.tar.gz && cp -r podman-linux-*/usr podman-linux-*/etc / && rm -rf podman-linux-* podman-static.tar.gz
+// aptPodman installs the distro podman package (journald-capable) when absent.
+const aptPodman = `if ! command -v podman >/dev/null 2>&1; then
+  apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::=--force-confold podman
 fi
-command -v newuidmap >/dev/null 2>&1 || { apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq uidmap; }
+`
+
+// prebuiltPodman installs podman from the per-arch .deb tarball in podmanDebRepo's
+// Release (version pins a tag, empty = latest). apt resolves conmon/crun from the .deb
+// deps; passt is added explicitly because the AlviStack .deb don't depend on it yet
+// rootless networking needs pasta. The rootful storage.conf the .deb ship is corrected
+// per-user in provision.EnsureUser.
+func prebuiltPodman(version string) string {
+	return `if ! command -v podman >/dev/null 2>&1; then
+  arch=$(dpkg --print-architecture)
+  curl -fsSL "` + podmanTarballURL(version) + `" -o /tmp/p6.tgz
+  mkdir -p /tmp/p6 && tar -xzf /tmp/p6.tgz -C /tmp/p6
+  apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::=--force-confold /tmp/p6/*.deb passt
+  rm -rf /tmp/p6 /tmp/p6.tgz
+fi
+`
+}
+
+// provisionScript ensures the base platform: podman (only when absent), the uidmap
+// helpers, /etc/subuid+subgid, and /dev/net/tun for overlays. It is idempotent and
+// Debian-oriented (apt-get/dpkg), matching node-requirements.md. source "prebuilt"
+// installs the .deb tarball (version pins a release tag, empty = latest); anything else
+// installs the distro apt package. Run via `sudo sh -s` with the script on stdin.
+func provisionScript(source, version string) string {
+	install := aptPodman
+	if source == "prebuilt" {
+		install = prebuiltPodman(version)
+	}
+	return `set -e
+` + install + `command -v newuidmap >/dev/null 2>&1 || { apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq uidmap; }
 touch /etc/subuid /etc/subgid
 modprobe tun 2>/dev/null || true
 echo tun > /etc/modules-load.d/tun.conf
@@ -72,8 +94,12 @@ type Options struct {
 	Version string // release tag; empty => latest
 	Repo    string // owner/repo; empty => DefaultRepo
 
-	// PodmanVersion pins the podman-static release provisioned onto a node that
-	// lacks podman; empty installs the latest.
+	// PodmanSource selects where a node without podman gets it: "prebuilt" installs the
+	// .deb tarball from podmanDebRepo; anything else (default) uses the distro apt package.
+	// Overrides configuration.yml's podman.source.
+	PodmanSource string
+	// PodmanVersion pins the prebuilt release tag (only meaningful with PodmanSource
+	// "prebuilt"); empty installs the latest. Overrides configuration.yml's podman.version.
 	PodmanVersion string
 
 	// Agent bootstrap. When Bootstrap is true, deploy writes /etc/rucher/agent.yml
@@ -136,9 +162,17 @@ func deployOne(r sshx.Runner, nodesDir, limaDir, name string, opts Options) Row 
 	}
 	row.Arch = strings.TrimSpace(res.Stdout)
 
-	// 2. Base platform (podman-static/uidmap/tun): idempotent — installs only what
-	//    is missing. Run over stdin so the multi-line script survives sshx's join.
-	if msg, ok := runStep(r, target, []string{"sudo", "sh", "-s"}, []byte(provisionScript(opts.PodmanVersion))); !ok {
+	// 2. Base platform (podman/uidmap/tun): idempotent — installs only what is missing.
+	//    Run over stdin so the multi-line script survives sshx's join. CLI opts override
+	//    the node's configuration.yml podman.{source,version}.
+	source, version := cfg.Podman.Source, cfg.Podman.Version
+	if opts.PodmanSource != "" {
+		source = opts.PodmanSource
+	}
+	if opts.PodmanVersion != "" {
+		version = opts.PodmanVersion
+	}
+	if msg, ok := runStep(r, target, []string{"sudo", "sh", "-s"}, []byte(provisionScript(source, version))); !ok {
 		return fail(row, "provision base platform: "+msg)
 	}
 

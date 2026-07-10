@@ -23,9 +23,18 @@ type Connection struct {
 	Identity string `yaml:"identity"`
 }
 
+// Podman selects where a node gets podman when it has none yet. Source "apt" (the
+// default) installs the distro package; "prebuilt" installs the .deb from a GitHub
+// Release (see deploy.podmanDebRepo), with Version pinning a release tag (empty = latest).
+type Podman struct {
+	Source  string `yaml:"source"`
+	Version string `yaml:"version"`
+}
+
 type Config struct {
 	Network    Network    `yaml:"network"`
 	Connection Connection `yaml:"connection"`
+	Podman     Podman     `yaml:"podman"`
 }
 
 func Load(path string) (Config, error) {

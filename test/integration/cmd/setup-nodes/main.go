@@ -10,33 +10,30 @@
 //	go run ./test/integration/cmd/setup-nodes verify      # just print per-node state
 //
 // Config via env: RUCHER_IT_PREFIX (lima-essaim), RUCHER_IT_COUNT (3),
-// RUCHER_IT_PODMAN (5.8.4), RUCHER_IT_TEMPLATE (template:debian),
-// RUCHER_IT_CPUS/MEMORY/DISK (2 / 0.5 / 4), RUCHER_IT_NODES_DIR (<module>/../nodes).
+// RUCHER_IT_PODMAN6 (empty => distro apt; else a prebuilt release tag or "latest"),
+// RUCHER_IT_TEMPLATE (template:debian), RUCHER_IT_CPUS/MEMORY/DISK (2 / 0.5 / 4),
+// RUCHER_IT_NODES_DIR (<module>/../nodes).
 package main
 
 import (
 	"bytes"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 )
 
 var (
-	prefix    = env("RUCHER_IT_PREFIX", "lima-essaim")
-	count     = envInt("RUCHER_IT_COUNT", 3)
-	podmanVer = env("RUCHER_IT_PODMAN", "5.8.4") // exact mgoltzsche/podman-static release
-	template  = env("RUCHER_IT_TEMPLATE", "template:debian")
-	cpus      = env("RUCHER_IT_CPUS", "2")
-	memory    = env("RUCHER_IT_MEMORY", "0.5")
-	disk      = env("RUCHER_IT_DISK", "4")
-	cacheDir  = filepath.Join(home(), ".cache", "rucher-it-setup")
-	nodesDir  = env("RUCHER_IT_NODES_DIR", defaultNodesDir())
+	prefix   = env("RUCHER_IT_PREFIX", "lima-essaim")
+	count    = envInt("RUCHER_IT_COUNT", 3)
+	podman6  = env("RUCHER_IT_PODMAN6", "") // empty => distro apt; else prebuilt release tag (or "latest")
+	template = env("RUCHER_IT_TEMPLATE", "template:debian")
+	cpus     = env("RUCHER_IT_CPUS", "2")
+	memory   = env("RUCHER_IT_MEMORY", "0.5")
+	disk     = env("RUCHER_IT_DISK", "4")
+	nodesDir = env("RUCHER_IT_NODES_DIR", defaultNodesDir())
 )
 
 func main() {
@@ -152,22 +149,14 @@ func provisionOne(node string) error {
 		return fmt.Errorf("unexpected architecture %q", arch)
 	}
 
-	// 1. podman (static bundle; crun/conmon/netavark/pasta/… included). Skip if at target.
-	if ver, _ := limaShell(node, "sh", "-c", "podman --version 2>/dev/null || true"); strings.Contains(ver, " "+podmanVer) {
-		logf("%s: podman %s already present", node, podmanVer)
+	// 1. podman: install if absent. Distro apt (default) or the prebuilt .deb tarball
+	//    (RUCHER_IT_PODMAN6). apt/dpkg resolve conmon/crun/passt on the node.
+	if ver, _ := limaShell(node, "sh", "-c", "command -v podman >/dev/null 2>&1 && podman --version || true"); strings.Contains(ver, "podman version") {
+		logf("%s: podman already present (%s)", node, strings.TrimSpace(ver))
+	} else if err := limaSudo(node, podmanInstallScript()); err != nil {
+		return fmt.Errorf("podman install: %w", err)
 	} else {
-		tar := filepath.Join(cacheDir, fmt.Sprintf("podman-linux-%s-v%s.tar.gz", arch, podmanVer))
-		url := fmt.Sprintf("https://github.com/mgoltzsche/podman-static/releases/download/v%s/podman-linux-%s.tar.gz", podmanVer, arch)
-		if err := download(url, tar); err != nil {
-			return err
-		}
-		if err := limaCopy(tar, node+":/tmp/podman-static.tar.gz"); err != nil {
-			return err
-		}
-		if err := limaSudo(node, `cd /tmp && rm -rf podman-linux-* && tar -xzf podman-static.tar.gz && cp -r podman-linux-*/usr podman-linux-*/etc / && rm -rf podman-linux-* podman-static.tar.gz`); err != nil {
-			return fmt.Errorf("podman install: %w", err)
-		}
-		logf("%s: podman %s installed", node, podmanVer)
+		logf("%s: podman installed", node)
 	}
 
 	// 2. rootless prereqs + tun device.
@@ -175,6 +164,30 @@ func provisionOne(node string) error {
 		return fmt.Errorf("rootless/tun prereqs: %w", err)
 	}
 	return nil
+}
+
+// podmanInstallScript installs podman via distro apt, or from the prebuilt .deb tarball
+// in igk1972/podman-6-deb's Release when RUCHER_IT_PODMAN6 is set (a release tag, or
+// "latest"). Mirrors deploy.provisionScript.
+func podmanInstallScript() string {
+	if podman6 == "" {
+		return `set -e
+apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::=--force-confold podman
+`
+	}
+	ref := "download/" + podman6
+	if podman6 == "latest" {
+		ref = "latest/download"
+	}
+	return `set -e
+arch=$(dpkg --print-architecture)
+curl -fsSL "https://github.com/igk1972/podman-6-deb/releases/` + ref + `/podman6-trixie-${arch}.tar.gz" -o /tmp/p6.tgz
+mkdir -p /tmp/p6 && tar -xzf /tmp/p6.tgz -C /tmp/p6
+apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Options::=--force-confold /tmp/p6/*.deb passt
+rm -rf /tmp/p6 /tmp/p6.tgz
+`
 }
 
 // --- verify -----------------------------------------------------------------
@@ -226,47 +239,6 @@ func limaSudo(node, script string) error {
 	return nil
 }
 
-func limaCopy(local, remote string) error {
-	if _, errb, code := run("limactl", []string{"copy", local, remote}, nil); code != 0 {
-		return fmt.Errorf("copy %s -> %s: %s", local, remote, strings.TrimSpace(errb))
-	}
-	return nil
-}
-
-// download fetches url to dest (cached: skips a non-empty existing file). Go's HTTP
-// client follows GitHub's redirect to objects.githubusercontent.com cleanly.
-func download(url, dest string) error {
-	if fi, err := os.Stat(dest); err == nil && fi.Size() > 0 {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
-	}
-	logf("download %s", url)
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GET %s: %s", url, resp.Status)
-	}
-	tmp := dest + ".tmp"
-	f, err := os.Create(tmp)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp, dest)
-}
-
 // --- small utilities --------------------------------------------------------
 
 func env(k, def string) string {
@@ -283,14 +255,6 @@ func envInt(k string, def int) int {
 		}
 	}
 	return def
-}
-
-func home() string {
-	h, err := os.UserHomeDir()
-	if err != nil {
-		fatal("home dir: %v", err)
-	}
-	return h
 }
 
 // defaultNodesDir is <module>/../nodes — the operator node-config dir the suite reads,
