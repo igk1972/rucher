@@ -3,7 +3,7 @@
 Multi-node manager for **podman Quadlet** workloads. It runs each workload group as an
 isolated *cadre* — a directory of Quadlet units reconciled into rootless-podman services
 under per-user systemd — and manages many nodes from one place. Each cadre is an isolated
-environment backed by a dedicated Linux system user, its own podman secret and
+environment backed by a dedicated Linux user, its own podman secret and
 registry-credential store, its own age identity, and (optionally) a systemd resource slice.
 
 At its core is an idempotent single-node reconciler; on top of it, optional layers extend it
@@ -119,7 +119,7 @@ path are byte-compatible with the `sops` CLI.
 
 | What | Path |
 |------|------|
-| Cadre user | `rucher-<name>` (system user, nologin) |
+| Cadre user | `rucher-<name>` (nologin) |
 | Home | `/var/lib/rucher/cadres/<name>` |
 | Units + support files | `<home>/.config/containers/systemd/` |
 | age identity / recipient | `<home>/.config/rucher/age/` |
