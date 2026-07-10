@@ -68,7 +68,7 @@ func EnsureUser(r node.Runner, name string) (int, error) {
 	if res, _ := r.Root([]string{"id", "-u", user}, nil); res.Code != 0 {
 		home := HomeDir(name)
 		if res, err := r.Root([]string{
-			"useradd", "--system", "--create-home", "--home-dir", home,
+			"useradd", "--create-home", "--home-dir", home,
 			"--shell", "/usr/sbin/nologin", user,
 		}, nil); err != nil || res.Code != 0 {
 			return 0, fmt.Errorf("useradd %s: code=%d stderr=%s err=%v", user, res.Code, res.Stderr, err)
@@ -111,7 +111,27 @@ func EnsureUser(r node.Runner, name string) (int, error) {
 		uid, uid)}, nil); err != nil || res.Code != 0 {
 		return 0, fmt.Errorf("user manager for %s (uid %d) not ready: code=%d stderr=%s err=%v", user, uid, res.Code, res.Stderr, err)
 	}
+	if err := writeStorageConf(r, user, uid, HomeDir(name)); err != nil {
+		return 0, err
+	}
 	return uid, nil
+}
+
+// writeStorageConf installs the cadre user's ~/.config/containers/storage.conf with
+// rootless paths. Harmless for the distro podman (these are already its rootless
+// defaults), but required for the prebuilt podman: its shipped
+// /usr/share/containers/storage.conf pins rootful runroot/graphroot, which breaks
+// rootless with "RunRoot is not writable". Idempotent (overwrites).
+func writeStorageConf(r node.Runner, user string, uid int, home string) error {
+	conf := fmt.Sprintf("[storage]\ndriver = \"overlay\"\nrunroot = \"/run/user/%d/containers\"\ngraphroot = \"%s/.local/share/containers/storage\"\n", uid, home)
+	dir := home + "/.config/containers"
+	if _, err := r.User(user, uid, []string{"mkdir", "-p", dir}, nil); err != nil {
+		return err
+	}
+	if _, err := r.User(user, uid, []string{"tee", dir + "/storage.conf"}, []byte(conf)); err != nil {
+		return err
+	}
+	return nil
 }
 
 func ApplyResources(r node.Runner, uid int, res manifest.Resources) error {

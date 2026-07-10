@@ -199,9 +199,9 @@ func cmdStatus(names []string, out io.Writer) int {
 	return rc
 }
 
-// cmdLogs prints the last 200 journal lines for one of a cadre's units.
-// A system user's own `journalctl --user` cannot open the journal, so the entries
-// are read as root filtered to the user's unit (_SYSTEMD_USER_UNIT + _UID).
+// cmdLogs prints the last 200 journal lines for one of a cadre's units. rucher runs as
+// root, so it reads the journal as root, filtered to the cadre user's unit
+// (_SYSTEMD_USER_UNIT + _UID) — this works regardless of which journal file holds them.
 func cmdLogs(name, unit string, out io.Writer) int {
 	r := node.NewExec()
 	res, err := r.Root([]string{"id", "-u", provision.UserName(name)}, nil)
