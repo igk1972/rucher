@@ -183,13 +183,25 @@ func Remove(r node.Runner, name string, purge bool) error {
 	if !purge {
 		return nil
 	}
-	// Tear down everything the user runs before deleting the account: userdel refuses
-	// to remove a user with live processes. These are best-effort (a user with no
-	// session/manager makes them no-ops), so their exit codes are not checked.
+	// Graceful teardown before deleting the account: SIGKILL is a last resort, not the
+	// path. disable-linger first so the manager isn't re-spawned; stop every loaded
+	// service so each workload gets its TimeoutStopSec (stateful workloads exit cleanly);
+	// kill the rootless pause process (it outlives the manager and would block userdel —
+	// why the old code went straight to SIGKILL); stop the manager; then wait, bounded,
+	// for the processes to exit. All best-effort (a user with no live manager -> no-ops).
 	r.Root([]string{"loginctl", "disable-linger", user}, nil)
+	if prior.UID != 0 {
+		o := ops.Ops{R: r, User: user, UID: prior.UID}
+		o.StopAllUserServices()
+		o.KillPause()
+		r.Root([]string{"systemctl", "stop", fmt.Sprintf("user@%d.service", prior.UID)}, nil)
+	}
 	r.Root([]string{"loginctl", "terminate-user", user}, nil)
-	r.Root([]string{"pkill", "-KILL", "-u", user}, nil)
-	r.Root([]string{"sleep", "1"}, nil) // let the kernel reap the killed processes
+	// Bounded wait for the user's processes to exit ($1 = user, no shell injection),
+	// instead of a fixed sleep that races the async terminate.
+	r.Root([]string{"sh", "-c", `for i in $(seq 1 100); do pgrep -u "$1" >/dev/null 2>&1 || exit 0; sleep 0.1; done`, "_", user}, nil)
+	r.Root([]string{"pkill", "-KILL", "-u", user}, nil) // last resort for anything that ignored SIGTERM
+	r.Root([]string{"sleep", "1"}, nil)                 // let the kernel reap any killed processes
 	res, err := r.Root([]string{"userdel", "-r", user}, nil)
 	if err != nil {
 		return err

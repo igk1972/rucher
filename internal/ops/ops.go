@@ -37,6 +37,17 @@ func (o Ops) EnableNow(u string) error   { return o.sc("enable", "--now", u) }
 func (o Ops) RestartUnit(u string) error { return o.sc("restart", u) }
 func (o Ops) DisableNow(u string) error  { return o.sc("disable", "--now", u) }
 
+// StopAllUserServices gracefully stops every loaded service of the user's manager —
+// wider than the units tracked in state. argv is exec'd directly (no shell), so the
+// '*.service' glob reaches systemctl intact and systemd expands it over loaded units.
+func (o Ops) StopAllUserServices() error { return o.sc("stop", "*.service") }
+
+// KillPause tears down the rootless pause process (and any running containers), which
+// otherwise outlives the user manager and would block userdel. Best-effort.
+func (o Ops) KillPause() {
+	o.R.User(o.User, o.UID, []string{"podman", "system", "migrate"}, nil)
+}
+
 func (o Ops) SecretRemove(name string) error {
 	// ignore "no such secret"; treat only real failures as errors
 	o.R.User(o.User, o.UID, []string{"podman", "secret", "rm", name}, nil)

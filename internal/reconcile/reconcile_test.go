@@ -292,6 +292,50 @@ func TestRemovePurgeDeletesUser(t *testing.T) {
 	}
 }
 
+// TestRemovePurgeGracefulTeardown checks that --purge stops the user's services and its
+// rootless pause process gracefully before the last-resort SIGKILL and userdel.
+func TestRemovePurgeGracefulTeardown(t *testing.T) {
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
+		t.Fatal(err)
+	}
+	f := &node.Fake{Responses: map[string]node.Result{}}
+	if err := Remove(f, "web", true); err != nil {
+		t.Fatal(err)
+	}
+	idx := func(want string) int {
+		for i, c := range f.Calls {
+			if strings.Join(c.Argv, " ") == want {
+				return i
+			}
+		}
+		return -1
+	}
+	disableLinger := idx("loginctl disable-linger rucher-web")
+	stopAll := idx("systemctl --user stop *.service")
+	migrate := idx("podman system migrate")
+	stopMgr := idx("systemctl stop user@1234.service")
+	kill := idx("pkill -KILL -u rucher-web")
+	userdel := idx("userdel -r rucher-web")
+
+	for name, i := range map[string]int{
+		"disable-linger": disableLinger, "stop *.service": stopAll, "pause migrate": migrate,
+		"stop user@": stopMgr, "pkill -KILL": kill, "userdel": userdel,
+	} {
+		if i < 0 {
+			t.Fatalf("teardown missing %q call", name)
+		}
+	}
+	// Graceful stops precede the last-resort SIGKILL, which precedes userdel.
+	if !(disableLinger < stopAll && stopAll < stopMgr && stopMgr < kill && kill < userdel) {
+		t.Errorf("teardown order wrong: disable-linger=%d stop*=%d stopMgr=%d kill=%d userdel=%d",
+			disableLinger, stopAll, stopMgr, kill, userdel)
+	}
+	if migrate > kill {
+		t.Errorf("pause migrate (%d) must precede SIGKILL (%d)", migrate, kill)
+	}
+}
+
 func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
