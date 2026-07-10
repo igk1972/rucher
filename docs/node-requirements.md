@@ -14,10 +14,12 @@ tooling ensures on every node; the manager assumes they are present.
 
 ## podman (rootless)
 
-- **podman**, rootless-capable. When a node has none, `ops nodes deploy` installs a statically
-  linked [`mgoltzsche/podman-static`](https://github.com/mgoltzsche/podman-static) build with all
-  dependencies bundled — the **latest** release by default, or a pinned one via
-  `--podman-version <tag>` (see [cli.md](cli.md)). A node that already has podman is left as-is.
+- **podman**, rootless-capable. When a node has none, `ops nodes deploy` installs the distro
+  (apt) podman by default (journald-capable). Alternatively `--podman-prebuilt` (or
+  `podman.source: prebuilt` in the node's `configuration.yml`) installs prebuilt podman 6.x
+  `.deb` from [`igk1972/podman-6-deb`](https://github.com/igk1972/podman-6-deb)'s Release —
+  latest by default, or a pinned tag via `--podman-version <tag>` (see [cli.md](cli.md)). A
+  node that already has podman is left as-is.
 - **Rootless prerequisites**:
   - the `uidmap` package providing the setuid helpers `newuidmap` / `newgidmap`;
   - `/etc/subuid` and `/etc/subgid` present. The manager allocates a unique,
@@ -25,7 +27,7 @@ tooling ensures on every node; the manager assumes they are present.
     (`usermod --add-subuids/--add-subgids`), so these files must exist and be writable by
     root; existing ranges are respected.
 
-Each cadre gets a dedicated `rucher-<name>` system user with linger enabled, its own
+Each cadre gets a dedicated `rucher-<name>` user with linger enabled, its own
 podman secret store and a running user systemd manager (see [cadres.md](cadres.md)).
 
 ## Secret decryption

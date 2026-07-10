@@ -130,7 +130,7 @@ persist new state.
 
 | What | Path |
 |------|------|
-| Cadre user | `rucher-<name>` (system user, `nologin`) |
+| Cadre user | `rucher-<name>` (`nologin`) |
 | Home | `/var/lib/rucher/cadres/<name>` |
 | Quadlet units + support files | `<home>/.config/containers/systemd/` |
 | Native systemd units (`.timer`/`.socket`/`.path`) | `<home>/.config/systemd/user/` |

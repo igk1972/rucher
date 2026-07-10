@@ -61,7 +61,7 @@ WantedBy=default.target
 
 ## 3. Create the cadre user
 
-This provisions the dedicated `rucher-hello` system user and its age identity (used later
+This provisions the dedicated `rucher-hello` user and its age identity (used later
 if you add secrets), and prints the cadre's age recipient:
 
 ```bash

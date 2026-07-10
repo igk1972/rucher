@@ -132,8 +132,8 @@ sudo rucher node cadre status web
 ### `rucher node cadre logs <name> <unit>`
 
 Print the last 200 journal lines for one of a cadre's units. Read as root filtered to
-the user's unit (`_SYSTEMD_USER_UNIT` + `_UID`), because a nologin system user cannot open
-its own `journalctl --user`. `<unit>` is the Quadlet filename (e.g. `web.container`).
+the cadre user's unit (`_SYSTEMD_USER_UNIT` + `_UID`), which works regardless of which
+journal file holds them. `<unit>` is the Quadlet filename (e.g. `web.container`).
 
 ```bash
 sudo rucher node cadre logs web web.container
@@ -298,11 +298,13 @@ Binary source: by default the node downloads `rucher_linux_<arch>` from the GitH
 (`--version <tag>`, else `latest`; `--repo <owner/repo>` defaults to `igk1972/rucher`).
 `--binary <path>` uploads a local linux binary instead (dev).
 
-podman: when a node has no podman, deploy installs a static
-[`mgoltzsche/podman-static`](https://github.com/mgoltzsche/podman-static) build. The **latest**
-release is used by default (resolved on the node via GitHub's `latest/download` redirect);
-`--podman-version <tag>` pins a specific one (e.g. `--podman-version 5.8.4`). A node that
-already has podman is left untouched.
+podman: when a node has no podman, deploy installs the distro (apt) podman by default — a
+journald-capable build. `--podman-prebuilt` instead installs prebuilt podman 6.x `.deb` from
+[`igk1972/podman-6-deb`](https://github.com/igk1972/podman-6-deb)'s Release (latest by default;
+`--podman-version <tag>` pins one, e.g. `--podman-version v6.0.1`, and requires
+`--podman-prebuilt`). The choice can also live in the node's `configuration.yml`
+(`podman.source: apt|prebuilt`, `podman.version`); CLI flags override it. A node that already
+has podman is left untouched.
 
 Agent bootstrap turns on when a store is given: `--store-url <url>` (git) or `--store-bucket`
 (s3), with `--store-kind git|s3` (default git), `--store-branch` (default main),
@@ -324,8 +326,8 @@ rucher ops nodes deploy --store-url git@example.com:store.git node-a node-b
 # pin a version; binary + key init only (no agent):
 rucher ops nodes deploy --version v0.1.0 node-a
 
-# pin the podman-static release provisioned onto fresh nodes:
-rucher ops nodes deploy --podman-version 5.8.4 node-a
+# install prebuilt podman 6.x (instead of distro apt) on fresh nodes, pinned to a release:
+rucher ops nodes deploy --podman-prebuilt --podman-version v6.0.1 node-a
 
 # push a locally built binary (dev):
 rucher ops nodes deploy --binary ./rucher node-a
