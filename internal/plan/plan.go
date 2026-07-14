@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"rucher/internal/cadre"
+	"rucher/internal/fileset"
 	"rucher/internal/manifest"
 	"rucher/internal/quadletref"
 	"rucher/internal/state"
@@ -49,7 +50,7 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 	// Files: write changed/new, remember which support files changed.
 	changedSupport := map[string]bool{}
 	unitFileChanged := map[string]bool{}
-	systemdUnitChanged := map[string]bool{} // new or changed .timer/.socket/.path
+	systemdUnitChanged := map[string]bool{} // new or changed native systemd unit files
 	for name, f := range desiredFiles {
 		if prior.Files[name] != f.Hash {
 			p.WriteFiles = append(p.WriteFiles, f)
@@ -95,7 +96,12 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 		priorSystemd[u] = true
 	}
 	for _, f := range c.Files {
-		if !f.IsSystemdUnit {
+		// IsSystemdUnit routes a file to the user unit dir; lifecycle applies only to
+		// real .timer/.socket/.path units. The synthesized prune .service carries the
+		// flag but is [Install]-less and fired by its timer, so it must never be
+		// enabled or restarted — a change takes effect at the next fire, after the
+		// daemon-reload this plan already schedules.
+		if !f.IsSystemdUnit || !fileset.IsSystemdUnit(f.Name) {
 			continue
 		}
 		if !priorSystemd[f.Name] {

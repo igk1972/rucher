@@ -17,6 +17,7 @@ import (
 	"rucher/internal/ops"
 	"rucher/internal/plan"
 	"rucher/internal/provision"
+	"rucher/internal/prune"
 	"rucher/internal/secrets"
 	"rucher/internal/state"
 )
@@ -225,6 +226,10 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	}
 	o := ops.Ops{R: r, User: provision.UserName(c.Name), UID: uid}
 
+	// Synthesized prune units ride the normal fileset diff: plan and state handle
+	// their write, enable, restart and removal like any operator-shipped file.
+	c.Files = append(c.Files, prune.Files(c.Manifest.Prune)...)
+
 	var secretHashes map[string]string
 	var secretValues map[string]string
 	if c.SopsPath != "" {
@@ -286,7 +291,7 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	}
 	for _, name := range p.RemoveFiles {
 		dir := qDir
-		if fileset.IsSystemdUnit(name) {
+		if fileset.IsSystemdUnit(name) || fileset.IsReserved(name) {
 			dir = uDir
 		}
 		r.User(o.User, uid, []string{"rm", "-f", filepath.Join(dir, name)}, nil)
@@ -361,7 +366,9 @@ func nextState(c cadre.Cadre, uid int, secretHashes map[string]string) state.Sta
 		switch {
 		case f.IsUnit:
 			s.Units = append(s.Units, f.Name)
-		case f.IsSystemdUnit:
+		case f.IsSystemdUnit && fileset.IsSystemdUnit(f.Name):
+			// The extension gate keeps the synthesized [Install]-less prune .service
+			// out of the disable/status/remove lists; it stays hash-tracked in Files.
 			s.SystemdUnits = append(s.SystemdUnits, f.Name)
 		}
 	}

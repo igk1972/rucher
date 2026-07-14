@@ -36,3 +36,15 @@ var systemdUnitExts = map[string]bool{
 func IsSystemdUnit(name string) bool {
 	return systemdUnitExts[filepath.Ext(name)]
 }
+
+// Per-cadre unit names rucher synthesizes for image GC (see internal/prune),
+// reserved so operator-shipped files cannot collide with them.
+const (
+	PruneTimer   = "rucher-prune.timer"
+	PruneService = "rucher-prune.service"
+)
+
+// IsReserved reports whether name is claimed by a synthesized unit.
+func IsReserved(name string) bool {
+	return name == PruneTimer || name == PruneService
+}

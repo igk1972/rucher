@@ -41,3 +41,16 @@ func TestIsSystemdUnit(t *testing.T) {
 		}
 	}
 }
+
+func TestIsReserved(t *testing.T) {
+	for _, n := range []string{PruneTimer, PruneService} {
+		if !IsReserved(n) {
+			t.Fatalf("%q should be reserved", n)
+		}
+	}
+	for _, n := range []string{"backup.timer", "rucher-prune.container", "web.container"} {
+		if IsReserved(n) {
+			t.Fatalf("%q should NOT be reserved", n)
+		}
+	}
+}

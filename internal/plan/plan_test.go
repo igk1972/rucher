@@ -211,6 +211,85 @@ func TestSystemdTimerNoOpWhenUnchanged(t *testing.T) {
 	}
 }
 
+// pruneFiles hand-builds files shaped like the synthesized prune units:
+// IsSystemdUnit set on both (user-unit-dir routing), but only the .timer has a
+// lifecycle-bearing extension.
+func pruneFiles(serviceBody, timerBody string) []cadre.File {
+	mk := func(name, body string) cadre.File {
+		return cadre.File{Name: name, Content: []byte(body), Hash: fileset.Hash([]byte(body)), IsSystemdUnit: true}
+	}
+	return []cadre.File{mk("rucher-prune.service", serviceBody), mk("rucher-prune.timer", timerBody)}
+}
+
+func TestSynthesizedServiceIsNeverEnabled(t *testing.T) {
+	c := cadre.Cadre{Name: "web", Files: pruneFiles("[Service]\nType=oneshot\n", "[Timer]\nOnCalendar=daily\n")}
+	p := Compute(c, nil, state.State{})
+	if !slices.Equal(p.EnableUnits, []string{"rucher-prune.timer"}) {
+		t.Fatalf("EnableUnits = %v, want only rucher-prune.timer", p.EnableUnits)
+	}
+	if len(p.WriteFiles) != 2 {
+		t.Fatalf("WriteFiles = %d, want both synthesized units", len(p.WriteFiles))
+	}
+	if !p.DaemonReload {
+		t.Fatal("new synthesized units must trigger daemon-reload")
+	}
+}
+
+func TestSynthesizedServiceChangeAvoidsRestarts(t *testing.T) {
+	// A changed prune .service (e.g. new until=) must be rewritten and reloaded,
+	// with no unit restarted: not the service (plan gates by extension), and not
+	// the workloads (the flag keeps it out of the coarse support-file fallback).
+	container := "[Container]\nImage=nginx\n"
+	files := pruneFiles("[Service]\nExecStart=prune until=240h\n", "[Timer]\nOnCalendar=daily\n")
+	c := cadre.Cadre{Name: "web", Files: append(files, cadre.File{
+		Name: "web.container", Content: []byte(container), Hash: fileset.Hash([]byte(container)), IsUnit: true,
+	})}
+	prior := state.State{
+		Files: map[string]string{
+			"rucher-prune.service": fileset.Hash([]byte("[Service]\nExecStart=prune until=168h\n")), // changed
+			"rucher-prune.timer":   files[1].Hash,
+			"web.container":        fileset.Hash([]byte(container)),
+		},
+		Units:        []string{"web.container"},
+		SystemdUnits: []string{"rucher-prune.timer"},
+		SecretHashes: map[string]string{},
+	}
+	p := Compute(c, nil, prior)
+	if len(p.WriteFiles) != 1 || p.WriteFiles[0].Name != "rucher-prune.service" {
+		t.Fatalf("WriteFiles = %v, want only rucher-prune.service", p.WriteFiles)
+	}
+	if len(p.RestartSystemdUnits) != 0 || len(p.RestartUnits) != 0 || len(p.EnableUnits) != 0 {
+		t.Fatalf("no restarts wanted: systemd=%v units=%v enable=%v",
+			p.RestartSystemdUnits, p.RestartUnits, p.EnableUnits)
+	}
+	if !p.DaemonReload {
+		t.Fatal("a changed synthesized unit must trigger daemon-reload")
+	}
+}
+
+func TestSynthesizedUnitsDisableTransition(t *testing.T) {
+	// prune switched off: desired state no longer contains the synthesized files.
+	c := cadre.Cadre{Name: "web"}
+	prior := state.State{
+		Files: map[string]string{
+			"rucher-prune.service": "h1",
+			"rucher-prune.timer":   "h2",
+		},
+		SystemdUnits: []string{"rucher-prune.timer"},
+		SecretHashes: map[string]string{},
+	}
+	p := Compute(c, nil, prior)
+	if !slices.Equal(p.DisableUnits, []string{"rucher-prune.timer"}) {
+		t.Fatalf("DisableUnits = %v, want only the timer", p.DisableUnits)
+	}
+	if !slices.Contains(p.RemoveFiles, "rucher-prune.service") || !slices.Contains(p.RemoveFiles, "rucher-prune.timer") {
+		t.Fatalf("RemoveFiles = %v, want both synthesized units", p.RemoveFiles)
+	}
+	if !p.DaemonReload {
+		t.Fatal("disabling the timer must trigger daemon-reload")
+	}
+}
+
 func TestStopUnitsWhenUnitRemoved(t *testing.T) {
 	c := comp(map[string]string{"web.container": "[Container]\nImage=nginx\n"})
 	prior := state.State{

@@ -15,6 +15,7 @@ import (
 	"rucher/internal/ops"
 	"rucher/internal/plan"
 	"rucher/internal/provision"
+	"rucher/internal/prune"
 	"rucher/internal/reconcile"
 	"rucher/internal/state"
 )
@@ -73,7 +74,9 @@ func cmdPlan(dir string, names []string, out io.Writer) int {
 			rc = 1
 			continue
 		}
-		// dry-run: diff against empty prior state so the user sees the full intended change
+		// dry-run: diff against empty prior state so the user sees the full intended
+		// change, including the synthesized prune units
+		c.Files = append(c.Files, prune.Files(c.Manifest.Prune)...)
 		p := plan.Compute(c, nil, state.State{})
 		fmt.Fprintf(out, "cadre %s:\n", c.Name)
 		for _, u := range p.StartUnits {

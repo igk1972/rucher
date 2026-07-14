@@ -120,6 +120,89 @@ func TestApplyRoutesSystemdUnitToUserDirAndEnables(t *testing.T) {
 	}
 }
 
+func TestApplySynthesizesPruneUnits(t *testing.T) {
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
+	}}
+	if _, err := Apply(f, cadre.Cadre{Name: "web"}); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawServiceTee, sawTimerTee, sawTimerEnable, sawServiceEnable bool
+	for _, call := range f.Calls {
+		switch strings.Join(call.Argv, " ") {
+		case "tee " + userUnitDir("web") + "/" + fileset.PruneService:
+			sawServiceTee = true
+		case "tee " + userUnitDir("web") + "/" + fileset.PruneTimer:
+			sawTimerTee = true
+		case "systemctl --user enable --now " + fileset.PruneTimer:
+			sawTimerEnable = true
+		case "systemctl --user enable --now " + fileset.PruneService:
+			sawServiceEnable = true
+		}
+	}
+	if !sawServiceTee || !sawTimerTee {
+		t.Errorf("both prune units must be written to the user unit dir (service=%v timer=%v)", sawServiceTee, sawTimerTee)
+	}
+	if !sawTimerEnable {
+		t.Error("the prune timer must be enabled with `systemctl --user enable --now`")
+	}
+	if sawServiceEnable {
+		t.Error("the [Install]-less prune service must never be enabled")
+	}
+
+	// Only the timer has a lifecycle; the service stays hash-tracked in Files.
+	st, err := state.Load(statePath("web"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(st.SystemdUnits, []string{fileset.PruneTimer}) {
+		t.Fatalf("state SystemdUnits = %v, want only the timer", st.SystemdUnits)
+	}
+	if _, ok := st.Files[fileset.PruneService]; !ok {
+		t.Fatalf("state Files = %v, want the prune service hash-tracked", st.Files)
+	}
+}
+
+func TestApplyPruneDisableRemovesUnits(t *testing.T) {
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+	responses := map[string]node.Result{
+		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
+	}
+
+	if _, err := Apply(&node.Fake{Responses: responses}, cadre.Cadre{Name: "web"}); err != nil {
+		t.Fatal(err)
+	}
+
+	off := false
+	c := cadre.Cadre{Name: "web", Manifest: manifest.Manifest{Prune: manifest.Prune{Enabled: &off}}}
+	f := &node.Fake{Responses: responses}
+	if _, err := Apply(f, c); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawDisable, sawServiceRm, sawTimerRm bool
+	for _, call := range f.Calls {
+		switch strings.Join(call.Argv, " ") {
+		case "systemctl --user disable --now " + fileset.PruneTimer:
+			sawDisable = true
+		// both removals must target the user unit dir, not the Quadlet dir
+		case "rm -f " + userUnitDir("web") + "/" + fileset.PruneService:
+			sawServiceRm = true
+		case "rm -f " + userUnitDir("web") + "/" + fileset.PruneTimer:
+			sawTimerRm = true
+		}
+	}
+	if !sawDisable {
+		t.Error("disabling prune must `systemctl --user disable --now` the timer")
+	}
+	if !sawServiceRm || !sawTimerRm {
+		t.Errorf("both prune units must be removed from the user unit dir (service=%v timer=%v)", sawServiceRm, sawTimerRm)
+	}
+}
+
 func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 	idp := provision.HomeDir("web") + "/.config/rucher/age/identity.txt"
 	recp := provision.HomeDir("web") + "/.config/rucher/age/recipient.txt"

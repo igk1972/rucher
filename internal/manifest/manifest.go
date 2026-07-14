@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -16,6 +18,7 @@ type Manifest struct {
 	Secrets    Secrets    `yaml:"secrets"`
 	Registries Registries `yaml:"registries"`
 	Resources  Resources  `yaml:"resources"`
+	Prune      Prune      `yaml:"prune"`
 }
 
 type Secrets struct {
@@ -39,6 +42,23 @@ type Resources struct {
 	CPUQuota  string `yaml:"cpuQuota"`
 }
 
+// Prune configures the synthesized per-cadre GC of unused podman images.
+// An absent block means enabled with the defaults below.
+type Prune struct {
+	Enabled  *bool  `yaml:"enabled"`  // nil = default true
+	Schedule string `yaml:"schedule"` // systemd OnCalendar expression
+	Until    string `yaml:"until"`    // prune unused images created earlier than this Go duration ago
+}
+
+// On reports whether pruning is enabled (the default when enabled is absent).
+func (p Prune) On() bool { return p.Enabled == nil || *p.Enabled }
+
+// Prune defaults, shared with internal/prune which interpolates them into unit bodies.
+const (
+	DefaultPruneSchedule = "daily"
+	DefaultPruneUntil    = "168h"
+)
+
 const defaultSecretsFile = "secrets.sops.yaml"
 
 func Load(data []byte) (Manifest, error) {
@@ -55,6 +75,12 @@ func Load(data []byte) (Manifest, error) {
 	if m.Secrets.From == "" {
 		m.Secrets.From = defaultSecretsFile
 	}
+	if m.Prune.Schedule == "" {
+		m.Prune.Schedule = DefaultPruneSchedule
+	}
+	if m.Prune.Until == "" {
+		m.Prune.Until = DefaultPruneUntil
+	}
 	return m, nil
 }
 
@@ -63,6 +89,15 @@ func (m Manifest) Validate() error {
 		if l.Registry == "" || l.Username == "" || l.PasswordKey == "" {
 			return fmt.Errorf("manifest: login[%d] needs registry, username and passwordKey", i)
 		}
+	}
+	if m.Prune.Until != "" {
+		if _, err := time.ParseDuration(m.Prune.Until); err != nil {
+			return fmt.Errorf("manifest: prune.until %q is not a duration (like 168h)", m.Prune.Until)
+		}
+	}
+	// The schedule is interpolated into a unit body; a newline would inject directives.
+	if strings.Contains(m.Prune.Schedule, "\n") {
+		return fmt.Errorf("manifest: prune.schedule must be a single line")
 	}
 	return nil
 }

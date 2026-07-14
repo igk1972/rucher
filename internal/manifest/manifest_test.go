@@ -67,3 +67,46 @@ func TestValidateRejectsIncompleteLogin(t *testing.T) {
 		t.Fatal("expected error for incomplete login")
 	}
 }
+
+func TestLoadPruneDefaults(t *testing.T) {
+	m, err := Load(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.Prune.On() {
+		t.Fatal("prune must default to enabled")
+	}
+	if m.Prune.Schedule != "daily" || m.Prune.Until != "168h" {
+		t.Fatalf("prune defaults = %q / %q", m.Prune.Schedule, m.Prune.Until)
+	}
+}
+
+func TestLoadPruneDisableAndPartialOverride(t *testing.T) {
+	m, err := Load([]byte("prune:\n  enabled: false\n  until: 240h\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Prune.On() {
+		t.Fatal("prune.enabled: false must disable pruning")
+	}
+	if m.Prune.Until != "240h" || m.Prune.Schedule != "daily" {
+		t.Fatalf("partial override = %q / %q, want 240h / daily", m.Prune.Until, m.Prune.Schedule)
+	}
+}
+
+func TestValidateRejectsBadPruneUntil(t *testing.T) {
+	m, err := Load([]byte("prune:\n  until: fortnight\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Validate(); err == nil {
+		t.Fatal("expected error for non-duration prune.until")
+	}
+}
+
+func TestValidateRejectsMultilinePruneSchedule(t *testing.T) {
+	m := Manifest{Prune: Prune{Schedule: "daily\nExecStart=/bin/evil"}}
+	if err := m.Validate(); err == nil {
+		t.Fatal("expected error for multi-line prune.schedule")
+	}
+}

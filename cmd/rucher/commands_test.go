@@ -25,6 +25,9 @@ func TestCmdPlanPrintsUnits(t *testing.T) {
 	if !strings.Contains(out.String(), "web.container") {
 		t.Fatalf("plan output = %q", out.String())
 	}
+	if !strings.Contains(out.String(), "rucher-prune.timer") {
+		t.Fatalf("plan output = %q, want the synthesized prune timer listed", out.String())
+	}
 }
 
 func TestCmdPlanNamedNotFound(t *testing.T) {

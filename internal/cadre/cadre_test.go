@@ -152,6 +152,15 @@ func TestLoadRejectsUnitWithoutSection(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsReservedPruneName(t *testing.T) {
+	dir := writeCadre(t, map[string]string{
+		"rucher-prune.timer": "[Timer]\nOnCalendar=daily\n",
+	})
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected error for a file colliding with the synthesized prune units")
+	}
+}
+
 func TestLoadIgnoresVolumeReference(t *testing.T) {
 	// A named volume is not a cadre-local file and must not be validated.
 	dir := writeCadre(t, map[string]string{

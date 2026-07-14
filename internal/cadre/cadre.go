@@ -20,7 +20,7 @@ type File struct {
 	Content       []byte
 	Hash          string
 	IsUnit        bool // Quadlet unit -> ~/.config/containers/systemd/
-	IsSystemdUnit bool // native systemd unit (.timer/.socket/.path) -> ~/.config/systemd/user/
+	IsSystemdUnit bool // routed to ~/.config/systemd/user/ (.timer/.socket/.path, plus synthesized units)
 }
 
 type Cadre struct {
@@ -102,6 +102,9 @@ const systemdUnitDir = "%h/.config/containers/systemd/"
 func (c Cadre) Validate() error {
 	have := map[string]bool{}
 	for _, f := range c.Files {
+		if fileset.IsReserved(f.Name) {
+			return fmt.Errorf("file %s: reserved for the synthesized prune units (configure them via the manifest prune: block)", f.Name)
+		}
 		have[f.Name] = true
 	}
 	for _, f := range c.Files {
