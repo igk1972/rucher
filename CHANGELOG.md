@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   --filter until=…` as the cadre user, configured (or disabled) by the new manifest
   `prune:` block. The two unit names are reserved. Note: a binary downgraded below this
   version disables the timer but leaves the inert `.service` file behind (cosmetic).
+- `ops validate` prints advisory `WARN` lines (exit code unchanged): a `PublishPort=`
+  binding all interfaces (no host address, `0.0.0.0`, or `[::]`) is flagged with a hint
+  to pin `127.0.0.1:<host>:<ctr>` unless the service is meant to be public.
+
+### Changed
+
+**Core**
+- Loading a cadre now rejects a Quadlet file missing its type section (`[Container]` in a
+  `.container`, …) — previously such a unit failed only on the node, at generation time.
 
 ## [0.0.1] - 2026-07-10
 

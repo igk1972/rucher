@@ -196,9 +196,17 @@ encrypts a cadre's secrets in-process; `nodes` reaches every node over SSH.
 Statically check each selected cadre without touching a node — a fast pre-commit gate. It
 loads every cadre and reports the first structural problem in each: a manifest that fails
 strict decode (an unknown/misspelled key like `memmoryMax`) or `manifest.Validate`, a unit
-file with no `[Section]` header, or a unit whose `EnvironmentFile=` points at a cadre-local
-file the directory does not ship. Prints `<name>: OK` or `<name>: ERROR <reason>` per cadre;
-exits `0` only when all pass, `1` if any fail.
+file with no `[Section]` header, a Quadlet file missing its type section (`[Container]` in
+a `.container`, `[Volume]` in a `.volume`, …), or a unit whose `EnvironmentFile=` points at
+a cadre-local file the directory does not ship. Prints `<name>: OK` or
+`<name>: ERROR <reason>` per cadre; exits `0` only when all pass, `1` if any fail.
+
+Advisory findings are printed as `<name>: WARN <reason>` lines and do **not** affect the
+exit code. Currently one check: a `PublishPort=` that binds all interfaces (no host
+address, `0.0.0.0`, or `[::]`) — the main cross-cadre visibility vector, since a
+neighbouring cadre reaches such a port through the host IP. Pin it to
+`PublishPort=127.0.0.1:<host>:<ctr>` unless the service is meant to be public. Only the
+`PublishPort=` key is inspected; ports hidden in `PodmanArgs=` are not.
 
 It deliberately does **not** check secret keys or resource-limit formats — those need
 decrypted secrets and systemd's own parsing, so they are validated later (see

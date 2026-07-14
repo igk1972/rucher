@@ -76,7 +76,9 @@ prune:                       # optional; synthesized image GC (default: enabled)
 ### Validation at load
 
 Beyond strict decode, each unit file is validated: it must
-contain at least one `[Section]` header, and any `EnvironmentFile=` pointing at a
+contain at least one `[Section]` header, a Quadlet file must contain its type section
+(`[Container]` for `.container`, `[Volume]` for `.volume`, … — the generator fails
+without it), and any `EnvironmentFile=` pointing at a
 cadre-local file (a bare filename, or a path under `%h/.config/containers/systemd/`)
 must resolve to a file the cadre actually ships. Secret keys and resource-limit
 formats are deliberately not validated at load (they need decrypted secrets / systemd's own
