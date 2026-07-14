@@ -19,7 +19,7 @@ connectivity between workloads across nodes.
 | [quickstart.md](quickstart.md) | From install to a first running cadre on one node, in ~5 minutes |
 | [architecture.md](architecture.md) | Components and how they fit; the reconcile data flow |
 | [cli.md](cli.md) | Reference for every `rucher` command, its flags and an example |
-| [cadres.md](cadres.md) | Cadre directory layout, manifest schema, the per-user rootless model, and how `plan`/`apply` reconcile |
+| [cadres.md](cadres.md) | Cadre directory layout, manifest schema, the per-user rootless model, network isolation, and how `plan`/`apply` reconcile |
 | [secrets.md](secrets.md) | The SOPS/age secret model: per-cadre identity, encryption, podman secrets, decryption at apply |
 | [gitops-agent.md](gitops-agent.md) | Pull-based reconcile: git/S3 store backends, `placement.yml`, node and sealed cadre identities, `node agent run`/`install` |
 | [management-network.md](management-network.md) | `ops nodes join`, `ops nodes status`, the native Go SSH client with TOFU host-key pinning, address resolution |

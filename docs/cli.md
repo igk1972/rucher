@@ -219,9 +219,10 @@ a cadre-local file the directory does not ship. Prints `<name>: OK` or
 
 Advisory findings are printed as `<name>: WARN <reason>` lines and do **not** affect the
 exit code. Currently one check: a `PublishPort=` that binds all interfaces (no host
-address, `0.0.0.0`, or `[::]`) — the main cross-cadre visibility vector, since a
-neighbouring cadre reaches such a port through the host IP. Pin it to
-`PublishPort=127.0.0.1:<host>:<ctr>` unless the service is meant to be public. Only the
+address, `0.0.0.0`, or `[::]`) — that exposes the service to the outside network. Pin it
+to `PublishPort=127.0.0.1:<host>:<ctr>` unless the service is meant to be public; note
+that any published port stays reachable by co-located cadres regardless of the bind
+address (see [network isolation](cadres.md#network-isolation)). Only the
 `PublishPort=` key is inspected; ports hidden in `PodmanArgs=` are not.
 
 It deliberately does **not** check secret keys or resource-limit formats — those need

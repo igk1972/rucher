@@ -120,7 +120,39 @@ Each cadre gets a dedicated Linux **system** user `rucher-<name>` with:
 Commands run inside the user's session via `runuser -u <user> -- env XDG_RUNTIME_DIR=…
 DBUS_SESSION_BUS_ADDRESS=…`, targeting the per-user systemd/DBus bus. Because privilege is a
 plain Linux user boundary, a cadre's workloads cannot see another cadre's
-secrets, volumes or processes.
+secrets, volumes or processes. Network visibility has its own rules — see below.
+
+## Network isolation
+
+Each cadre's containers run in their own **network namespaces** under the cadre's user
+(rootless podman networking; pasta on the reference stack). There is no shared bridge
+between cadres, and a container has no route into another cadre's namespace:
+**a service that is not published is unreachable from other cadres** — and from anywhere
+else.
+
+Publishing a port (`PublishPort=`) is the only doorway, and it has two distinct audiences:
+
+- **The outside network.** The bind address works as expected: `PublishPort=8080:80` (no
+  host address) or `0.0.0.0:…` accepts connections from other machines;
+  `PublishPort=127.0.0.1:<host>:<ctr>` is invisible to them.
+- **Neighbouring cadres on the same node.** Every published port — **including one bound
+  to `127.0.0.1`** — is reachable from a co-located cadre. Rootless networking maps the
+  container's default gateway address to the host (pasta `--map-gw`), and such connections
+  arrive over the host's loopback, so a neighbour reaches `<gateway>:<port>` regardless of
+  the bind address. Validated empirically on the reference stack (Debian, podman 5.4,
+  pasta): a `127.0.0.1`-bound nginx answered a neighbour cadre's request to the gateway
+  address, while an unpublished port stayed unreachable.
+
+Rules of thumb:
+
+- **Never publish on all interfaces unless the service is meant to be public.**
+  `ops validate` warns about it (see [cli.md](cli.md)). For a service consumed by a
+  host-local reverse proxy (nginx/Traefik running on the node), publish on loopback:
+  `PublishPort=127.0.0.1:<host>:<ctr>` — the proxy reaches it, the outside network cannot.
+- **Treat any published port as visible to every cadre on its node.** If co-located cadres
+  must not reach a service, don't publish it: keep the traffic inside the pod (containers
+  of one pod share a network namespace), use an authenticated overlay
+  (see [overlays.md](overlays.md)), or make the service itself authenticate.
 
 ## How `plan` and `apply` reconcile
 

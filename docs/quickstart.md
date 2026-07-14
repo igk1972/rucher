@@ -56,7 +56,7 @@ WantedBy=default.target
 
 The port is pinned to `127.0.0.1` on purpose: publish on all interfaces
 (`PublishPort=8080:80`) only for a genuinely public service — `validate` warns about it
-otherwise (see [cadres.md](cadres.md)).
+otherwise (see [network isolation](cadres.md#network-isolation)).
 
 ## 3. Create the cadre user
 
