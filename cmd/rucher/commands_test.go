@@ -121,6 +121,23 @@ func TestCmdValidateReportsBadPath(t *testing.T) {
 	}
 }
 
+func TestCmdValidateWarnsPublishPortAllInterfaces(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "web")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "rucher.yml"), []byte("{}\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "web.container"), []byte("[Container]\nImage=nginx\nPublishPort=8080:80\n"), 0o644)
+
+	var out bytes.Buffer
+	code := cmdValidate(root, nil, &out)
+	if code != 0 {
+		t.Fatalf("code = %d, want 0 (warnings must not fail validation)", code)
+	}
+	if !strings.Contains(out.String(), "WARN") || !strings.Contains(out.String(), "web: OK") {
+		t.Fatalf("validate output = %q, want a WARN line and web: OK", out.String())
+	}
+}
+
 func TestCmdValidateEmptyDirNoNames(t *testing.T) {
 	root := t.TempDir()
 

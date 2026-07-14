@@ -152,6 +152,41 @@ func TestLoadRejectsUnitWithoutSection(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsQuadletWithoutTypeSection(t *testing.T) {
+	// [Unit] alone satisfies the generic section check, but the Quadlet
+	// generator requires the type section and fails without it.
+	dir := writeCadre(t, map[string]string{
+		"web.container": "[Unit]\nDescription=x\n",
+	})
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected error for a .container without a [Container] section")
+	}
+}
+
+func TestWarningsPublishPortAllInterfaces(t *testing.T) {
+	unit := func(v string) Cadre {
+		body := "[Container]\nImage=nginx\nPublishPort=" + v + "\n"
+		return Cadre{Files: []File{{Name: "web.container", Content: []byte(body), IsUnit: true}}}
+	}
+	for _, v := range []string{"80", "8080:80", "8080:80/tcp", "0.0.0.0:8080:80", "[::]:8080:80"} {
+		if got := unit(v).Warnings(); len(got) != 1 || !strings.Contains(got[0], v) {
+			t.Fatalf("PublishPort=%s: warnings = %v, want one mentioning the value", v, got)
+		}
+	}
+	for _, v := range []string{"127.0.0.1:8080:80", "[::1]:8080:80", "10.1.2.3:8080:80/udp"} {
+		if got := unit(v).Warnings(); len(got) != 0 {
+			t.Fatalf("PublishPort=%s: warnings = %v, want none", v, got)
+		}
+	}
+}
+
+func TestWarningsSkipSupportFiles(t *testing.T) {
+	c := Cadre{Files: []File{{Name: "notes.conf", Content: []byte("PublishPort=80\n")}}}
+	if got := c.Warnings(); len(got) != 0 {
+		t.Fatalf("warnings = %v, want none for a support file", got)
+	}
+}
+
 func TestLoadRejectsReservedPruneName(t *testing.T) {
 	dir := writeCadre(t, map[string]string{
 		"rucher-prune.timer": "[Timer]\nOnCalendar=daily\n",

@@ -94,10 +94,12 @@ func cmdPlan(dir string, names []string, out io.Writer) int {
 
 // cmdValidate loads every discovered cadre and reports the first structural
 // problem in each: a bad manifest (strict decode / manifest.Validate) or a bad
-// unit file (missing [Section], an EnvironmentFile pointing at a file the cadre
-// does not ship). It touches no node — a pure, pre-commit check of the cadre
-// directory. Secret keys and resource-limit formats are not checked here; they
-// need decrypted secrets / systemd's own parsing (see cadre.Validate).
+// unit file (missing [Section] or Quadlet type section, an EnvironmentFile
+// pointing at a file the cadre does not ship). It touches no node — a pure,
+// pre-commit check of the cadre directory. Secret keys and resource-limit
+// formats are not checked here; they need decrypted secrets / systemd's own
+// parsing (see cadre.Validate). Advisory findings (cadre.Warnings) are printed
+// as WARN lines and do not affect the exit code.
 func cmdValidate(dir string, names []string, out io.Writer) int {
 	dirs, err := discover(dir, names)
 	if err != nil {
@@ -110,10 +112,14 @@ func cmdValidate(dir string, names []string, out io.Writer) int {
 	}
 	rc := 0
 	for _, d := range dirs {
-		if _, err := cadre.Load(d); err != nil {
+		c, err := cadre.Load(d)
+		if err != nil {
 			fmt.Fprintf(out, "%s: ERROR %v\n", filepath.Base(d), err)
 			rc = 1
 			continue
+		}
+		for _, w := range c.Warnings() {
+			fmt.Fprintf(out, "%s: WARN %s\n", c.Name, w)
 		}
 		fmt.Fprintf(out, "%s: OK\n", filepath.Base(d))
 	}

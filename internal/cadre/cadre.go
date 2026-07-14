@@ -118,13 +118,24 @@ func (c Cadre) Validate() error {
 	return nil
 }
 
+// requiredSection is the type section the Quadlet generator demands per file
+// extension; a unit without it fails generation on the node.
+var requiredSection = map[string]string{
+	".container": "Container", ".volume": "Volume", ".network": "Network",
+	".pod": "Pod", ".kube": "Kube", ".image": "Image", ".build": "Build",
+}
+
 func validateUnit(f File, have map[string]bool) error {
 	hasSection := false
+	sections := map[string]bool{}
 	sc := bufio.NewScanner(bytes.NewReader(f.Content))
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if strings.HasPrefix(line, "[") {
 			hasSection = true
+			if name, ok := strings.CutSuffix(line[1:], "]"); ok {
+				sections[name] = true
+			}
 		}
 		key, val, ok := strings.Cut(line, "=")
 		if !ok || strings.TrimSpace(key) != "EnvironmentFile" {
@@ -140,6 +151,9 @@ func validateUnit(f File, have map[string]bool) error {
 	}
 	if !hasSection {
 		return fmt.Errorf("unit %s is empty or has no [Section] header", f.Name)
+	}
+	if req, ok := requiredSection[filepath.Ext(f.Name)]; ok && !sections[req] {
+		return fmt.Errorf("unit %s has no [%s] section (required by the Quadlet generator)", f.Name, req)
 	}
 	return nil
 }
