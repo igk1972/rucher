@@ -1,0 +1,29 @@
+# Unit tests with the race detector. The integration suite (integration.yml) covers
+# real nodes; this job covers the packages, including the concurrency tests that
+# only -race exercises meaningfully.
+name: test
+
+on:
+  workflow_dispatch: {}
+  pull_request: {}
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+      - "NOTICE"
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run unit tests (race detector)
+        run: go test -race ./...
