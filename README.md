@@ -15,6 +15,39 @@ reference.
 **New here?** Follow the [Quick start](docs/quickstart.md) — from install to a running
 cadre in about five minutes.
 
+## Contents
+
+- [Why rucher?](#why-rucher)
+- [What it does](#what-it-does)
+- [Topology](#topology)
+- [Installation](#installation)
+- [Build](#build)
+- [Operator prerequisites](#operator-prerequisites)
+- [Node prerequisites](#node-prerequisites)
+- [Cadre layout](#cadre-layout)
+- [Commands](#commands)
+- [Secret workflow](#secret-workflow)
+- [On-node layout](#on-node-layout)
+- [Host keys](#host-keys)
+- [Cadre overlays](#cadre-overlays)
+- [Testing](#testing)
+- [License](#license)
+
+## Why rucher?
+
+- **vs Kubernetes / K3s** — no control plane to run, patch or upgrade: no kubelet, no
+  etcd, no api-server. A node needs only systemd and podman (installed from the distro's
+  own repos by `ops nodes deploy`); rucher itself is one static binary that a systemd
+  timer invokes per reconcile pass, not a resident daemon.
+- **vs Ansible** — real idempotency instead of bash-heavy playbooks: a content-hash diff
+  engine computes the minimal change set, so re-running `apply` is a no-op, and changing
+  one config file restarts only the units that reference it.
+- **Security first** — every cadre is a dedicated rootless user with a disjoint
+  subuid/subgid range and its own network namespaces
+  ([network isolation](docs/cadres.md#network-isolation)); secrets are encrypted at rest
+  (SOPS + age) and decrypted in-process — plaintext never touches disk or argv;
+  `validate` flags ports published on all interfaces.
+
 ## What it does
 
 - You author Quadlet units (`.container`/`.volume`/`.network`/`.pod`/…) plus any support
@@ -34,6 +67,29 @@ cadre in about five minutes.
 
 Native systemd gives dependencies (`After=`/`Requires=`), lifecycle hooks
 (`ExecStartPre=`/…), and timers (`.timer`) for free within a cadre.
+
+## Topology
+
+One operator machine drives many nodes over SSH; each node pulls the store and reconciles
+itself. Details in [docs/architecture.md](docs/architecture.md).
+
+```
+      operator machine                     managed node
+┌────────────────────────────┐      ┌─────────────────────────────────┐
+│ rucher ops …               │ SSH  │ sshd                            │
+│ (native Go SSH client,     │────► │                                 │
+│  TOFU known_hosts)         │      │ rucher node agent run (timer)   │
+└────────────────────────────┘      │     │ pulls                     │
+                                    │     ▼                           │
+  git / S3 store  ◄──────────────── │ store checkout                  │
+  cadres/<name>/…                   │ placement.yml → assigned cadres │
+  placement.yml                     │     │                           │
+                                    │     ▼ reconcile                 │
+                                    │ per-cadre Linux user            │
+                                    │ rucher-<name> (rootless podman) │
+                                    │ Quadlet units → systemd --user  │
+                                    └─────────────────────────────────┘
+```
 
 ## Installation
 
@@ -70,6 +126,13 @@ each user's systemd). Requires Go ≥ 1.26 to build; dependencies (age, go-git, 
 from any host; `GOARCH` defaults to your machine's — set it explicitly (e.g. `GOARCH=amd64`)
 when the nodes' architecture differs. `-trimpath` and `-ldflags="-s -w"` strip filesystem
 paths and the symbol/DWARF tables for a smaller, reproducible binary (~⅓ smaller).
+
+## Operator prerequisites
+
+Any OS with the one static binary — releases cover Linux/macOS (amd64/arm64) and Windows
+(amd64). `rucher ops` needs no Go, no podman and no system `ssh` (nodes are reached with
+the built-in Go SSH client — see [Host keys](#host-keys)); the only real requirement is
+SSH reachability of the nodes' `sshd`.
 
 ## Node prerequisites
 
