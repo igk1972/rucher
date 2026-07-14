@@ -35,6 +35,29 @@ cadre in about five minutes.
 Native systemd gives dependencies (`After=`/`Requires=`), lifecycle hooks
 (`ExecStartPre=`/…), and timers (`.timer`) for free within a cadre.
 
+## Installation
+
+Grab a static binary from the
+[latest release](https://github.com/igk1972/rucher/releases/latest) — linux and macOS
+(amd64/arm64), windows (amd64):
+
+```bash
+os=$(uname -s | tr '[:upper:]' '[:lower:]')
+arch=$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')
+curl -fsSL -o rucher "https://github.com/igk1972/rucher/releases/latest/download/rucher_${os}_${arch}"
+sudo install -m 0755 rucher /usr/local/bin/rucher
+```
+
+The operator machine needs **nothing else**. `rucher ops` has zero runtime
+dependencies — no Go, no podman, not even a system `ssh`: nodes are reached with the
+built-in Go SSH client. Nodes normally need no manual install either —
+`rucher ops nodes deploy` uploads the right-arch binary and provisions podman over SSH;
+install by hand only on a node you manage yourself (see the
+[Quick start](docs/quickstart.md)).
+
+To verify a download, fetch `SHA256SUMS.txt` from the same release and run
+`sha256sum -c --ignore-missing SHA256SUMS.txt` (`shasum -a 256 -c` on macOS).
+
 ## Build
 
 ```bash
