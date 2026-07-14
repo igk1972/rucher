@@ -34,6 +34,7 @@ rucher <group> <command> [args]
 │       ├─ run     [--config PATH]                     [node]   one pull-based reconcile pass
 │       └─ install [--config PATH]                     [node]   write + enable the systemd service + timer
 └─ ops                                                 from the operator machine
+    ├─ init [--dir DIR] <name>                         [local]  scaffold a cadre directory
     ├─ validate [--dir DIR] [name...]                  [local]  check cadre manifests + unit files
     ├─ plan   [--dir DIR] [name...]                    [local]  dry-run: what apply would change
     ├─ nodes [--dir DIR]
@@ -190,6 +191,21 @@ sudo rucher node agent install
 Runs from the operator machine (any OS). `validate` statically checks cadre definitions;
 `plan` is a read-only dry run; `key seal` seals a cadre identity to node(s); `secrets encrypt`
 encrypts a cadre's secrets in-process; `nodes` reaches every node over SSH.
+
+### `rucher ops init [--dir DIR] <name>`
+
+Scaffold a new cadre directory `<dir>/<name>` (default `./cadres/<name>`): a fully
+commented `rucher.yml` (an empty manifest is valid — the comments show the optional
+`secrets`/`registries`/`resources`/`prune` blocks) and a minimal working `web.container`
+(`nginx:alpine` publishing `127.0.0.1:8080:80` — pinned to loopback, so the scaffold
+passes `validate` with no warnings). The name must match `[a-z0-9][a-z0-9-]*` and be at
+most 25 characters (it becomes the node user `rucher-<name>`). Refuses to touch an
+existing directory.
+
+```bash
+rucher ops init hello                       # -> ./cadres/hello/{rucher.yml,web.container}
+rucher ops validate hello && rucher ops plan hello
+```
 
 ### `rucher ops validate [--dir DIR] [name...]`
 

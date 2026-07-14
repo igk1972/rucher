@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ops validate` prints advisory `WARN` lines (exit code unchanged): a `PublishPort=`
   binding all interfaces (no host address, `0.0.0.0`, or `[::]`) is flagged with a hint
   to pin `127.0.0.1:<host>:<ctr>` unless the service is meant to be public.
+- `ops init <name>` scaffolds a cadre directory: a commented manifest plus a minimal
+  working `web.container` (loopback-published nginx) that passes `validate` cleanly.
 
 ### Changed
 

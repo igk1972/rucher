@@ -107,6 +107,7 @@ Units reference support files by their in-place path, e.g.
 ## Commands
 
 ```
+rucher ops init [--dir DIR] <name>            # scaffold a cadre directory (manifest + example unit)
 rucher node cadre new <name>                  # create the user + age identity; print the recipient
 rucher node cadre recipient <name>            # print a cadre's age recipient
 rucher ops validate [--dir DIR] [name...]     # check manifests + unit files (no node)

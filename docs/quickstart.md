@@ -32,20 +32,15 @@ podman --version && command -v newuidmap
 
 ## 2. Author a cadre
 
-A cadre is just a directory. Create one with a manifest and a single Quadlet unit:
+A cadre is just a directory. Scaffold one:
 
 ```bash
-mkdir -p cadres/hello
+rucher ops init hello                       # -> ./cadres/hello
 ```
 
-`cadres/hello/rucher.yml` — the cadre's name is its directory name, so with no secrets
-or registries the manifest can stay effectively empty:
-
-```yaml
-# hello cadre: no secrets, no registries. The unit below runs a public image.
-```
-
-`cadres/hello/web.container` — a minimal Quadlet unit:
+This creates two files. `cadres/hello/rucher.yml` is the manifest — the cadre's name is
+its directory name, and with no secrets or registries it is all comments (an empty
+manifest is valid). `cadres/hello/web.container` is a minimal working Quadlet unit:
 
 ```ini
 [Unit]
@@ -53,11 +48,15 @@ Description=hello web
 
 [Container]
 Image=docker.io/library/nginx:alpine
-PublishPort=8080:80
+PublishPort=127.0.0.1:8080:80
 
 [Install]
 WantedBy=default.target
 ```
+
+The port is pinned to `127.0.0.1` on purpose: publish on all interfaces
+(`PublishPort=8080:80`) only for a genuinely public service — `validate` warns about it
+otherwise (see [cadres.md](cadres.md)).
 
 ## 3. Create the cadre user
 
