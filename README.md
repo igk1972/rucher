@@ -27,6 +27,10 @@ cadre in about five minutes.
 - Secrets live **encrypted at rest** (SOPS + age) inside the cadre directory, safe
   to commit to a store. Plaintext is decrypted in memory and fed to podman over stdin —
   never written to disk, never passed on argv.
+- Image garbage collection is **on by default**: every cadre gets a synthesized
+  `rucher-prune.timer` that prunes unused images, so floating tags (`:latest`) don't fill
+  the node's disk over time. Configurable or disableable per cadre
+  (see [docs/cadres.md](docs/cadres.md#image-garbage-collection)).
 
 Native systemd gives dependencies (`After=`/`Requires=`), lifecycle hooks
 (`ExecStartPre=`/…), and timers (`.timer`) for free within a cadre.

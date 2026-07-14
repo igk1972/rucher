@@ -30,6 +30,10 @@ tooling ensures on every node; the manager assumes they are present.
 Each cadre gets a dedicated `rucher-<name>` user with linger enabled, its own
 podman secret store and a running user systemd manager (see [cadres.md](cadres.md)).
 
+- **Disk hygiene** needs nothing extra: every cadre gets a synthesized image-GC timer,
+  enabled by default (see [cadres.md](cadres.md#image-garbage-collection)). Its unit assumes
+  podman at `/usr/bin/podman` — where both the apt and the prebuilt `.deb` install it.
+
 ## Secret decryption
 
 - **Secret decryption is in-process.** `apply` decrypts each cadre's `secrets.sops.yaml`

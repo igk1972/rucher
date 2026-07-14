@@ -53,6 +53,10 @@ registries:
 resources:                   # optional -> systemd slice drop-in on the cadre user
   memoryMax: 512M            # -> [Slice] MemoryMax=
   cpuQuota: "50%"            # -> [Slice] CPUQuota=
+prune:                       # optional; synthesized image GC (default: enabled)
+  enabled: true              # false disables GC and removes the synthesized units
+  schedule: daily            # systemd OnCalendar= expression
+  until: 168h                # prune unused images created earlier than this (Go duration)
 ```
 
 | Field | Type | Notes |
@@ -65,6 +69,9 @@ resources:                   # optional -> systemd slice drop-in on the cadre us
 | `registries.login[].insecure` | bool | Adds `--tls-verify=false`. |
 | `resources.memoryMax` | string | systemd `MemoryMax=` value (any form systemd accepts). |
 | `resources.cpuQuota` | string | systemd `CPUQuota=` value. |
+| `prune.enabled` | bool | Default `true`. `false` disables image GC and removes the synthesized units. |
+| `prune.schedule` | string | systemd `OnCalendar=` expression; default `daily`. |
+| `prune.until` | string | Go duration; unused images **created** earlier than this are pruned; default `168h`. |
 
 ### Validation at load
 
@@ -74,6 +81,27 @@ cadre-local file (a bare filename, or a path under `%h/.config/containers/system
 must resolve to a file the cadre actually ships. Secret keys and resource-limit
 formats are deliberately not validated at load (they need decrypted secrets / systemd's own
 parsing). See [secrets.md](secrets.md).
+
+Two file names are reserved for the synthesized image-GC units (see below): a cadre that
+ships its own `rucher-prune.service` or `rucher-prune.timer` fails to load.
+
+## Image garbage collection
+
+With floating tags (`:latest`) every re-pull leaves the previous image behind as an unused
+layer; without cleanup the cadre's storage (`<home>/.local/share/containers/storage/`)
+eventually fills the disk. So every cadre gets a pair of **synthesized units** —
+`rucher-prune.service` (a oneshot running `podman image prune --all --force --filter
+until=<until>`) and `rucher-prune.timer` — installed into `~/.config/systemd/user/` and
+enabled **by default**, configured by the manifest `prune:` block.
+
+- The prune removes **unused** images **created** more than `until` ago. `until` is creation
+  age, not last-use age; images used by existing containers are never removed.
+- The timer runs with `Persistent=true` (a window missed while the node was down is caught up
+  on boot) and a randomized delay, so the cadres of one node don't all prune at once. Right
+  after the first enable the timer may fire immediately — a no-op on a fresh cadre.
+- The units follow the manifest through the normal reconcile: changing `schedule`/`until`
+  updates them on the next apply; `prune.enabled: false` disables the timer and removes both
+  files. `node cadre status` lists `rucher-prune.timer` alongside the cadre's own units.
 
 ## Per-cadre user and rootless isolation
 
@@ -121,6 +149,10 @@ The plan is a minimal, idempotent change set:
 - **Systemd units** (`.timer`/`.socket`/`.path`): a new one is **`enable --now`**'d (so it
   also persists across reboot under linger), a changed one is **restarted**, and a removed one
   is **`disable --now`**'d before its file is deleted.
+- **Synthesized prune units** — the desired file set additionally contains the image-GC units
+  generated from the manifest's `prune:` block (unless disabled), so the same diff writes,
+  enables, updates and removes them. Only the `.timer` gets the enable/restart lifecycle; the
+  `.service` is only written — a change takes effect at the timer's next fire.
 
 `apply` executes in a fixed order: resource limits → stop removed units → write/remove files
 → create/remove secrets → registry logins → `daemon-reload` → start/restart/enable units →
@@ -133,7 +165,7 @@ persist new state.
 | Cadre user | `rucher-<name>` (`nologin`) |
 | Home | `/var/lib/rucher/cadres/<name>` |
 | Quadlet units + support files | `<home>/.config/containers/systemd/` |
-| Native systemd units (`.timer`/`.socket`/`.path`) | `<home>/.config/systemd/user/` |
+| Native systemd units (`.timer`/`.socket`/`.path`) + synthesized prune units | `<home>/.config/systemd/user/` |
 | age identity / recipient | `<home>/.config/rucher/age/{identity.txt,recipient.txt}` |
 | Last-applied state (hashes only) | `/var/lib/rucher/cadres/state/<name>.json` |
 | Resource slice drop-in | `/etc/systemd/system/user-<uid>.slice.d/50-rucher.conf` |

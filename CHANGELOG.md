@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+**Core**
+- Automatic image garbage collection, on by default: every cadre gets synthesized
+  `rucher-prune.timer`/`rucher-prune.service` units running `podman image prune --all
+  --filter until=…` as the cadre user, configured (or disabled) by the new manifest
+  `prune:` block. The two unit names are reserved. Note: a binary downgraded below this
+  version disables the timer but leaves the inert `.service` file behind (cosmetic).
+
 ## [0.0.1] - 2026-07-10
 
 First release. **rucher** is a multi-node manager for podman **Quadlet** workloads: each
