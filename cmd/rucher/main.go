@@ -24,6 +24,7 @@ node — on the Linux node (runuser/systemctl/podman):
   node agent run | install [--config PATH]
 
 ops — from the operator machine:
+  ops init [--dir DIR] <name>                  scaffold a cadre directory (manifest + example unit)
   ops validate [--dir DIR] [name...]           check cadre manifests + unit files (no node)
   ops plan [--dir DIR] [name...]
   ops nodes [--dir DIR] status [--live] [--json] [--concurrency N] [node...]
@@ -211,6 +212,17 @@ func runOps(args []string, stdout io.Writer) int {
 		return 2
 	}
 	switch args[0] {
+	case "init":
+		dir, names, err := parseDir(args[1:])
+		if err != nil {
+			fmt.Fprintln(stdout, "error:", err)
+			return 2
+		}
+		if len(names) != 1 {
+			fmt.Fprintln(stdout, "usage: ops init [--dir DIR] <name>")
+			return 2
+		}
+		return cmdInit(dir, names[0], stdout)
 	case "validate":
 		dir, names, err := parseDir(args[1:])
 		if err != nil {
