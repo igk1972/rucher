@@ -28,8 +28,8 @@ jobs:
           - { goos: darwin, goarch: arm64 }
           - { goos: windows, goarch: amd64, ext: .exe }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -42,7 +42,7 @@ jobs:
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
             go build -trimpath -ldflags="-s -w" -o "dist/$out" ./cmd/rucher
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rucher_${{ matrix.goos }}_${{ matrix.goarch }}
           path: dist/*
@@ -54,7 +54,7 @@ jobs:
     permissions:
       contents: write # create the release and upload assets
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -62,7 +62,7 @@ jobs:
       - name: Checksums
         run: cd dist && sha256sum rucher_* > SHA256SUMS.txt
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           # inputs.tag on a manual run; the pushed tag's name otherwise.
           tag_name: ${{ inputs.tag || github.ref_name }}
