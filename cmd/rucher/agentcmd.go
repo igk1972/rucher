@@ -128,8 +128,10 @@ func cmdAgentRun(configPath string, out io.Writer) int {
 		return 1
 	}
 	defer unlock()
-	// Cap the pass so a stalled store remote cannot pin the node lock indefinitely;
-	// a manual `node agent run` has no systemd timeout backstop like the timer does.
+	// Bound the store fetch (git clone/pull, S3 list/get) so a stalled remote cannot pin the
+	// node lock indefinitely. The ctx reaches only s.Sync — the apply phase shells out through
+	// node.Runner (no context), so a hung podman/systemctl is bounded only by the systemd
+	// timer's TimeoutStartSec, not by this cap.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	var st agent.Status
