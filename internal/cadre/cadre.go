@@ -32,7 +32,15 @@ type Cadre struct {
 }
 
 func Load(dir string) (Cadre, error) {
-	mdata, err := os.ReadFile(filepath.Join(dir, "rucher.yml"))
+	// Lstat before read so a symlinked rucher.yml cannot redirect the (root) agent's read at
+	// an arbitrary node file; the support-file loop below guards the rest of the directory.
+	mpath := filepath.Join(dir, "rucher.yml")
+	if fi, err := os.Lstat(mpath); err != nil {
+		return Cadre{}, fmt.Errorf("read manifest: %w", err)
+	} else if !fi.Mode().IsRegular() {
+		return Cadre{}, fmt.Errorf("manifest rucher.yml must be a regular file")
+	}
+	mdata, err := os.ReadFile(mpath)
 	if err != nil {
 		return Cadre{}, fmt.Errorf("read manifest: %w", err)
 	}
@@ -66,7 +74,17 @@ func Load(dir string) (Cadre, error) {
 	}
 	c := Cadre{Name: name, Dir: dir, Manifest: m}
 	for _, e := range entries {
-		if e.IsDir() || service[e.Name()] || isServiceFile(e.Name()) {
+		if e.IsDir() {
+			continue
+		}
+		// Reject a symlink or any non-regular entry: a malicious store could point one at a
+		// root-only node file (e.g. the node's private age key) and the agent reads cadre files
+		// as root, so os.ReadFile would follow the link. Error rather than skip — a skipped
+		// support file referenced by a unit would fail validation and mask the tampering.
+		if !e.Type().IsRegular() {
+			return Cadre{}, fmt.Errorf("cadre entry %s must be a regular file", e.Name())
+		}
+		if service[e.Name()] || isServiceFile(e.Name()) {
 			if e.Name() == m.Secrets.From {
 				c.SopsPath = filepath.Join(dir, e.Name())
 			}

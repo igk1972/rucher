@@ -138,6 +138,39 @@ func TestLoadAcceptsPresentEnvironmentFile(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsSymlinkEntry(t *testing.T) {
+	// A malicious store could ship a symlink pointing at a root-only node file; the root agent
+	// reads cadre files, so os.ReadFile would follow it. Load must reject non-regular entries.
+	dir := writeCadre(t, nil)
+	secret := filepath.Join(t.TempDir(), "node-key")
+	if err := os.WriteFile(secret, []byte("SECRET"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(secret, filepath.Join(dir, "leak.env")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(dir); err == nil {
+		t.Fatal("Load must reject a symlinked cadre entry")
+	}
+}
+
+func TestLoadRejectsSymlinkManifest(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "web")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(t.TempDir(), "real.yml")
+	if err := os.WriteFile(target, []byte("secrets:\n  from: secrets.sops.yaml\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, "rucher.yml")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(dir); err == nil {
+		t.Fatal("Load must reject a symlinked rucher.yml")
+	}
+}
+
 func TestLoadRejectsEmptyUnit(t *testing.T) {
 	dir := writeCadre(t, map[string]string{"web.container": ""})
 	if _, err := Load(dir); err == nil {
