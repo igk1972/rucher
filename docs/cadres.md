@@ -43,7 +43,7 @@ being silently dropped.
 secrets:
   from: secrets.sops.yaml    # SOPS file whose keys are available (default: secrets.sops.yaml)
   create:                    # optional allowlist: only these keys become podman secrets.
-    - db_password            # omit `create` entirely to turn EVERY decrypted key into a secret.
+    - db_password            # omit `create` to turn every non-empty decrypted key into a secret.
 registries:
   login:                     # optional; performed as `podman login --password-stdin`
     - registry: ghcr.io
@@ -62,12 +62,12 @@ prune:                       # optional; synthesized image GC (default: enabled)
 | Field | Type | Notes |
 |-------|------|-------|
 | `secrets.from` | string | SOPS file inside the directory; default `secrets.sops.yaml`. |
-| `secrets.create` | list of strings | Keys to materialize as podman secrets. Empty/absent = all decrypted keys. A listed key absent from the SOPS file is an error. |
+| `secrets.create` | list of strings | Keys to materialize as podman secrets. Empty/absent = all decrypted keys **with a non-empty value** (an empty-valued key is skipped unless explicitly listed). A listed key absent from the SOPS file is an error. |
 | `registries.login[].registry` | string, required | Registry host. |
 | `registries.login[].username` | string, required | Login username. |
 | `registries.login[].passwordKey` | string, required | Key in the SOPS file holding the password. |
 | `registries.login[].insecure` | bool | Adds `--tls-verify=false`. |
-| `resources.memoryMax` | string | systemd `MemoryMax=` value (byte size or `infinity`); validated. |
+| `resources.memoryMax` | string | systemd `MemoryMax=` value (byte size, percentage, or `infinity`); validated. |
 | `resources.cpuQuota` | string | systemd `CPUQuota=` value (a percentage); validated. |
 | `prune.enabled` | bool | Default `true`. `false` disables image GC and removes the synthesized units. |
 | `prune.schedule` | string | systemd `OnCalendar=` expression; default `daily`. |
@@ -80,9 +80,9 @@ contain at least one `[Section]` header, a Quadlet file must contain its type se
 (`[Container]` for `.container`, `[Volume]` for `.volume`, … — the generator fails
 without it), and any `EnvironmentFile=` pointing at a
 cadre-local file (a bare filename, or a path under `%h/.config/containers/systemd/`)
-must resolve to a file the cadre actually ships. Secret keys and resource-limit
-formats are deliberately not validated at load (they need decrypted secrets / systemd's own
-parsing). See [secrets.md](secrets.md). `ops validate` additionally runs each Quadlet unit
+must resolve to a file the cadre actually ships. Secret keys are deliberately not validated
+at load (they need the decrypted secrets); `resources.memoryMax`/`cpuQuota` formats, by
+contrast, **are** checked at load. See [secrets.md](secrets.md). `ops validate` additionally runs each Quadlet unit
 through Podman's own parser to catch unknown keys / missing `Image=` / bad values before
 they reach a node (see the `ops validate` section of [cli.md](cli.md)).
 
@@ -109,7 +109,8 @@ enabled **by default**, configured by the manifest `prune:` block.
 
 ## Per-cadre user and rootless isolation
 
-Each cadre gets a dedicated Linux **system** user `rucher-<name>` with:
+Each cadre gets a dedicated Linux user `rucher-<name>` (a regular login user with a
+`nologin` shell, not a `--system` account) with:
 
 - a home at `/var/lib/rucher/cadres/<name>` and shell `/usr/sbin/nologin`;
 - **linger** enabled (`loginctl enable-linger`) so `/run/user/<uid>` and the user's systemd

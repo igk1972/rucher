@@ -50,7 +50,7 @@ The manifest points at this file and (optionally) narrows which keys become podm
 # rucher.yml
 secrets:
   from: secrets.sops.yaml
-  create: [db_password]     # only this key -> a podman secret; omit `create` to take all keys
+  create: [db_password]     # only this key -> a podman secret; omit `create` to take all non-empty keys
 ```
 
 ## Decryption at `apply`
@@ -61,9 +61,9 @@ read both the (root-owned) SOPS file and the cadre user's age identity
 key with the identity, decrypts each value, verifies the MAC, and returns an in-memory
 key/value map. From there:
 
-- keys selected by `secrets.create` (or all keys, if `create` is omitted) are turned into
-  podman secrets via `podman secret create <key> -`, the value piped over stdin, run as the
-  cadre user. A changed value hash re-creates the secret; a key removed from the file
+- keys selected by `secrets.create` (or all keys with a non-empty value, if `create` is
+  omitted) are turned into podman secrets via `podman secret create <key> -`, the value piped
+  over stdin, run as the cadre user. A changed value hash re-creates the secret; a key removed from the file
   removes the secret (see [cadres.md](cadres.md) for the diff rules).
 - each `registries.login[]` entry logs in with `podman login --username <u> --password-stdin`,
   the password taken from the decrypted key named by `passwordKey`.
@@ -94,7 +94,10 @@ wire-compatible with the `sops` CLI within it. The bounds:
   for typed scalars, so a rucher-written file is not byte-identical to a sops-written one for
   non-string inputs — though both still decrypt either way. Cadre secrets are strings, so
   this is moot in practice.
-- **Empty values** are carried as plaintext, exactly as sops does.
+- **Empty values** are carried as plaintext, exactly as sops does. They are the *only*
+  legitimate plaintext: a **non-empty** plaintext value — e.g. a key left in the clear via
+  sops's `_unencrypted` suffix — is **rejected**, because a cadre file is expected to be fully
+  encrypted. Encrypt every non-empty key.
 - **`mac_only_encrypted`** files use a MAC scheme this codec does not reproduce and are
   rejected with a clear error (a cadre's fully-encrypted secrets never set it).
 
