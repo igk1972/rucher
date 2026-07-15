@@ -217,6 +217,15 @@ a `.container`, `[Volume]` in a `.volume`, …), or a unit whose `EnvironmentFil
 a cadre-local file the directory does not ship. Prints `<name>: OK` or
 `<name>: ERROR <reason>` per cadre; exits `0` only when all pass, `1` if any fail.
 
+Each Quadlet unit's **contents** are also checked with **Podman's own parser** (the same
+`quadlet` code that generates the `.service` on the node, pinned to podman v6): an unknown
+key (`Memoryyy=…`), a missing `Image=`, an invalid value, or a dangling cross-reference
+(`Volume=x.volume` / `Network=x.network` / `Pod=x.pod` with no matching unit in the cadre)
+is an `ERROR`. Limits: a plain external volume/network name (`pgdata:/data`, `Network=host`)
+is not checked, `PublishPort=` format is parsed by podman later (only `ExposeHostPort=` is
+caught here), and because the parser is pinned to one podman version it may diverge from a
+node running a different one — treat it as a strong pre-commit gate, not the final word.
+
 Advisory findings are printed as `<name>: WARN <reason>` lines and do **not** affect the
 exit code. Currently one check: a `PublishPort=` that binds all interfaces (no host
 address, `0.0.0.0`, or `[::]`) — that exposes the service to the outside network. Pin it

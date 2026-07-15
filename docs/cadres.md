@@ -82,7 +82,9 @@ without it), and any `EnvironmentFile=` pointing at a
 cadre-local file (a bare filename, or a path under `%h/.config/containers/systemd/`)
 must resolve to a file the cadre actually ships. Secret keys and resource-limit
 formats are deliberately not validated at load (they need decrypted secrets / systemd's own
-parsing). See [secrets.md](secrets.md).
+parsing). See [secrets.md](secrets.md). `ops validate` additionally runs each Quadlet unit
+through Podman's own parser to catch unknown keys / missing `Image=` / bad values before
+they reach a node (see the `ops validate` section of [cli.md](cli.md)).
 
 Two file names are reserved for the synthesized image-GC units (see below): a cadre that
 ships its own `rucher-prune.service` or `rucher-prune.timer` fails to load.

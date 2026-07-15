@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to pin `127.0.0.1:<host>:<ctr>` unless the service is meant to be public.
 - `ops init <name>` scaffolds a cadre directory: a commented manifest plus a minimal
   working `web.container` (loopback-published nginx) that passes `validate` cleanly.
+- `ops validate` deep-checks Quadlet unit contents with Podman's own parser (pinned to
+  podman v6): an unknown key, a missing `Image=`, an invalid value, or a dangling
+  cross-reference now fails validation on the operator machine instead of only on the node.
 
 ### Changed
 
