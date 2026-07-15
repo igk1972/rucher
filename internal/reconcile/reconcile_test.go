@@ -373,6 +373,26 @@ func TestRemoveStopsUnitsAndFilesWithoutPurge(t *testing.T) {
 	}
 }
 
+func TestRemoveRefusesOnCorruptState(t *testing.T) {
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+	// A corrupted state file must abort Remove rather than silently skip teardown and
+	// delete the file (which would orphan running workloads).
+	sp := statePath("web")
+	if err := os.MkdirAll(filepath.Dir(sp), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sp, []byte("{ not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := &node.Fake{Responses: map[string]node.Result{}}
+	if err := Remove(f, "web", false); err == nil {
+		t.Fatal("Remove must fail on a corrupted state file")
+	}
+	if _, err := os.Stat(sp); err != nil {
+		t.Fatal("corrupted state file must be left in place, not deleted")
+	}
+}
+
 func TestRemovePurgeDeletesUser(t *testing.T) {
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {

@@ -160,7 +160,14 @@ func Status(r node.Runner, name string) ([]UnitStatus, error) {
 // secrets/volumes and the age identity are kept. With purge it additionally tears down
 // the OS user and its home.
 func Remove(r node.Runner, name string, purge bool) error {
-	prior, _ := state.Load(statePath(name))
+	// A corrupted state file must not be swallowed: an empty State{} has UID 0, which would
+	// skip the whole stop/disable/unit-removal block below while still deleting the state
+	// file — leaving the workloads running but unmanaged. A missing file is fine (Load
+	// returns an empty state, nil): the cadre was never applied.
+	prior, err := state.Load(statePath(name))
+	if err != nil {
+		return fmt.Errorf("cadre %s: cannot load state (corrupted?): %w", name, err)
+	}
 	user := provision.UserName(name)
 
 	if prior.UID != 0 {
