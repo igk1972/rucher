@@ -181,6 +181,11 @@ func Status(r node.Runner, name string) ([]UnitStatus, error) {
 // secrets/volumes and the age identity are kept. With purge it additionally tears down
 // the OS user and its home.
 func Remove(r node.Runner, name string, purge bool) error {
+	// Remove is the one mutating path that never routes through EnsureUser (where the name is
+	// otherwise validated), so validate it here before it reaches argv and the state-file path.
+	if !provision.ValidName(name) {
+		return fmt.Errorf("invalid cadre name %q", name)
+	}
 	// A corrupted state file must not be swallowed: an empty State{} has UID 0, which would
 	// skip the whole stop/disable/unit-removal block below while still deleting the state
 	// file — leaving the workloads running but unmanaged. A missing file is fine (Load
