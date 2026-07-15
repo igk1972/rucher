@@ -221,8 +221,10 @@ func deployOne(r sshx.Runner, nodesDir, limaDir, name string, opts Options) Row 
 		if err != nil {
 			return fail(row, err.Error())
 		}
-		// install -D creates /etc/rucher and writes the file in one step.
-		if msg, ok := runStep(r, target, []string{"sudo", "install", "-D", "-m0644", "/dev/stdin", agentCfg}, body); !ok {
+		// install -D creates /etc/rucher and writes the file in one step. Mode 0600:
+		// agent.yml embeds the store's git token / S3 keys, so it must not be readable
+		// by the node's unprivileged cadre users (the tenants the isolation contains).
+		if msg, ok := runStep(r, target, []string{"sudo", "install", "-D", "-m0600", "/dev/stdin", agentCfg}, body); !ok {
 			return fail(row, "write agent.yml: "+msg)
 		}
 		res, err := r.Run(target, []string{"sudo", installPath, "node", "agent", "install"}, nil)

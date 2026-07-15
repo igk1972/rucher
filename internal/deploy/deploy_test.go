@@ -83,9 +83,9 @@ func TestDeployBinaryBootstrap(t *testing.T) {
 	if !hasCmd(f, "sudo mv -f "+stagePath+" "+installPath) {
 		t.Fatal("upload is not atomic (no mv into place)")
 	}
-	// agent.yml written and agent installed.
-	if callWith(f, "sudo install -D -m0644 /dev/stdin "+agentCfg) == nil {
-		t.Fatal("agent.yml not written")
+	// agent.yml written 0600 (it holds store credentials) and agent installed.
+	if callWith(f, "sudo install -D -m0600 /dev/stdin "+agentCfg) == nil {
+		t.Fatal("agent.yml not written with mode 0600")
 	}
 	if !hasCmd(f, "sudo "+installPath+" node agent install") {
 		t.Fatal("node agent install not run")
