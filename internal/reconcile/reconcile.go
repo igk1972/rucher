@@ -88,8 +88,12 @@ func New(r node.Runner, name string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("derive recipient for %s: %w", name, err)
 	}
-	// Rewrite recipient.txt so the public cache is consistent (idempotent).
-	r.User(user, uid, []string{"tee", recipientPath(name)}, []byte(recipient+"\n"))
+	// Rewrite recipient.txt (idempotent). Not ignored: in the interruption this branch heals
+	// — identity written but recipient.txt not — this is the write that creates it, so a
+	// silent failure would leave Recipient() unable to read it. Symmetric with generation.
+	if _, err := r.User(user, uid, []string{"tee", recipientPath(name)}, []byte(recipient+"\n")); err != nil {
+		return "", err
+	}
 	return recipient, nil
 }
 
