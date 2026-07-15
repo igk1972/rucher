@@ -211,6 +211,15 @@ func TestLoadRejectsLoginWithoutSecretsFile(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsLeadingDashName(t *testing.T) {
+	dir := writeCadre(t, map[string]string{
+		"-x.container": "[Container]\nImage=nginx\n",
+	})
+	if _, err := Load(dir); err == nil {
+		t.Fatal("a file name starting with '-' must be rejected")
+	}
+}
+
 func TestLoadRejectsReservedPruneName(t *testing.T) {
 	dir := writeCadre(t, map[string]string{
 		"rucher-prune.timer": "[Timer]\nOnCalendar=daily\n",

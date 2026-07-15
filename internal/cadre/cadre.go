@@ -117,6 +117,10 @@ func (c Cadre) Validate() error {
 		if fileset.IsReserved(f.Name) {
 			return fmt.Errorf("file %s: reserved for the synthesized prune units (configure them via the manifest prune: block)", f.Name)
 		}
+		// A leading '-' makes the (unit) name look like a flag to systemctl/podman.
+		if strings.HasPrefix(f.Name, "-") {
+			return fmt.Errorf("file %s: name must not start with '-'", f.Name)
+		}
 		have[f.Name] = true
 	}
 	for _, f := range c.Files {
