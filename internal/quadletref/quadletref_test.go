@@ -27,3 +27,17 @@ PodmanArgs=--env-file %h/.config/containers/systemd/extra.env
 		t.Fatalf("Secrets = %v", r.Secrets)
 	}
 }
+
+func TestExtractPodmanArgsSecret(t *testing.T) {
+	// A secret mounted via raw PodmanArgs (both --secret name and --secret=name forms)
+	// must be tracked so its unit restarts on rotation.
+	for _, unit := range []string{
+		"[Container]\nImage=nginx\nPodmanArgs=--secret api_token,type=env,target=TOK\n",
+		"[Container]\nImage=nginx\nPodmanArgs=--secret=api_token\n",
+	} {
+		r := Extract([]byte(unit))
+		if !slices.Contains(r.Secrets, "api_token") {
+			t.Fatalf("Secrets = %v, want api_token for unit %q", r.Secrets, unit)
+		}
+	}
+}

@@ -60,6 +60,9 @@ func Extract(unitContent []byte) Refs {
 			for _, p := range podmanArgFiles(val) {
 				addFile(p)
 			}
+			for _, s := range podmanArgSecrets(val) {
+				r.Secrets = append(r.Secrets, s)
+			}
 		}
 	}
 	return r
@@ -73,6 +76,31 @@ func mountSource(v string) string {
 		}
 	}
 	return ""
+}
+
+// podmanArgSecrets finds secret names behind `--secret name[,opts]` (and --secret=name),
+// so a secret mounted via raw PodmanArgs still ties its unit to a rotation.
+func podmanArgSecrets(v string) []string {
+	toks := strings.Fields(v)
+	var out []string
+	for i := 0; i < len(toks); i++ {
+		var arg string
+		switch {
+		case toks[i] == "--secret" && i+1 < len(toks):
+			arg = toks[i+1]
+			i++
+		default:
+			s, ok := strings.CutPrefix(toks[i], "--secret=")
+			if !ok {
+				continue
+			}
+			arg = s
+		}
+		if name := strings.SplitN(arg, ",", 2)[0]; name != "" {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // podmanArgFiles finds file paths behind -v/--volume/--mount/--env-file.
