@@ -104,11 +104,14 @@ func EnsureUser(r node.Runner, name string) (int, error) {
 	if err != nil || subuidRes.Code != 0 {
 		return 0, fmt.Errorf("cat /etc/subuid: code=%d stderr=%s err=%v", subuidRes.Code, subuidRes.Stderr, err)
 	}
-	if !hasSubid(subuidRes.Stdout, user) {
-		subgidRes, err := r.Root([]string{"cat", "/etc/subgid"}, nil)
-		if err != nil || subgidRes.Code != 0 {
-			return 0, fmt.Errorf("cat /etc/subgid: code=%d stderr=%s err=%v", subgidRes.Code, subgidRes.Stderr, err)
-		}
+	subgidRes, err := r.Root([]string{"cat", "/etc/subgid"}, nil)
+	if err != nil || subgidRes.Code != 0 {
+		return 0, fmt.Errorf("cat /etc/subgid: code=%d stderr=%s err=%v", subgidRes.Code, subgidRes.Stderr, err)
+	}
+	// Gate on BOTH maps: a usermod interrupted between its subuid and subgid writes leaves the
+	// user with a range in one file but not the other; checking only subuid would skip the fix
+	// and leave rootless podman unable to map gids.
+	if !hasSubid(subuidRes.Stdout, user) || !hasSubid(subgidRes.Stdout, user) {
 		start := nextSubidStart(subuidRes.Stdout, subgidRes.Stdout)
 		rng := fmt.Sprintf("%d-%d", start, start+subidCount-1)
 		if res, err := r.Root([]string{"usermod", "--add-subuids", rng, "--add-subgids", rng, user}, nil); err != nil || res.Code != 0 {

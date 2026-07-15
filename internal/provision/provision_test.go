@@ -3,6 +3,7 @@
 package provision
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -114,7 +115,9 @@ func TestEnsureUserAllocatesFreeBlock(t *testing.T) {
 func TestEnsureUserSkipsSubidWhenPresent(t *testing.T) {
 	f := &node.Fake{Responses: map[string]node.Result{
 		"root:id -u rucher-web": {Stdout: "1500"},
-		"root:cat /etc/subuid":  {Stdout: "rucher-web:300000:65536\n"},
+		// Both maps must carry the user for the allocation to be skipped.
+		"root:cat /etc/subuid": {Stdout: "rucher-web:300000:65536\n"},
+		"root:cat /etc/subgid": {Stdout: "rucher-web:300000:65536\n"},
 	}}
 	if _, err := EnsureUser(f, "web"); err != nil {
 		t.Fatal(err)
@@ -125,6 +128,28 @@ func TestEnsureUserSkipsSubidWhenPresent(t *testing.T) {
 				t.Fatalf("did not expect --add-subuids, got calls %v", f.Calls)
 			}
 		}
+	}
+}
+
+func TestEnsureUserAllocatesSubidWhenSubgidMissing(t *testing.T) {
+	// subuid present but subgid absent (a usermod interrupted mid-write): the allocation must
+	// still run so the missing subgid range is repaired.
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web": {Stdout: "1500"},
+		"root:cat /etc/subuid":  {Stdout: "rucher-web:300000:65536\n"},
+		"root:cat /etc/subgid":  {Stdout: ""},
+	}}
+	if _, err := EnsureUser(f, "web"); err != nil {
+		t.Fatal(err)
+	}
+	var sawAdd bool
+	for _, c := range f.Calls {
+		if slices.Contains(c.Argv, "--add-subgids") {
+			sawAdd = true
+		}
+	}
+	if !sawAdd {
+		t.Fatalf("expected a usermod --add-subgids to repair the missing subgid, got %v", f.Calls)
 	}
 }
 
