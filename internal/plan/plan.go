@@ -153,12 +153,20 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 		}
 	}
 
-	// Coarse fallback: a changed support file that no unit references -> restart all units.
+	// Coarse fallback: a changed support file that no unit references -> restart every present
+	// unit, Quadlet and native systemd alike. A systemd unit's dependency on a support file
+	// isn't visible in its content, so a changed orphan file restarts it too, mirroring the
+	// Quadlet handling. The extension gate keeps the [Install]-less synthesized prune .service
+	// out (it is fired by its timer, never restarted directly).
 	if orphanChanged(changedSupport, c.Files) {
 		for _, f := range c.Files {
-			if f.IsUnit && priorUnits[f.Name] && !slices.Contains(p.RestartUnits, f.Name) &&
-				!slices.Contains(p.StartUnits, f.Name) {
+			switch {
+			case f.IsUnit && priorUnits[f.Name] &&
+				!slices.Contains(p.RestartUnits, f.Name) && !slices.Contains(p.StartUnits, f.Name):
 				p.RestartUnits = append(p.RestartUnits, f.Name)
+			case f.IsSystemdUnit && fileset.IsSystemdUnit(f.Name) && priorSystemd[f.Name] &&
+				!slices.Contains(p.RestartSystemdUnits, f.Name) && !slices.Contains(p.EnableUnits, f.Name):
+				p.RestartSystemdUnits = append(p.RestartSystemdUnits, f.Name)
 			}
 		}
 	}

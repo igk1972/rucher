@@ -152,6 +152,29 @@ func TestCoarseFallbackRestartsUnreferencedUnits(t *testing.T) {
 	}
 }
 
+func TestCoarseFallbackRestartsSystemdUnits(t *testing.T) {
+	// A changed support file no Quadlet unit references must also restart a present native
+	// systemd unit via the coarse fallback (systemd units get no reference-based restart of
+	// their own, so without this a .timer/.path reading that file would go stale).
+	timer := "[Timer]\nOnCalendar=daily\n[Install]\nWantedBy=timers.target\n"
+	c := comp(map[string]string{
+		"backup.timer": timer,
+		"orphan.conf":  "new\n", // changed, referenced by nobody
+	})
+	prior := state.State{
+		Files: map[string]string{
+			"backup.timer": fileset.Hash([]byte(timer)),
+			"orphan.conf":  fileset.Hash([]byte("old\n")), // changed
+		},
+		SystemdUnits: []string{"backup.timer"},
+		SecretHashes: map[string]string{},
+	}
+	p := Compute(c, nil, prior)
+	if !slices.Contains(p.RestartSystemdUnits, "backup.timer") {
+		t.Fatalf("RestartSystemdUnits = %v, want [backup.timer] via coarse fallback", p.RestartSystemdUnits)
+	}
+}
+
 func TestSecretCreateRotateAndRemove(t *testing.T) {
 	c := comp(map[string]string{"web.container": "[Container]\nImage=nginx\n"})
 	secretHashes := map[string]string{
