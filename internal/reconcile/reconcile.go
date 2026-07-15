@@ -312,11 +312,20 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	}
 	// 2. stop removed units first, while their generated .service still resolves
 	//    (once the .container file is deleted below, systemctl can no longer map it)
+	stopFailed := map[string]bool{}
 	for _, u := range p.StopUnits {
-		o.Stop(u)
+		if err := o.Stop(u); err != nil {
+			// A stop that fails while the manager is live left the workload running; keep the
+			// unit (skip its file removal and retain it in state) so the next reconcile retries
+			// the stop instead of orphaning and forgetting a live container. A manager-down
+			// removal can't reach state.Save converged — the daemon-reload below fails first.
+			stopFailed[u] = true
+		}
 	}
 	for _, u := range p.DisableUnits {
-		o.DisableNow(u) // best-effort: stop + unlink while the unit file still exists
+		if err := o.DisableNow(u); err != nil { // stop + unlink while the unit file still exists
+			stopFailed[u] = true
+		}
 	}
 	// 3. write/remove files as the cadre user. Quadlet units + support files go to the
 	//    Quadlet dir; native systemd units go to the user unit dir (~/.config/systemd/user).
@@ -340,6 +349,9 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 		}
 	}
 	for _, name := range p.RemoveFiles {
+		if stopFailed[name] {
+			continue // its stop failed above; keep the file so the next pass retries the stop
+		}
 		dir := qDir
 		if fileset.IsSystemdUnit(name) || fileset.IsReserved(name) {
 			dir = uDir
@@ -405,6 +417,18 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 
 	// 7. persist new state
 	next := nextState(c, uid, secretHashes)
+	// Retain units whose stop failed (with their prior file hash) so the next reconcile sees
+	// them as still-present-but-undesired and retries the stop-then-remove.
+	for u := range stopFailed {
+		if h, ok := prior.Files[u]; ok {
+			next.Files[u] = h
+		}
+		if fileset.IsSystemdUnit(u) {
+			next.SystemdUnits = append(next.SystemdUnits, u)
+		} else {
+			next.Units = append(next.Units, u)
+		}
+	}
 	if err := state.Save(statePath(c.Name), next); err != nil {
 		return p, err
 	}

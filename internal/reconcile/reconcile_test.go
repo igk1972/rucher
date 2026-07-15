@@ -181,6 +181,52 @@ func TestApplyReappliesSecretsAndFilesOnUidChange(t *testing.T) {
 	}
 }
 
+func TestApplyKeepsUnitWhenStopFails(t *testing.T) {
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+	body := "[Container]\nImage=nginx\n"
+	// Prior has two units; desired drops old.container, so it is stopped and removed.
+	if err := state.Save(statePath("web"), state.State{
+		Name: "web", UID: 1234,
+		Files: map[string]string{
+			"web.container": fileset.Hash([]byte(body)),
+			"old.container": "oldhash",
+		},
+		Units:        []string{"web.container", "old.container"},
+		SecretHashes: map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	c := cadre.Cadre{Name: "web"}
+	c.Files = []cadre.File{{Name: "web.container", Content: []byte(body), Hash: fileset.Hash([]byte(body)), IsUnit: true}}
+
+	// Stopping old.container's generated service fails, while daemon-reload succeeds (live
+	// manager). The failed stop must not delete the file nor drop the unit from state.
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web":                       {Stdout: "1234"},
+		"user:1234:systemctl --user stop old.service": {Code: 1, Stderr: "job failed"},
+	}}
+	if _, err := Apply(f, c); err != nil {
+		t.Fatal(err)
+	}
+
+	wantRm := "rm -f " + systemdDir("web") + "/old.container"
+	for _, call := range f.Calls {
+		if strings.Join(call.Argv, " ") == wantRm {
+			t.Error("old.container must not be removed while its stop failed")
+		}
+	}
+	st, err := state.Load(statePath("web"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(st.Units, "old.container") {
+		t.Fatalf("state Units = %v, want old.container retained after a failed stop", st.Units)
+	}
+	if _, ok := st.Files["old.container"]; !ok {
+		t.Fatalf("state Files = %v, want old.container retained after a failed stop", st.Files)
+	}
+}
+
 func TestApplyRoutesSystemdUnitToUserDirAndEnables(t *testing.T) {
 	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
