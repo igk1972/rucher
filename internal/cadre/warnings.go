@@ -20,6 +20,7 @@ func (c Cadre) Warnings() []string {
 			continue
 		}
 		sc := bufio.NewScanner(bytes.NewReader(f.Content))
+		sc.Buffer(nil, maxUnitLine) // don't let a long line truncate the scan (default 64KB cap)
 		for sc.Scan() {
 			key, val, ok := strings.Cut(strings.TrimSpace(sc.Text()), "=")
 			if !ok || strings.TrimSpace(key) != "PublishPort" {

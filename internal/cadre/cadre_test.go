@@ -163,6 +163,27 @@ func TestLoadRejectsQuadletWithoutTypeSection(t *testing.T) {
 	}
 }
 
+func TestValidateSeesRefAfterLongLine(t *testing.T) {
+	// A line longer than bufio's default 64KB cap must not truncate the scan and
+	// hide a later EnvironmentFile ref (which would let a broken unit validate).
+	longLine := "# " + strings.Repeat("a", 70_000)
+	dir := writeCadre(t, map[string]string{
+		"web.container": "[Container]\nImage=nginx\n" + longLine + "\nEnvironmentFile=missing.env\n",
+	})
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected missing EnvironmentFile error even after a >64KB line")
+	}
+}
+
+func TestWarningsSeesPublishPortAfterLongLine(t *testing.T) {
+	longLine := "# " + strings.Repeat("a", 70_000)
+	body := "[Container]\nImage=nginx\n" + longLine + "\nPublishPort=80\n"
+	c := Cadre{Files: []File{{Name: "web.container", Content: []byte(body), IsUnit: true}}}
+	if got := c.Warnings(); len(got) != 1 {
+		t.Fatalf("warnings = %v, want one PublishPort warning after a >64KB line", got)
+	}
+}
+
 func TestWarningsPublishPortAllInterfaces(t *testing.T) {
 	unit := func(v string) Cadre {
 		body := "[Container]\nImage=nginx\nPublishPort=" + v + "\n"

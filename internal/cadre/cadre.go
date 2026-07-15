@@ -141,10 +141,15 @@ var requiredSection = map[string]string{
 	".pod": "Pod", ".kube": "Kube", ".image": "Image", ".build": "Build",
 }
 
+// maxUnitLine caps a scanned unit line well above the default 64KB, so a long
+// (but legitimate) line does not silently truncate the scan and drop refs.
+const maxUnitLine = 1 << 20
+
 func validateUnit(f File, have map[string]bool) error {
 	hasSection := false
 	sections := map[string]bool{}
 	sc := bufio.NewScanner(bytes.NewReader(f.Content))
+	sc.Buffer(nil, maxUnitLine)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if strings.HasPrefix(line, "[") {
@@ -164,6 +169,9 @@ func validateUnit(f File, have map[string]bool) error {
 		if !have[name] {
 			return fmt.Errorf("unit %s references missing EnvironmentFile %s", f.Name, name)
 		}
+	}
+	if err := sc.Err(); err != nil {
+		return fmt.Errorf("scan unit %s: %w", f.Name, err)
 	}
 	if !hasSection {
 		return fmt.Errorf("unit %s is empty or has no [Section] header", f.Name)
