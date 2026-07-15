@@ -6,6 +6,7 @@ package provision
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -16,7 +17,19 @@ import (
 const (
 	subidCount = 65536
 	subidBase  = 100000
+	// MaxCadreName keeps the "rucher-<name>" user within useradd's 32-char limit.
+	MaxCadreName = 25
 )
+
+// cadreNameRe constrains a cadre name to what is safe as both a Linux username
+// (rucher-<name>) and a filesystem path component — no slashes, dots, spaces or
+// other traversal/injection characters.
+var cadreNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
+// ValidName reports whether name is a safe cadre name.
+func ValidName(name string) bool {
+	return len(name) <= MaxCadreName && cadreNameRe.MatchString(name)
+}
 
 // BaseDir is the root of every cadre's home. RUCHER_CADRES_DIR overrides it
 // (tests and alternative layouts); empty falls back to the system path.
@@ -64,6 +77,12 @@ func hasSubid(subuid, user string) bool {
 }
 
 func EnsureUser(r node.Runner, name string) (int, error) {
+	// Validate here, not just at `ops init`: on the agent path the name comes from
+	// placement.yml keys straight into a username and filesystem paths, so this is the
+	// one choke point every caller passes through before useradd / HomeDir / statePath.
+	if !ValidName(name) {
+		return 0, fmt.Errorf("invalid cadre name %q (must match [a-z0-9][a-z0-9-]* and be at most %d chars)", name, MaxCadreName)
+	}
 	user := UserName(name)
 	if res, _ := r.Root([]string{"id", "-u", user}, nil); res.Code != 0 {
 		home := HomeDir(name)

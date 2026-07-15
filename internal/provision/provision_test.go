@@ -19,6 +19,31 @@ func TestUserNameAndHome(t *testing.T) {
 	}
 }
 
+func TestValidName(t *testing.T) {
+	for _, ok := range []string{"web", "web-1", "a", "0abc", "a-b-c"} {
+		if !ValidName(ok) {
+			t.Errorf("ValidName(%q) = false, want true", ok)
+		}
+	}
+	for _, bad := range []string{"", "Web", "../etc", "a/b", "a.b", "a b", "-lead", "a-very-long-name-exceeding-limit"} {
+		if ValidName(bad) {
+			t.Errorf("ValidName(%q) = true, want false", bad)
+		}
+	}
+}
+
+func TestEnsureUserRejectsInvalidName(t *testing.T) {
+	f := &node.Fake{Responses: map[string]node.Result{}}
+	if _, err := EnsureUser(f, "../escape"); err == nil {
+		t.Fatal("EnsureUser must reject a traversal name")
+	}
+	for _, c := range f.Calls {
+		if c.Argv[0] == "useradd" {
+			t.Fatal("useradd must not run for an invalid name")
+		}
+	}
+}
+
 func TestEnsureUserCreatesWhenMissing(t *testing.T) {
 	f := &node.Fake{Responses: map[string]node.Result{
 		// id -u for a missing user: non-zero exit

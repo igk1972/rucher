@@ -7,16 +7,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 
 	"rucher/internal/cadre"
+	"rucher/internal/provision"
 )
-
-// cadreName matches names that stay useradd-compatible once prefixed with
-// "rucher-"; maxCadreName keeps the user name within useradd's 32-char limit.
-var cadreName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
-
-const maxCadreName = 25
 
 func initManifest(name string) string {
 	return "# " + name + " — cadre manifest. The cadre's name is this directory's name; every key\n" +
@@ -45,8 +39,8 @@ func initUnit(name string) string {
 // cmdInit scaffolds a new cadre directory: a commented manifest plus a minimal
 // working Quadlet unit, ready for validate/plan/apply.
 func cmdInit(dir, name string, out io.Writer) int {
-	if !cadreName.MatchString(name) || len(name) > maxCadreName {
-		fmt.Fprintf(out, "error: cadre name %q must match [a-z0-9][a-z0-9-]* and be at most %d characters\n", name, maxCadreName)
+	if !provision.ValidName(name) {
+		fmt.Fprintf(out, "error: cadre name %q must match [a-z0-9][a-z0-9-]* and be at most %d characters\n", name, provision.MaxCadreName)
 		return 1
 	}
 	target := filepath.Join(dir, name)
