@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   podman v6): an unknown key, a missing `Image=`, an invalid value, or a dangling
   cross-reference now fails validation on the operator machine instead of only on the node.
 
+**Multi-node**
+- `ops nodes deploy` accepts `--store-user` to set the git store user when it isn't embedded
+  in the store URL.
+
 ### Changed
 
 **Core**
@@ -35,23 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of being silently ignored.
 - The manifest validates `resources.memoryMax` / `resources.cpuQuota`, rejecting a malformed
   value (or one containing a newline) at load time.
-
-### Security
-
-**Core**
-- Bound the output captured from a remote command, so a malicious or misbehaving node can no
-  longer exhaust operator memory by streaming unbounded output during a fleet sweep.
-- Harden the SOPS+age decoder: a tampered file with a wrong-length IV no longer panics, and
-  empty/duplicate-key malleability that could blank a secret while the MAC still verified is
-  rejected.
-- Guard podman positional arguments (registry, secret name) with `--` so a value beginning
-  with `-` cannot be reinterpreted as a flag.
-- Validate cadre names in the operator-side `keygen` / `net join` / `secrets encrypt`
-  commands, matching `ops init`.
-- The `known_hosts` fallback used when no home directory is available is now a per-user 0700
-  path instead of a predictable, world-writable `/tmp` file.
-- Release binaries are built with Go 1.26.5, closing an Encrypted Client Hello privacy leak
-  in `crypto/tls` (GO-2026-5856) reachable from the S3 store and age decryption paths.
+- `plan` output now lists enable/disable/stop/remove/secret actions, not only file writes, so a
+  dry run shows the full set of changes a reconcile will make.
+- `node cadre rm --purge` stops the cadre's workloads before removing them, a graceful teardown
+  instead of an abrupt unit deletion.
 
 ### Fixed
 
@@ -77,6 +68,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   node name; the reconcile pass is bounded by a timeout so a stalled store can't pin the node
   lock; the registry login re-runs when only the login block changes; `state.json` is fsynced
   before its atomic rename; and `reconcile.Remove` validates the cadre name.
+
+### Security
+
+**Core**
+- Bound the output captured from a remote command, so a malicious or misbehaving node can no
+  longer exhaust operator memory by streaming unbounded output during a fleet sweep.
+- Harden the SOPS+age decoder: a tampered file with a wrong-length IV no longer panics, and
+  empty/duplicate-key malleability that could blank a secret while the MAC still verified is
+  rejected.
+- Guard podman positional arguments (registry, secret name) with `--` so a value beginning
+  with `-` cannot be reinterpreted as a flag.
+- Validate cadre names in the operator-side `keygen` / `net join` / `secrets encrypt`
+  commands, matching `ops init`.
+- The `known_hosts` fallback used when no home directory is available is now a per-user 0700
+  path instead of a predictable, world-writable `/tmp` file.
+- Release binaries are built with Go 1.26.5, closing an Encrypted Client Hello privacy leak
+  in `crypto/tls` (GO-2026-5856) reachable from the S3 store and age decryption paths.
 
 ## [0.0.1] - 2026-07-10
 
