@@ -43,6 +43,20 @@ func TestMapBoundsConcurrency(t *testing.T) {
 	}
 }
 
+func TestMapRecoversFromPanic(t *testing.T) {
+	// One item's fn panics; Map must not crash the process and must still return
+	// results for the others (the panicking item keeps its zero value).
+	got := Map([]int{1, 2, 3}, 2, func(n int) int {
+		if n == 2 {
+			panic("boom")
+		}
+		return n * 10
+	})
+	if len(got) != 3 || got[0] != 10 || got[1] != 0 || got[2] != 30 {
+		t.Fatalf("got %v, want [10 0 30]", got)
+	}
+}
+
 func TestMapLimitFallbacks(t *testing.T) {
 	in := []int{1, 2, 3}
 	// limit <= 0 and limit > len both mean one worker per item; order still holds.

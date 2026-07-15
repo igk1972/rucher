@@ -28,6 +28,9 @@ func Map[T, R any](items []T, limit int, fn func(T) R) []R {
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
+			// A panic in fn (one node) must not crash the whole fleet operation; the
+			// item keeps its zero result, which callers surface as a non-OK row.
+			defer func() { _ = recover() }()
 			out[i] = fn(items[i])
 		}()
 	}
