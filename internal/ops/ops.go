@@ -49,8 +49,15 @@ func (o Ops) KillPause() {
 }
 
 func (o Ops) SecretRemove(name string) error {
-	// ignore "no such secret"; treat only real failures as errors
-	o.R.User(o.User, o.UID, []string{"podman", "secret", "rm", name}, nil)
+	// Removing an absent secret is fine (idempotent); any other non-zero exit is a real
+	// failure a caller should see, so a rotated-away secret is not silently left behind.
+	res, err := o.R.User(o.User, o.UID, []string{"podman", "secret", "rm", name}, nil)
+	if err != nil {
+		return fmt.Errorf("secret rm %s: %w", name, err)
+	}
+	if res.Code != 0 && !strings.Contains(res.Stderr, "no such secret") && !strings.Contains(res.Stderr, "not found") {
+		return fmt.Errorf("secret rm %s exited %d: %s", name, res.Code, strings.TrimSpace(res.Stderr))
+	}
 	return nil
 }
 

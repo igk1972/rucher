@@ -328,7 +328,9 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 		}
 	}
 	for _, key := range p.RemoveSecrets {
-		o.SecretRemove(key)
+		if err := o.SecretRemove(key); err != nil {
+			return p, err
+		}
 	}
 	// 5. registry logins — only when something changed. podman login validates against
 	//    the registry over the network and rewrites the user's auth.json; running it on

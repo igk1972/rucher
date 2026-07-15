@@ -144,6 +144,26 @@ func TestGenerateAgeKey(t *testing.T) {
 	}
 }
 
+func TestSecretRemoveDistinguishesRealFailure(t *testing.T) {
+	o := func(f *node.Fake) Ops { return Ops{R: f, User: "rucher-web", UID: 1234} }
+
+	// Absent secret -> nil (idempotent).
+	f := &node.Fake{Responses: map[string]node.Result{
+		"user:1234:podman secret rm gone": {Code: 125, Stderr: "Error: no such secret gone"},
+	}}
+	if err := o(f).SecretRemove("gone"); err != nil {
+		t.Fatalf("removing an absent secret should be a no-op, got %v", err)
+	}
+
+	// Any other failure -> error (not swallowed).
+	f = &node.Fake{Responses: map[string]node.Result{
+		"user:1234:podman secret rm db": {Code: 125, Stderr: "Error: database is locked"},
+	}}
+	if err := o(f).SecretRemove("db"); err == nil {
+		t.Fatal("a real secret-rm failure must be returned")
+	}
+}
+
 func TestSecretCreatePassesValueViaStdin(t *testing.T) {
 	f := &node.Fake{Responses: map[string]node.Result{}}
 	o := Ops{R: f, User: "rucher-web", UID: 1234}
