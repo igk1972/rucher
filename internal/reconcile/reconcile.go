@@ -318,14 +318,20 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	for _, key := range p.RemoveSecrets {
 		o.SecretRemove(key)
 	}
-	// 5. registry logins
-	for _, l := range c.Manifest.Registries.Login {
-		pw, ok := secretValues[l.PasswordKey]
-		if !ok {
-			return p, fmt.Errorf("cadre %s: registry %s: passwordKey %q not in secrets", c.Name, l.Registry, l.PasswordKey)
-		}
-		if err := o.Login(l.Registry, l.Username, []byte(pw), l.Insecure); err != nil {
-			return p, err
+	// 5. registry logins — only when something changed. podman login validates against
+	//    the registry over the network and rewrites the user's auth.json; running it on
+	//    every agent pass (every ~30s) for a converged cadre risks a registry rate-limit
+	//    (docker.io 429) for no benefit. auth.json persists across passes, so a no-op plan
+	//    can safely skip it; any real change (new/rotated secret, unit edit) re-runs it.
+	if !p.Empty() {
+		for _, l := range c.Manifest.Registries.Login {
+			pw, ok := secretValues[l.PasswordKey]
+			if !ok {
+				return p, fmt.Errorf("cadre %s: registry %s: passwordKey %q not in secrets", c.Name, l.Registry, l.PasswordKey)
+			}
+			if err := o.Login(l.Registry, l.Username, []byte(pw), l.Insecure); err != nil {
+				return p, err
+			}
 		}
 	}
 	// 6. daemon-reload + unit start/restart (stops already happened above)

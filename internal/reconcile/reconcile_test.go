@@ -469,6 +469,47 @@ func TestRemovePurgeGracefulTeardown(t *testing.T) {
 	}
 }
 
+func TestApplySkipsRegistryLoginWhenConverged(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+
+	sopsPath := writeCadreSecrets(t, "web", []sopsage.KV{{Key: "ghcr_token", Value: "tok"}})
+	c := cadre.Cadre{
+		Name:     "web",
+		SopsPath: sopsPath,
+		Manifest: manifest.Manifest{Registries: manifest.Registries{Login: []manifest.Login{
+			{Registry: "ghcr.io", Username: "u", PasswordKey: "ghcr_token"},
+		}}},
+	}
+	sawLogin := func(f *node.Fake) bool {
+		for _, call := range f.Calls {
+			if len(call.Argv) >= 2 && call.Argv[0] == "podman" && call.Argv[1] == "login" {
+				return true
+			}
+		}
+		return false
+	}
+
+	// First apply: fresh cadre, plan is non-empty, so the registry login runs.
+	f1 := &node.Fake{Responses: map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234"}}}
+	if _, err := Apply(f1, c); err != nil {
+		t.Fatal(err)
+	}
+	if !sawLogin(f1) {
+		t.Fatal("first apply must log in to the registry")
+	}
+
+	// Second apply: converged (empty plan), so login must be skipped to avoid a
+	// per-pass registry round-trip / rate-limit.
+	f2 := &node.Fake{Responses: map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234"}}}
+	if _, err := Apply(f2, c); err != nil {
+		t.Fatal(err)
+	}
+	if sawLogin(f2) {
+		t.Fatal("a converged apply must not re-run podman login")
+	}
+}
+
 func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
