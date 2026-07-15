@@ -109,3 +109,13 @@ func TestExtractPodmanArgsSecret(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractEnvironmentFileWithColon(t *testing.T) {
+	// A ':' in an EnvironmentFile path is part of the filename, not a host:container separator,
+	// so it must not be truncated the way a Volume source is.
+	unit := []byte("[Container]\nImage=nginx\nEnvironmentFile=%h/.config/containers/systemd/my:env.txt\n")
+	r := Extract(unit)
+	if !slices.Contains(r.Files, "my:env.txt") {
+		t.Fatalf("Files = %v, want my:env.txt (not truncated at colon)", r.Files)
+	}
+}

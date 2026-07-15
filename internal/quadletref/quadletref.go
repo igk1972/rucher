@@ -14,31 +14,37 @@ type Refs struct {
 	Secrets []string
 }
 
-// fileKeys reference a single path as their value (possibly with :opts suffix).
-var fileKeys = map[string]bool{
-	"EnvironmentFile": true, "Volume": true, "Mount": true,
-	"AddDevice": true, "Rootfs": true, "ContainersConfModule": true,
+// colonFileKeys use the host:container[:opts] (or Mount source=) syntax, so only their host
+// part is a cadre-local path.
+var colonFileKeys = map[string]bool{"Volume": true, "Mount": true, "AddDevice": true}
+
+// plainFileKeys carry a bare path value; a ':' in it is part of the filename, not a separator.
+var plainFileKeys = map[string]bool{
+	"EnvironmentFile": true, "Rootfs": true, "ContainersConfModule": true,
 	"Yaml": true, "File": true, "SetWorkingDirectory": true,
 }
 
 func Extract(unitContent []byte) Refs {
 	var r Refs
 	seenF := map[string]bool{}
-	addFile := func(raw string) {
-		// keep only cadre-local basenames; drop container-side/opts parts
-		raw = strings.TrimSpace(raw)
-		raw = strings.SplitN(raw, ":", 2)[0] // "host:container:opts" -> host for Volume/Mount source
-		if src := mountSource(raw); src != "" {
-			raw = src
-		}
-		if raw == "" {
+	add := func(path string) {
+		if path == "" {
 			return
 		}
-		base := filepath.Base(raw)
+		base := filepath.Base(path)
 		if base != "." && base != "/" && !seenF[base] {
 			seenF[base] = true
 			r.Files = append(r.Files, base)
 		}
+	}
+	// volumeSource extracts the host path from a Volume/AddDevice `host:container[:opts]` value
+	// or a Mount `type=...,source=/x` value; only these use the colon/opts syntax.
+	volumeSource := func(raw string) string {
+		raw = strings.TrimSpace(raw)
+		if src := mountSource(raw); src != "" {
+			return src
+		}
+		return strings.SplitN(raw, ":", 2)[0]
 	}
 	// Fold systemd trailing-`\` continuations first: a Secret= or --secret on a
 	// continuation line would otherwise be invisible, and a missed secret ref means
@@ -52,14 +58,16 @@ func Extract(unitContent []byte) Refs {
 		key = strings.TrimSpace(key)
 		val = strings.TrimSpace(val)
 		switch {
-		case fileKeys[key]:
-			addFile(val)
+		case colonFileKeys[key]:
+			add(volumeSource(val))
+		case plainFileKeys[key]:
+			add(val)
 		case key == "Secret":
 			name := strings.SplitN(val, ",", 2)[0]
 			r.Secrets = append(r.Secrets, strings.TrimSpace(name))
 		case key == "PodmanArgs":
 			for _, p := range podmanArgFiles(val) {
-				addFile(p)
+				add(volumeSource(p))
 			}
 			for _, s := range podmanArgSecrets(val) {
 				r.Secrets = append(r.Secrets, s)
