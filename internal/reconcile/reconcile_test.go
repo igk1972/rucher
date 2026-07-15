@@ -135,6 +135,52 @@ func TestApplyReappliesResourcesOnUidChange(t *testing.T) {
 	}
 }
 
+func TestApplyReappliesSecretsAndFilesOnUidChange(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+
+	sopsPath := writeCadreSecrets(t, "web", []sopsage.KV{{Key: "db_password", Value: "pw1"}})
+	body := "[Container]\nImage=nginx\n"
+	c := cadre.Cadre{
+		Name:     "web",
+		SopsPath: sopsPath,
+		Manifest: manifest.Manifest{Secrets: manifest.Secrets{Create: []string{"db_password"}}},
+	}
+	c.Files = []cadre.File{{Name: "web.container", Content: []byte(body), Hash: fileset.Hash([]byte(body)), IsUnit: true}}
+
+	// Prior state is fully converged but under a STALE uid: the user was recreated, so its home
+	// (podman secrets under it, unit files) is gone. Everything must re-apply to the new uid.
+	if err := state.Save(statePath("web"), state.State{
+		Name: "web", UID: 999,
+		Files:        map[string]string{"web.container": fileset.Hash([]byte(body))},
+		SecretHashes: map[string]string{"db_password": fileset.Hash([]byte("pw1"))},
+		Units:        []string{"web.container"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	f := &node.Fake{Responses: map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234"}}}
+	if _, err := Apply(f, c); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawSecretCreate, sawUnitTee bool
+	for _, call := range f.Calls {
+		switch strings.Join(call.Argv, " ") {
+		case "podman secret create -- db_password -":
+			sawSecretCreate = true
+		case "tee " + systemdDir("web") + "/web.container":
+			sawUnitTee = true
+		}
+	}
+	if !sawSecretCreate {
+		t.Error("a uid change must re-create the cadre's podman secrets for the fresh home")
+	}
+	if !sawUnitTee {
+		t.Error("a uid change must re-write the cadre's unit files to the new home")
+	}
+}
+
 func TestApplyRoutesSystemdUnitToUserDirAndEnables(t *testing.T) {
 	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())

@@ -291,18 +291,18 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	if err != nil {
 		return plan.Plan{}, err
 	}
-	p := plan.Compute(c, secretHashes, prior)
-
-	// A uid change (user recreated out-of-band, or state restored onto a rebuilt node) must
-	// re-apply limits to the new uid even when the Resources struct is unchanged — the plan
-	// gate only compares Resources. The old uid's slice drop-in is left in place on purpose:
-	// that uid may have been reused by another cadre, and deleting it here would strip that
-	// cadre's limits; an orphan binds nothing and is reaped by `remove --purge`.
+	// A uid change (user recreated out-of-band, or state restored onto a rebuilt node) means the
+	// recorded state describes a user whose home — its podman secrets, unit files and slice
+	// drop-in — no longer exists. Plan against a zeroed baseline so every file, secret, unit and
+	// the resource limits re-apply to the new uid; otherwise a `.container` with Secret= fails
+	// "no such secret" against the fresh home and files/units are skipped entirely. The old uid's
+	// slice drop-in is left untouched: another cadre may have reused that uid, and a true orphan
+	// is reaped by `remove --purge`.
+	base := prior
 	if prior.UID != 0 && uid != prior.UID {
-		if res := c.Manifest.Resources; res.MemoryMax != "" || res.CPUQuota != "" {
-			p.Resources = &res
-		}
+		base = state.State{}
 	}
+	p := plan.Compute(c, secretHashes, base)
 
 	// 1. resource limits
 	if p.Resources != nil {
