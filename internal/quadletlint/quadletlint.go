@@ -68,25 +68,7 @@ func Check(files map[string]string) (warnings, fatal []string) {
 	}
 
 	for _, u := range units {
-		var warn, err error
-		switch filepath.Ext(u.Filename) {
-		case ".container":
-			_, warn, err = quadlet.ConvertContainer(u, info, isUser)
-		case ".volume":
-			_, warn, err = quadlet.ConvertVolume(u, info, isUser)
-		case ".network":
-			_, warn, err = quadlet.ConvertNetwork(u, info, isUser)
-		case ".pod":
-			_, warn, err = quadlet.ConvertPod(u, info, isUser)
-		case ".build":
-			_, warn, err = quadlet.ConvertBuild(u, info, isUser)
-		case ".kube":
-			_, err = quadlet.ConvertKube(u, info, isUser)
-		case ".image":
-			_, err = quadlet.ConvertImage(u, info, isUser)
-		default:
-			continue // not a Quadlet unit type; caller should not have passed it
-		}
+		warn, err := convertUnit(u, info)
 		if warn != nil {
 			warnings = append(warnings, fmt.Sprintf("%s: %s", u.Filename, strings.TrimSpace(warn.Error())))
 		}
@@ -95,4 +77,33 @@ func Check(files map[string]string) (warnings, fatal []string) {
 		}
 	}
 	return warnings, fatal
+}
+
+// convertUnit runs Podman's Quadlet converter for one unit, recovering a converter panic into
+// a fatal for that unit: `ops validate` is a pre-deploy safety net, so one malformed unit must
+// never crash the process. Defense-in-depth — no panic has been reproduced by fuzzing.
+func convertUnit(u *parser.UnitFile, info map[string]*quadlet.UnitInfo) (warn, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic in podman quadlet converter: %v", r)
+		}
+	}()
+	switch filepath.Ext(u.Filename) {
+	case ".container":
+		_, warn, err = quadlet.ConvertContainer(u, info, isUser)
+	case ".volume":
+		_, warn, err = quadlet.ConvertVolume(u, info, isUser)
+	case ".network":
+		_, warn, err = quadlet.ConvertNetwork(u, info, isUser)
+	case ".pod":
+		_, warn, err = quadlet.ConvertPod(u, info, isUser)
+	case ".build":
+		_, warn, err = quadlet.ConvertBuild(u, info, isUser)
+	case ".kube":
+		_, err = quadlet.ConvertKube(u, info, isUser)
+	case ".image":
+		_, err = quadlet.ConvertImage(u, info, isUser)
+	}
+	// An unknown extension falls through to (nil, nil): the caller filters to Quadlet units.
+	return warn, err
 }
