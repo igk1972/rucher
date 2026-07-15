@@ -33,6 +33,24 @@ connection:
 	}
 }
 
+func TestLoadRejectsUnknownField(t *testing.T) {
+	// A typo'd field must be a hard error, not a silently-dropped zero value.
+	path := filepath.Join(t.TempDir(), "configuration.yml")
+	os.WriteFile(path, []byte("network:\n  adress: 100.1.2.3\n"), 0o644) // "adress" typo
+	if _, err := Load(path); err == nil {
+		t.Fatal("expected an error for an unknown config field")
+	}
+}
+
+func TestLoadMergedRejectsUnknownField(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "web"), 0o755)
+	os.WriteFile(filepath.Join(dir, "web", "configuration.yml"), []byte("conection:\n  host: 10.0.0.5\n"), 0o644) // "conection" typo
+	if _, err := LoadMerged(dir, "web"); err == nil {
+		t.Fatal("expected an error for an unknown config field in the merged doc")
+	}
+}
+
 func TestList(t *testing.T) {
 	dir := t.TempDir()
 	for _, h := range []string{"b", "a"} {
@@ -51,7 +69,7 @@ func TestList(t *testing.T) {
 
 func TestWriteNetworkPreservesOtherKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "configuration.yml")
-	os.WriteFile(path, []byte("# global node config\nhostname: web\nconnection:\n  host: 10.0.0.5\n"), 0o644)
+	os.WriteFile(path, []byte("# global node config\npodman:\n  source: apt\nconnection:\n  host: 10.0.0.5\n"), 0o644)
 	if err := WriteNetwork(path, Network{Address: "100.9.9.9"}); err != nil {
 		t.Fatal(err)
 	}
@@ -64,6 +82,9 @@ func TestWriteNetworkPreservesOtherKeys(t *testing.T) {
 	}
 	if c.Connection.Host != "10.0.0.5" {
 		t.Fatal("connection block was lost")
+	}
+	if c.Podman.Source != "apt" {
+		t.Fatal("podman block was lost")
 	}
 	raw, _ := os.ReadFile(path)
 	if !strings.Contains(string(raw), "# global node config") {

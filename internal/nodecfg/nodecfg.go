@@ -4,7 +4,10 @@
 package nodecfg
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -43,10 +46,22 @@ func Load(path string) (Config, error) {
 		return Config{}, err
 	}
 	var c Config
-	if err := yaml.Unmarshal(data, &c); err != nil {
+	if err := strictDecode(data, &c); err != nil {
 		return Config{}, fmt.Errorf("parse %s: %w", path, err)
 	}
 	return c, nil
+}
+
+// strictDecode unmarshals YAML into out with unknown keys rejected, so a typo'd
+// config field is a hard error instead of a silently-dropped zero value. An
+// empty document is not an error (every field defaults).
+func strictDecode(data []byte, out any) error {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(out); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }
 
 // LoadMerged reads the global ./nodes/configuration.yml (all nodes) (if present) and the
@@ -72,7 +87,7 @@ func LoadMerged(nodesDir, name string) (Config, error) {
 		return Config{}, err
 	}
 	var c Config
-	if err := yaml.Unmarshal(out, &c); err != nil {
+	if err := strictDecode(out, &c); err != nil {
 		return Config{}, fmt.Errorf("parse merged %s: %w", nodePath, err)
 	}
 	return c, nil
