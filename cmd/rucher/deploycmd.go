@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -109,6 +110,12 @@ func parseDeploy(args []string) (deployFlags, error) {
 		case "--json":
 			df.jsonOut = true
 		default:
+			// A real node name never starts with "-", so a flag-looking token is a
+			// typo (e.g. a misspelled --store-* whose value would otherwise be
+			// swallowed as a node name, silently dropping the credential).
+			if strings.HasPrefix(a, "-") {
+				return deployFlags{}, fmt.Errorf("unknown flag %q", a)
+			}
 			df.names = append(df.names, a)
 		}
 		if err != nil {

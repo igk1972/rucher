@@ -39,3 +39,19 @@ func TestParseDeployMissingValue(t *testing.T) {
 		t.Fatal("expected an error when a flag value is missing")
 	}
 }
+
+// TestParseDeployRejectsUnknownFlag covers M10: a typo'd --store-* flag must error
+// rather than be swallowed (flag + value) as node names, silently dropping the credential.
+func TestParseDeployRejectsUnknownFlag(t *testing.T) {
+	if _, err := parseDeploy([]string{"--store-xyz", "secret", "web"}); err == nil {
+		t.Fatal("expected an unknown flag to error, not become a node name")
+	}
+	// A known no-value flag must still parse cleanly alongside a positional.
+	df, err := parseDeploy([]string{"--store-ssl", "web"})
+	if err != nil {
+		t.Fatalf("--store-ssl should still parse: %v", err)
+	}
+	if !df.store.UseSSL || len(df.names) != 1 || df.names[0] != "web" {
+		t.Fatalf("flags = %+v", df)
+	}
+}
