@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"rucher/internal/age"
 	"rucher/internal/cadre"
 	"rucher/internal/fileset"
 	"rucher/internal/node"
@@ -73,7 +74,23 @@ func New(r node.Runner, name string) (string, error) {
 		}
 		return recipient, nil
 	}
-	return Recipient(r, name)
+	// Identity already exists: derive the recipient from it (the source of truth) rather
+	// than trusting recipient.txt. This self-heals a run interrupted after the identity
+	// was written but before recipient.txt was — which would otherwise wedge New forever.
+	res, err := r.Root([]string{"cat", idp}, nil)
+	if err != nil {
+		return "", err
+	}
+	if res.Code != 0 {
+		return "", fmt.Errorf("read identity for %s: %s", name, res.Stderr)
+	}
+	recipient, err := age.RecipientFor(strings.TrimSpace(res.Stdout))
+	if err != nil {
+		return "", fmt.Errorf("derive recipient for %s: %w", name, err)
+	}
+	// Rewrite recipient.txt so the public cache is consistent (idempotent).
+	r.User(user, uid, []string{"tee", recipientPath(name)}, []byte(recipient+"\n"))
+	return recipient, nil
 }
 
 // Recipient returns the cadre's stored age recipient (root reads the user's file).

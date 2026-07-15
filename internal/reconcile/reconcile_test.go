@@ -315,6 +315,40 @@ func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 	}
 }
 
+func TestNewSelfHealsMissingRecipient(t *testing.T) {
+	// Identity exists but recipient.txt does not (a New interrupted mid-way). New must
+	// derive the recipient from the identity instead of failing forever.
+	id, wantRec, err := age.GenerateIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	idp := IdentityPath("web")
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web":    {Stdout: "1500"},
+		"user:1500:test -f " + idp: {Code: 0}, // identity present
+		"root:cat /etc/subuid":     {},
+		"root:cat /etc/subgid":     {},
+		"root:cat " + idp:          {Stdout: id + "\n"},
+	}}
+	got, err := New(f, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != wantRec {
+		t.Fatalf("recipient = %q, want %q derived from the identity", got, wantRec)
+	}
+	// recipient.txt must be rewritten to restore consistency.
+	var rewrote bool
+	for _, c := range f.Calls {
+		if len(c.Argv) == 2 && c.Argv[0] == "tee" && c.Argv[1] == recipientPath("web") && string(c.Stdin) == wantRec+"\n" {
+			rewrote = true
+		}
+	}
+	if !rewrote {
+		t.Fatal("recipient.txt must be rewritten from the derived recipient")
+	}
+}
+
 func TestStatusReportsUnitStates(t *testing.T) {
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
