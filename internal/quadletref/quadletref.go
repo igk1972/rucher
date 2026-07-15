@@ -164,9 +164,11 @@ func podmanArgFiles(v string) []string {
 	return out
 }
 
-// splitQuoted splits a PodmanArgs value on whitespace the way systemd's quoted
-// parsing does: single quotes are literal, double quotes and backslashes escape,
-// so a quoted `--volume "/my data:/data"` yields one token with the real path.
+// splitQuoted splits a PodmanArgs value on whitespace with shell-style quoting: single quotes
+// are literal, double quotes and backslashes escape, so a quoted `--volume "/my data:/data"`
+// yields one token with the real path. It is a close approximation of podman's split, enough
+// to extract file/secret refs — it does not unescape C-style escapes (\x20, \n) or a backslash
+// inside single quotes as podman does, but those do not occur in real path/secret values.
 func splitQuoted(v string) []string {
 	var out []string
 	var cur strings.Builder
