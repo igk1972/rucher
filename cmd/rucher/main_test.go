@@ -58,6 +58,9 @@ func TestParseDir(t *testing.T) {
 	if _, _, err := parseDir([]string{"--dir"}); err == nil {
 		t.Fatal("parseDir(--dir) with no value should error")
 	}
+	if _, _, err := parseDir([]string{"--drii", "/c"}); err == nil {
+		t.Fatal("parseDir must reject an unknown flag, not treat it as a name")
+	}
 }
 
 func TestParseRm(t *testing.T) {
@@ -84,6 +87,9 @@ func TestParseRm(t *testing.T) {
 	}
 	if _, _, err := parseRm(nil); err == nil {
 		t.Fatal("parseRm with no args should error")
+	}
+	if _, _, err := parseRm([]string{"--force", "web"}); err == nil {
+		t.Fatal("parseRm must reject an unknown flag, not treat it as a cadre name")
 	}
 }
 

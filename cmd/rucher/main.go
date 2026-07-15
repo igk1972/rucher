@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func usage() string {
@@ -48,6 +49,11 @@ func parseDir(args []string) (dir string, names []string, err error) {
 			i++
 			continue
 		}
+		// Reject an unknown flag rather than treating it as a cadre name — otherwise a
+		// typo like `--drii` silently becomes a (non-existent) cadre selector.
+		if strings.HasPrefix(args[i], "-") {
+			return "", nil, fmt.Errorf("unknown flag %q", args[i])
+		}
 		names = append(names, args[i])
 	}
 	return dir, names, nil
@@ -60,6 +66,11 @@ func parseRm(args []string) (name string, purge bool, err error) {
 		if a == "--purge" {
 			purge = true
 			continue
+		}
+		// An unknown flag must be an error, not a cadre name: `rm --force web` should not
+		// silently "remove" a cadre literally named --force and exit 0.
+		if strings.HasPrefix(a, "-") {
+			return "", false, fmt.Errorf("unknown flag %q", a)
 		}
 		if name != "" {
 			return "", false, fmt.Errorf("rm takes a single cadre name")
