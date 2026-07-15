@@ -103,6 +103,44 @@ func equalArgv(a, b []string) bool {
 	return true
 }
 
+func TestPositionalsGuardedByDoubleDash(t *testing.T) {
+	// A registry/secret name beginning with '-' must reach podman as a positional, not be
+	// parsed as a flag: argv must carry a `--` separator immediately before it.
+	assertDashBeforeLast := func(t *testing.T, argv []string) {
+		t.Helper()
+		if len(argv) < 2 || argv[len(argv)-2] != "--" {
+			t.Fatalf("expected `--` before the trailing positional in %v", argv)
+		}
+	}
+
+	f := &node.Fake{Responses: map[string]node.Result{}}
+	o := Ops{R: f, User: "rucher-web", UID: 1234}
+
+	if err := o.Login("-registry.example.com", "u", []byte("pw"), false); err != nil {
+		t.Fatal(err)
+	}
+	if err := o.SecretRemove("-name"); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(f.Calls) != 2 {
+		t.Fatalf("expected 2 calls, got %d: %+v", len(f.Calls), f.Calls)
+	}
+	assertDashBeforeLast(t, f.Calls[0].Argv) // podman login ... -- -registry.example.com
+	assertDashBeforeLast(t, f.Calls[1].Argv) // podman secret rm -- -name
+
+	// SecretCreate: `-- NAME -`, so the name is guarded and the stdin marker stays last.
+	f = &node.Fake{Responses: map[string]node.Result{}}
+	o = Ops{R: f, User: "rucher-web", UID: 1234}
+	if err := o.SecretCreate("-name", []byte("v")); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"podman", "secret", "create", "--", "-name", "-"}
+	if !equalArgv(f.Calls[len(f.Calls)-1].Argv, want) {
+		t.Fatalf("SecretCreate argv = %v, want %v", f.Calls[len(f.Calls)-1].Argv, want)
+	}
+}
+
 func TestGenerateAgeKey(t *testing.T) {
 	f := &node.Fake{Responses: map[string]node.Result{}}
 	o := Ops{R: f, User: "rucher-web", UID: 1500}
@@ -149,7 +187,7 @@ func TestSecretRemoveDistinguishesRealFailure(t *testing.T) {
 
 	// Absent secret -> nil (idempotent).
 	f := &node.Fake{Responses: map[string]node.Result{
-		"user:1234:podman secret rm gone": {Code: 125, Stderr: "Error: no such secret gone"},
+		"user:1234:podman secret rm -- gone": {Code: 125, Stderr: "Error: no such secret gone"},
 	}}
 	if err := o(f).SecretRemove("gone"); err != nil {
 		t.Fatalf("removing an absent secret should be a no-op, got %v", err)
@@ -157,7 +195,7 @@ func TestSecretRemoveDistinguishesRealFailure(t *testing.T) {
 
 	// Any other failure -> error (not swallowed).
 	f = &node.Fake{Responses: map[string]node.Result{
-		"user:1234:podman secret rm db": {Code: 125, Stderr: "Error: database is locked"},
+		"user:1234:podman secret rm -- db": {Code: 125, Stderr: "Error: database is locked"},
 	}}
 	if err := o(f).SecretRemove("db"); err == nil {
 		t.Fatal("a real secret-rm failure must be returned")

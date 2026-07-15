@@ -51,7 +51,7 @@ func (o Ops) KillPause() {
 func (o Ops) SecretRemove(name string) error {
 	// Removing an absent secret is fine (idempotent); any other non-zero exit is a real
 	// failure a caller should see, so a rotated-away secret is not silently left behind.
-	res, err := o.R.User(o.User, o.UID, []string{"podman", "secret", "rm", name}, nil)
+	res, err := o.R.User(o.User, o.UID, []string{"podman", "secret", "rm", "--", name}, nil)
 	if err != nil {
 		return fmt.Errorf("secret rm %s: %w", name, err)
 	}
@@ -63,7 +63,9 @@ func (o Ops) SecretRemove(name string) error {
 
 func (o Ops) SecretCreate(name string, value []byte) error {
 	_ = o.SecretRemove(name)
-	argv := []string{"podman", "secret", "create", name, "-"}
+	// `--` ends options so a secret name beginning with '-' is not parsed as a flag; the
+	// trailing '-' is then the FILE arg meaning "read the value from stdin".
+	argv := []string{"podman", "secret", "create", "--", name, "-"}
 	res, err := o.R.User(o.User, o.UID, argv, value)
 	return wrap(res, err, argv)
 }
@@ -73,7 +75,7 @@ func (o Ops) Login(reg, user string, password []byte, insecure bool) error {
 	if insecure {
 		argv = append(argv, "--tls-verify=false")
 	}
-	argv = append(argv, reg)
+	argv = append(argv, "--", reg)
 	res, err := o.R.User(o.User, o.UID, argv, password)
 	return wrap(res, err, argv)
 }

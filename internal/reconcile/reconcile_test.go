@@ -646,14 +646,14 @@ func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 	var sawDBCreate, sawGhcrCreate bool
 	for _, call := range f.Calls {
 		switch strings.Join(call.Argv, " ") {
-		case "podman secret create db_password -":
+		case "podman secret create -- db_password -":
 			sawDBCreate = true
-		case "podman secret create ghcr_token -":
+		case "podman secret create -- ghcr_token -":
 			sawGhcrCreate = true
 		}
 	}
 	if !sawDBCreate {
-		t.Errorf("expected a `podman secret create db_password -` user call")
+		t.Errorf("expected a `podman secret create -- db_password -` user call")
 	}
 	if sawGhcrCreate {
 		t.Errorf("ghcr_token must not become a podman secret (not in secrets.create)")
