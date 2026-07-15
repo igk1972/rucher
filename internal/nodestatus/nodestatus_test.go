@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"rucher/internal/sshx"
@@ -146,5 +147,33 @@ func TestCollectCapturesTransportError(t *testing.T) {
 	}
 	if !slices.Contains(c.Errors, "ssh spawn failed") {
 		t.Fatalf("c.Errors = %v, want to contain %q", c.Errors, "ssh spawn failed")
+	}
+}
+
+func TestCollectFlagsCorruptStatus(t *testing.T) {
+	nodes := t.TempDir()
+	writeNode(t, nodes, "d", "network: {address: 4.4.4.4}\n")
+	target := sshx.Target{Addr: "4.4.4.4:22", User: "root"}
+
+	// The node is reachable but its status file is not valid JSON.
+	f := &sshx.Fake{Responses: map[string]sshx.Result{
+		sshx.Key(target, []string{"cat", statusPath}): {Stdout: "{ not json"},
+	}}
+	rows, err := Collect(f, nodes, "/nonexistent", nil, false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := rows[0]
+	if !d.Reachable {
+		t.Fatalf("d should be reachable (ssh succeeded): %+v", d)
+	}
+	var flagged bool
+	for _, e := range d.Errors {
+		if strings.Contains(e, "unreadable agent status") {
+			flagged = true
+		}
+	}
+	if !flagged {
+		t.Fatalf("a corrupt status must be flagged, got errors %v", d.Errors)
 	}
 }

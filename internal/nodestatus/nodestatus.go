@@ -47,6 +47,13 @@ func Collect(r sshx.Runner, nodesDir, limaDir string, names []string, live bool,
 
 // collectOne fetches one node's status. Every failure is captured in the Row
 // (Reachable stays false) rather than returned, so one node never aborts the run.
+func firstLineOr(s, fallback string) string {
+	if first := strings.TrimSpace(strings.SplitN(s, "\n", 2)[0]); first != "" {
+		return first
+	}
+	return fallback
+}
+
 func collectOne(r sshx.Runner, nodesDir, limaDir, name string, live bool) Row {
 	row := Row{Node: name}
 	cfg, err := nodecfg.LoadMerged(nodesDir, name)
@@ -78,7 +85,11 @@ func collectOne(r sshx.Runner, nodesDir, limaDir, name string, live bool) Row {
 	}
 	row.Reachable = true
 	var st agent.Status
-	if json.Unmarshal([]byte(res.Stdout), &st) == nil {
+	if err := json.Unmarshal([]byte(res.Stdout), &st); err != nil {
+		// A corrupt status file must not read as a healthy node (empty revision, 0
+		// applied) — surface it so the operator sees something is wrong.
+		row.Errors = append(row.Errors, "unreadable agent status: "+err.Error())
+	} else {
 		row.Revision = st.Revision
 		row.Applied = len(st.Applied)
 		row.Removed = len(st.Removed)
@@ -89,7 +100,13 @@ func collectOne(r sshx.Runner, nodesDir, limaDir, name string, live bool) Row {
 		}
 	}
 	if live {
-		if lv, err := r.Run(target, []string{"sudo", "rucher", "node", "cadre", "status"}, nil); err == nil {
+		lv, err := r.Run(target, []string{"sudo", "rucher", "node", "cadre", "status"}, nil)
+		switch {
+		case err != nil:
+			row.Errors = append(row.Errors, "live status: "+err.Error())
+		case lv.Code != 0:
+			row.Errors = append(row.Errors, "live status: "+firstLineOr(lv.Stderr, fmt.Sprintf("exited %d", lv.Code)))
+		default:
 			row.Live = lv.Stdout
 		}
 	}
