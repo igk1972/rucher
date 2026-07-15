@@ -100,6 +100,18 @@ const systemdUnitDir = "%h/.config/containers/systemd/"
 // file that is not present. It deliberately does not check secret keys (need
 // decrypted secrets) or resource-limit formats (systemd accepts many forms).
 func (c Cadre) Validate() error {
+	// A missing secrets file (SopsPath == "") is normal for a cadre with no secrets, but
+	// if the manifest declares secrets it is almost certainly a typo in secrets.from or a
+	// file that was not committed. Erroring here beats Apply silently deleting every podman
+	// secret (plan sees "no secrets desired") and leaving containers to fail on next start.
+	if c.SopsPath == "" {
+		if len(c.Manifest.Secrets.Create) > 0 {
+			return fmt.Errorf("secrets.create lists keys but the secrets file %q is not present", c.Manifest.Secrets.From)
+		}
+		if len(c.Manifest.Registries.Login) > 0 {
+			return fmt.Errorf("registries.login needs a passwordKey from the secrets file %q, which is not present", c.Manifest.Secrets.From)
+		}
+	}
 	have := map[string]bool{}
 	for _, f := range c.Files {
 		if fileset.IsReserved(f.Name) {

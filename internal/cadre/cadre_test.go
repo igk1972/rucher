@@ -187,6 +187,30 @@ func TestWarningsSkipSupportFiles(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsDeclaredSecretsWithoutFile(t *testing.T) {
+	// secrets.create names keys but no secrets.sops.yaml is shipped -> load error
+	// (rather than silently treating the cadre as secret-less and deleting them).
+	dir := writeCadre(t, map[string]string{
+		"rucher.yml":    "secrets:\n  create:\n    - db_password\n",
+		"web.container": "[Container]\nImage=nginx\n",
+	})
+	os.Remove(filepath.Join(dir, "secrets.sops.yaml")) // writeCadre ships one by default
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected an error when secrets.create is set but no secrets file exists")
+	}
+}
+
+func TestLoadRejectsLoginWithoutSecretsFile(t *testing.T) {
+	dir := writeCadre(t, map[string]string{
+		"rucher.yml":    "registries:\n  login:\n    - registry: ghcr.io\n      username: u\n      passwordKey: tok\n",
+		"web.container": "[Container]\nImage=nginx\n",
+	})
+	os.Remove(filepath.Join(dir, "secrets.sops.yaml"))
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected an error when registries.login is set but no secrets file exists")
+	}
+}
+
 func TestLoadRejectsReservedPruneName(t *testing.T) {
 	dir := writeCadre(t, map[string]string{
 		"rucher-prune.timer": "[Timer]\nOnCalendar=daily\n",
