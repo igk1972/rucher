@@ -66,8 +66,7 @@ func sanitizeNodeOutput(s string) string {
 	}, s)
 }
 
-// collectOne fetches one node's status. Every failure is captured in the Row
-// (Reachable stays false) rather than returned, so one node never aborts the run.
+// firstLineOr returns the first non-empty line of s, or fallback if there is none.
 func firstLineOr(s, fallback string) string {
 	if first := strings.TrimSpace(strings.SplitN(s, "\n", 2)[0]); first != "" {
 		return first
@@ -75,6 +74,8 @@ func firstLineOr(s, fallback string) string {
 	return fallback
 }
 
+// collectOne fetches one node's status. Every failure is captured in the Row
+// (Reachable stays false) rather than returned, so one node never aborts the run.
 func collectOne(r sshx.Runner, nodesDir, limaDir, name string, live bool) Row {
 	row := Row{Node: name}
 	cfg, err := nodecfg.LoadMerged(nodesDir, name)
