@@ -13,6 +13,7 @@ import (
 	"rucher/internal/agentcfg"
 	"rucher/internal/node"
 	"rucher/internal/nodekey"
+	"rucher/internal/provision"
 	"rucher/internal/store"
 )
 
@@ -115,6 +116,14 @@ func cmdAgentRun(configPath string, out io.Writer) int {
 		fmt.Fprintln(out, "error: node key missing (run `rucher node key init`):", err)
 		return 1
 	}
+	// Hold the node-wide lock for the whole pass so a manual apply/new/rm cannot
+	// interleave with the agent's subuid allocation or state writes.
+	unlock, err := provision.LockNode()
+	if err != nil {
+		fmt.Fprintln(out, "error:", err)
+		return 1
+	}
+	defer unlock()
 	var st agent.Status
 	var runErr error
 	switch cfg.Store.Kind {

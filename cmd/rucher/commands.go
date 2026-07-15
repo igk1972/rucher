@@ -128,6 +128,12 @@ func cmdValidate(dir string, names []string, out io.Writer) int {
 
 // cmdNew provisions a cadre's OS user and age identity, printing its recipient.
 func cmdNew(name string, out io.Writer) int {
+	unlock, err := provision.LockNode()
+	if err != nil {
+		fmt.Fprintf(out, "error: %v\n", err)
+		return 1
+	}
+	defer unlock()
 	rec, err := reconcile.New(node.NewExec(), name)
 	if err != nil {
 		fmt.Fprintf(out, "error: %v\n", err)
@@ -148,6 +154,13 @@ func cmdApply(dir string, names []string, out io.Writer) int {
 		fmt.Fprintf(out, "no cadres found in %s\n", dir)
 		return 0
 	}
+	// Serialize the whole run against a concurrent agent pass (shared subuid map + state).
+	unlock, err := provision.LockNode()
+	if err != nil {
+		fmt.Fprintln(out, "error:", err)
+		return 1
+	}
+	defer unlock()
 	rc := 0
 	for _, d := range dirs {
 		c, err := cadre.Load(d)
@@ -238,6 +251,12 @@ func cmdLogs(name, unit string, out io.Writer) int {
 
 // cmdRm stops a cadre's units; with purge it also removes its OS user.
 func cmdRm(name string, purge bool, out io.Writer) int {
+	unlock, err := provision.LockNode()
+	if err != nil {
+		fmt.Fprintf(out, "error: %v\n", err)
+		return 1
+	}
+	defer unlock()
 	if err := reconcile.Remove(node.NewExec(), name, purge); err != nil {
 		fmt.Fprintf(out, "error: %v\n", err)
 		return 1
