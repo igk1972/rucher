@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2026-07-15
 
 ### Added
 
@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   commands, matching `ops init`.
 - The `known_hosts` fallback used when no home directory is available is now a per-user 0700
   path instead of a predictable, world-writable `/tmp` file.
+- Release binaries are built with Go 1.26.5, closing an Encrypted Client Hello privacy leak
+  in `crypto/tls` (GO-2026-5856) reachable from the S3 store and age decryption paths.
 
 ### Fixed
 
@@ -111,4 +113,5 @@ rootless-podman services under per-user systemd, managed across many nodes from 
 
 linux and darwin (amd64/arm64), windows (amd64), with `SHA256SUMS.txt`.
 
+[0.1.0]: https://github.com/igk1972/rucher/releases/tag/v0.1.0
 [0.0.1]: https://github.com/igk1972/rucher/releases/tag/v0.0.1
