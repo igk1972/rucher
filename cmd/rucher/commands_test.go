@@ -106,6 +106,24 @@ func TestCmdValidateOK(t *testing.T) {
 	}
 }
 
+func TestCmdValidateCatchesQuadletError(t *testing.T) {
+	// A .container with no Image= is structurally fine for cadre.Load but rejected by
+	// Podman's parser — quadletlint must fail validation with an ERROR.
+	root := t.TempDir()
+	dir := filepath.Join(root, "web")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "rucher.yml"), []byte("{}\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "web.container"), []byte("[Container]\nExec=sleep 1\n"), 0o644)
+
+	var out bytes.Buffer
+	if code := cmdValidate(root, nil, &out); code == 0 {
+		t.Fatalf("code = 0, want non-zero; output = %q", out.String())
+	}
+	if !strings.Contains(out.String(), "web: ERROR") {
+		t.Fatalf("validate output = %q, want a quadlet ERROR", out.String())
+	}
+}
+
 func TestCmdValidateReportsBadPath(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "web")

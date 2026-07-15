@@ -16,6 +16,7 @@ import (
 	"rucher/internal/plan"
 	"rucher/internal/provision"
 	"rucher/internal/prune"
+	"rucher/internal/quadletlint"
 	"rucher/internal/reconcile"
 	"rucher/internal/state"
 )
@@ -113,14 +114,15 @@ func cmdPlan(dir string, names []string, out io.Writer) int {
 	return rc
 }
 
-// cmdValidate loads every discovered cadre and reports the first structural
-// problem in each: a bad manifest (strict decode / manifest.Validate) or a bad
-// unit file (missing [Section] or Quadlet type section, an EnvironmentFile
-// pointing at a file the cadre does not ship). It touches no node — a pure,
-// pre-commit check of the cadre directory. Secret keys and resource-limit
-// formats are not checked here; they need decrypted secrets / systemd's own
-// parsing (see cadre.Validate). Advisory findings (cadre.Warnings) are printed
-// as WARN lines and do not affect the exit code.
+// cmdValidate loads every discovered cadre and reports its problems: a bad manifest
+// (strict decode / manifest.Validate) or a bad unit file (missing [Section] or Quadlet
+// type section, an EnvironmentFile pointing at a file the cadre does not ship), plus a
+// deeper semantic check of every Quadlet unit via Podman's own parser (unknown key,
+// missing Image, invalid values — quadletlint). It touches no node — a pure, pre-commit
+// check of the cadre directory. Secret keys and resource-limit formats are not checked
+// here; they need decrypted secrets / systemd's own parsing (see cadre.Validate).
+// Advisory findings (cadre.Warnings + quadlet warnings) are printed as WARN lines and do
+// not affect the exit code; errors are ERROR lines and fail the run.
 func cmdValidate(dir string, names []string, out io.Writer) int {
 	dirs, err := discover(dir, names)
 	if err != nil {
@@ -139,8 +141,26 @@ func cmdValidate(dir string, names []string, out io.Writer) int {
 			rc = 1
 			continue
 		}
+		// Deep-check the Quadlet units with Podman's parser (operator-side only).
+		units := map[string]string{}
+		for _, f := range c.Files {
+			if f.IsUnit {
+				units[f.Name] = string(f.Content)
+			}
+		}
+		warnings, fatal := quadletlint.Check(units)
 		for _, w := range c.Warnings() {
 			fmt.Fprintf(out, "%s: WARN %s\n", c.Name, w)
+		}
+		for _, w := range warnings {
+			fmt.Fprintf(out, "%s: WARN %s\n", c.Name, w)
+		}
+		for _, e := range fatal {
+			fmt.Fprintf(out, "%s: ERROR %s\n", c.Name, e)
+		}
+		if len(fatal) > 0 {
+			rc = 1
+			continue
 		}
 		fmt.Fprintf(out, "%s: OK\n", filepath.Base(d))
 	}
