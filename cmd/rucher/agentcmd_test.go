@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 )
@@ -43,5 +44,14 @@ func TestParseKeygen(t *testing.T) {
 	}
 	if _, _, err := parseKeygen([]string{"web", "extra", "--to", "age1"}); err == nil {
 		t.Fatal("expected error on an extra positional argument")
+	}
+}
+
+// TestCmdKeygenRejectsTraversalName covers L5: an unvalidated name must not reach
+// the cadres/<name> path join (e.g. "../../evil" escaping the tree).
+func TestCmdKeygenRejectsTraversalName(t *testing.T) {
+	var out bytes.Buffer
+	if code := cmdKeygen([]string{"../../evil", "--to", "age1abc"}, &out); code == 0 {
+		t.Fatalf("cmdKeygen accepted a traversal name; output: %q", out.String())
 	}
 }

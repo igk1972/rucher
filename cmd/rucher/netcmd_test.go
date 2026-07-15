@@ -83,3 +83,12 @@ func TestCmdNetJoinJSONOutput(t *testing.T) {
 		t.Fatalf("config not written: %v", err)
 	}
 }
+
+// TestCmdNetJoinRejectsTraversalName covers L5: an unvalidated node name must not
+// reach the nodesDir/<name>/configuration.yml join and escape the tree.
+func TestCmdNetJoinRejectsTraversalName(t *testing.T) {
+	var out bytes.Buffer
+	if code := cmdNetJoin(t.TempDir(), []string{"../../evil", "--address", "1.2.3.4"}, &out); code == 0 {
+		t.Fatalf("cmdNetJoin accepted a traversal name; output: %q", out.String())
+	}
+}

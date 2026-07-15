@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"rucher/internal/nodecfg"
+	"rucher/internal/provision"
 )
 
 // parseNetJoin reads a single positional <node>, a required --address <addr> and
@@ -58,6 +59,11 @@ func cmdNetJoin(nodesDir string, args []string, out io.Writer) int {
 	name, address, jsonOut, err := parseNetJoin(args)
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
+		return 2
+	}
+	// Guard the path join: an unvalidated name (e.g. "../../foo") would escape nodesDir.
+	if !provision.ValidName(name) {
+		fmt.Fprintf(out, "error: invalid node name %q (must match [a-z0-9][a-z0-9-]* and be at most %d chars)\n", name, provision.MaxCadreName)
 		return 2
 	}
 	path := filepath.Join(nodesDir, name, "configuration.yml")

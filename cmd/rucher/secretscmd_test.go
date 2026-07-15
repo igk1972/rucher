@@ -31,6 +31,16 @@ func TestParseSecretsEncrypt(t *testing.T) {
 	}
 }
 
+// TestCmdSecretsEncryptRejectsTraversalCadre covers L5: a --cadre name that would
+// escape the dir (e.g. "../../evil") must be rejected before any path join.
+func TestCmdSecretsEncryptRejectsTraversalCadre(t *testing.T) {
+	var out bytes.Buffer
+	code := cmdSecretsEncrypt([]string{"--cadre", "../../evil", "--seal-to", "age1n", "--dir", t.TempDir()}, nil, &out)
+	if code == 0 {
+		t.Fatalf("cmdSecretsEncrypt accepted a traversal cadre name; output: %q", out.String())
+	}
+}
+
 // TestSecretsEncryptRoundTrip covers the direct mode (--to, stdin -> stdout).
 func TestSecretsEncryptRoundTrip(t *testing.T) {
 	id, rec, err := age.GenerateIdentity()

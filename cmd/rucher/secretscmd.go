@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"rucher/internal/age"
+	"rucher/internal/provision"
 	"rucher/internal/sopsage"
 )
 
@@ -101,6 +102,11 @@ func cmdSecretsEncrypt(args []string, in io.Reader, out io.Writer) int {
 	fl, err := parseSecretsEncrypt(args)
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
+		return 2
+	}
+	// --cadre builds dir/<cadre>/ paths, so reject a traversal name before any join.
+	if fl.cadre != "" && !provision.ValidName(fl.cadre) {
+		fmt.Fprintf(out, "error: invalid cadre name %q (must match [a-z0-9][a-z0-9-]* and be at most %d chars)\n", fl.cadre, provision.MaxCadreName)
 		return 2
 	}
 

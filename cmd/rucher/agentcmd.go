@@ -57,6 +57,10 @@ func cmdKeygen(args []string, out io.Writer) int {
 		fmt.Fprintln(out, "error:", err)
 		return 2
 	}
+	if !provision.ValidName(name) {
+		fmt.Fprintf(out, "error: invalid cadre name %q (must match [a-z0-9][a-z0-9-]* and be at most %d chars)\n", name, provision.MaxCadreName)
+		return 2
+	}
 	id, rcpt, err := age.GenerateIdentity()
 	if err != nil {
 		fmt.Fprintln(out, "error:", err)
