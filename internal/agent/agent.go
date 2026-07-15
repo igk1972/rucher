@@ -138,6 +138,10 @@ func readSealed(dir string) ([]byte, error) {
 	return data, nil
 }
 
+// StatusPath is where the agent writes its last-pass status and where the operator
+// plane (`ops nodes status`) reads it from — one constant so the two never drift.
+const StatusPath = "/var/lib/rucher/agent-status.json"
+
 func WriteStatus(path string, st Status) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err

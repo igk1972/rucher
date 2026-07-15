@@ -15,7 +15,8 @@ import (
 	"rucher/internal/sshx"
 )
 
-const statusPath = "/var/lib/rucher/agent-status.json"
+// statusPath aliases agent.StatusPath so the reader and writer share one constant.
+const statusPath = agent.StatusPath
 
 type Row struct {
 	Node      string   `json:"node"`

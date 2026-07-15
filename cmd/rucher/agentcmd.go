@@ -17,7 +17,6 @@ import (
 	"rucher/internal/store"
 )
 
-const agentStatusPath = "/var/lib/rucher/agent-status.json"
 const storeCachePath = "/var/lib/rucher/store"
 
 // parseKeygen collects the cadre name and every repeatable --to recipient, so
@@ -143,7 +142,7 @@ func cmdAgentRun(configPath string, out io.Writer) int {
 		fmt.Fprintln(out, "error: unsupported store kind:", cfg.Store.Kind)
 		return 1
 	}
-	if werr := agent.WriteStatus(agentStatusPath, st); werr != nil {
+	if werr := agent.WriteStatus(agent.StatusPath, st); werr != nil {
 		fmt.Fprintln(out, "warning: write status:", werr)
 	}
 	fmt.Fprintf(out, "revision %s: applied=%d removed=%d\n", st.Revision, len(st.Applied), len(st.Removed))
