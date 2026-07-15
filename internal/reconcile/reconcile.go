@@ -4,6 +4,7 @@
 package reconcile
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -14,6 +15,7 @@ import (
 	"rucher/internal/age"
 	"rucher/internal/cadre"
 	"rucher/internal/fileset"
+	"rucher/internal/manifest"
 	"rucher/internal/node"
 	"rucher/internal/ops"
 	"rucher/internal/plan"
@@ -357,12 +359,13 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 			return p, err
 		}
 	}
-	// 5. registry logins — only when something changed. podman login validates against
-	//    the registry over the network and rewrites the user's auth.json; running it on
-	//    every agent pass (every ~30s) for a converged cadre risks a registry rate-limit
-	//    (docker.io 429) for no benefit. auth.json persists across passes, so a no-op plan
-	//    can safely skip it; any real change (new/rotated secret, unit edit) re-runs it.
-	if !p.Empty() {
+	// 5. registry logins — when the plan changed OR the login block changed. podman login
+	//    hits the registry and rewrites auth.json; doing it every agent pass (~30s) for a
+	//    converged cadre risks a rate-limit (docker.io 429) for nothing, and auth.json
+	//    persists, so a no-op plan skips it. A change confined to the login block leaves the
+	//    plan empty, so regHash catches that case (see registriesHash).
+	regHash := registriesHash(c.Manifest.Registries.Login)
+	if !p.Empty() || regHash != prior.RegistriesHash {
 		for _, l := range c.Manifest.Registries.Login {
 			pw, ok := secretValues[l.PasswordKey]
 			if !ok {
@@ -410,11 +413,12 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 
 func nextState(c cadre.Cadre, uid int, secretHashes map[string]string) state.State {
 	s := state.State{
-		Name:         c.Name,
-		UID:          uid,
-		Files:        map[string]string{},
-		SecretHashes: secretHashes,
-		Resources:    c.Manifest.Resources,
+		Name:           c.Name,
+		UID:            uid,
+		Files:          map[string]string{},
+		SecretHashes:   secretHashes,
+		Resources:      c.Manifest.Resources,
+		RegistriesHash: registriesHash(c.Manifest.Registries.Login),
 	}
 	if s.SecretHashes == nil {
 		s.SecretHashes = map[string]string{}
@@ -431,6 +435,16 @@ func nextState(c cadre.Cadre, uid int, secretHashes map[string]string) state.Sta
 		}
 	}
 	return s
+}
+
+// registriesHash fingerprints the login block for the re-login gate — its fields only, never
+// the secret values (the plan's secret diff already covers those).
+func registriesHash(logins []manifest.Login) string {
+	if len(logins) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(logins)
+	return fileset.Hash(b)
 }
 
 // userWrite runs a filesystem mutation (mkdir/tee/rm) as the cadre user and fails on a

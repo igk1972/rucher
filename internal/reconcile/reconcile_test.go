@@ -578,6 +578,48 @@ func TestApplySkipsRegistryLoginWhenConverged(t *testing.T) {
 	}
 }
 
+func TestApplyRelogsInWhenOnlyLoginBlockChanges(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+
+	sopsPath := writeCadreSecrets(t, "web", []sopsage.KV{{Key: "ghcr_token", Value: "tok"}})
+	base := cadre.Cadre{
+		Name:     "web",
+		SopsPath: sopsPath,
+		Manifest: manifest.Manifest{Registries: manifest.Registries{Login: []manifest.Login{
+			{Registry: "ghcr.io", Username: "u", PasswordKey: "ghcr_token"},
+		}}},
+	}
+	sawLogin := func(f *node.Fake) bool {
+		for _, call := range f.Calls {
+			if len(call.Argv) >= 2 && call.Argv[0] == "podman" && call.Argv[1] == "login" {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Converge first so the plan is empty on the next apply.
+	f1 := &node.Fake{Responses: map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234"}}}
+	if _, err := Apply(f1, base); err != nil {
+		t.Fatal(err)
+	}
+
+	// Change only the username: no file or secret changed, so the plan is empty — but the
+	// login block differs, so login must still re-run (a plain !p.Empty() gate would skip it).
+	changed := base
+	changed.Manifest.Registries.Login = []manifest.Login{
+		{Registry: "ghcr.io", Username: "u2", PasswordKey: "ghcr_token"},
+	}
+	f2 := &node.Fake{Responses: map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234"}}}
+	if _, err := Apply(f2, changed); err != nil {
+		t.Fatal(err)
+	}
+	if !sawLogin(f2) {
+		t.Fatal("changing only the registry login block must re-run podman login")
+	}
+}
+
 func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())

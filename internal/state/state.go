@@ -21,6 +21,9 @@ type State struct {
 	Units        []string           `json:"units"`                  // Quadlet units
 	SystemdUnits []string           `json:"systemdUnits,omitempty"` // native .timer/.socket/.path
 	Resources    manifest.Resources `json:"resources"`
+	// RegistriesHash fingerprints the registry login block: the only signal that it changed
+	// when nothing else did, since a login-only edit leaves the file/secret diff empty.
+	RegistriesHash string `json:"registriesHash,omitempty"`
 }
 
 func empty() State {
