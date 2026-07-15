@@ -81,9 +81,10 @@ func Run(ctx context.Context, r node.Runner, s store.Store, nodeID, nodeIdentity
 	}
 
 	if failed {
-		err = fmt.Errorf("one or more cadres failed to apply")
-		st.Error = err.Error()
-		return st, err
+		// Per-cadre failures are already carried in st.Applied; leave st.Error unset so the
+		// reader does not print a redundant generic line on top of the specific ones. The
+		// returned error still drives the caller's exit code.
+		return st, fmt.Errorf("one or more cadres failed to apply")
 	}
 	return st, nil
 }
