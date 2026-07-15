@@ -75,6 +75,28 @@ func TestSupportFileChangeRestartsOnlyReferencingUnit(t *testing.T) {
 	}
 }
 
+func TestRemovedSupportFileRestartsReferencingUnit(t *testing.T) {
+	// Deleting a referenced support file must restart the unit that used it, not just
+	// remove the file (regression: removed files never entered the restart scope).
+	unit := "[Container]\nImage=nginx\nEnvironmentFile=%h/.config/containers/systemd/app.env\n"
+	c := comp(map[string]string{"web.container": unit}) // app.env no longer desired
+	prior := state.State{
+		Files: map[string]string{
+			"web.container": fileset.Hash([]byte(unit)),
+			"app.env":       fileset.Hash([]byte("A=1\n")), // present before, now removed
+		},
+		Units:        []string{"web.container"},
+		SecretHashes: map[string]string{},
+	}
+	p := Compute(c, nil, prior)
+	if !slices.Contains(p.RemoveFiles, "app.env") {
+		t.Fatalf("RemoveFiles = %v, want app.env", p.RemoveFiles)
+	}
+	if !slices.Contains(p.RestartUnits, "web.container") {
+		t.Fatalf("RestartUnits = %v, want web.container after its env file was removed", p.RestartUnits)
+	}
+}
+
 func TestRemovedFileIsDeleted(t *testing.T) {
 	c := comp(map[string]string{"web.container": "[Container]\nImage=nginx\n"})
 	prior := state.State{

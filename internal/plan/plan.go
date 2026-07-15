@@ -67,6 +67,11 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 	for name := range prior.Files {
 		if _, ok := desiredFiles[name]; !ok {
 			p.RemoveFiles = append(p.RemoveFiles, name)
+			// A removed support file must also restart the units that referenced it (e.g.
+			// deleting an EnvironmentFile to revert to defaults); treat it like a change.
+			if !fileset.IsUnitFile(name) && !fileset.IsSystemdUnit(name) {
+				changedSupport[name] = true
+			}
 		}
 	}
 
