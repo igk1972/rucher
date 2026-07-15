@@ -67,8 +67,8 @@ prune:                       # optional; synthesized image GC (default: enabled)
 | `registries.login[].username` | string, required | Login username. |
 | `registries.login[].passwordKey` | string, required | Key in the SOPS file holding the password. |
 | `registries.login[].insecure` | bool | Adds `--tls-verify=false`. |
-| `resources.memoryMax` | string | systemd `MemoryMax=` value (any form systemd accepts). |
-| `resources.cpuQuota` | string | systemd `CPUQuota=` value. |
+| `resources.memoryMax` | string | systemd `MemoryMax=` value (byte size or `infinity`); validated. |
+| `resources.cpuQuota` | string | systemd `CPUQuota=` value (a percentage); validated. |
 | `prune.enabled` | bool | Default `true`. `false` disables image GC and removes the synthesized units. |
 | `prune.schedule` | string | systemd `OnCalendar=` expression; default `daily`. |
 | `prune.until` | string | Go duration; unused images **created** earlier than this are pruned; default `168h`. |

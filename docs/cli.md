@@ -343,8 +343,9 @@ has podman is left untouched.
 Agent bootstrap turns on when a store is given: `--store-url <url>` (git) or `--store-bucket`
 (s3), with `--store-kind git|s3` (default git), `--store-branch` (default main),
 `--interval` (default 30s), and auth passthroughs (`--store-ssh-key`, `--store-token`,
-`--store-insecure-host-key`; S3: `--store-endpoint/-prefix/-access-key/-secret-key/-region`,
-`--store-ssl`). Without a store, deploy stops after the binary + `node key init`.
+`--store-insecure-host-key`; S3: `--store-endpoint/-prefix/-access-key/-secret-key/-region`).
+The S3 store uses TLS by default; opt out only by setting `useSSL: false` in the node's agent
+config. Without a store, deploy stops after the binary + `node key init`.
 
 Nodes deploy in parallel, at most `--concurrency` at a time (default 4 — lower than `status`
 because each deploy is heavy: base-platform provisioning and multi-MB binary transfers; must be

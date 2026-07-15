@@ -121,7 +121,7 @@ store:
   accessKey: ""
   secretKey: ""
   region: ""
-  useSSL: true
+  useSSL: true             # default true (TLS); set false only for a trusted plaintext endpoint
 ```
 
 ## `node agent install` — periodic reconcile

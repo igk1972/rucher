@@ -29,6 +29,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Core**
 - Loading a cadre now rejects a Quadlet file missing its type section (`[Container]` in a
   `.container`, …) — previously such a unit failed only on the node, at generation time.
+- The S3 store now uses **TLS by default** (`useSSL` defaults to `true`); a plaintext HTTP
+  endpoint must be opted into explicitly with `useSSL: false` in the agent config.
+- Node config is now decoded strictly: an unknown or misspelled field is a hard error
+  instead of being silently ignored.
+- The manifest validates `resources.memoryMax` / `resources.cpuQuota`, rejecting a malformed
+  value (or one containing a newline) at load time.
+
+### Security
+
+**Core**
+- Bound the output captured from a remote command, so a malicious or misbehaving node can no
+  longer exhaust operator memory by streaming unbounded output during a fleet sweep.
+- Harden the SOPS+age decoder: a tampered file with a wrong-length IV no longer panics, and
+  empty/duplicate-key malleability that could blank a secret while the MAC still verified is
+  rejected.
+- Guard podman positional arguments (registry, secret name) with `--` so a value beginning
+  with `-` cannot be reinterpreted as a flag.
+- Validate cadre names in the operator-side `keygen` / `net join` / `secrets encrypt`
+  commands, matching `ops init`.
+- The `known_hosts` fallback used when no home directory is available is now a per-user 0700
+  path instead of a predictable, world-writable `/tmp` file.
+
+### Fixed
+
+**Core**
+- `quadletref` now extracts references the way podman's parser does — joining `\` line
+  continuations and handling the `--flag=value`, quoted, and `src=` forms — so a changed
+  support file or rotated secret restarts the units that actually depend on it (a missed
+  secret reference previously left a container running with a stale credential).
+- A cadre uid change re-applies its files, podman secrets, and units (not only resource
+  limits), so restoring state onto a rebuilt node no longer leaves the workload
+  under-provisioned.
+- The agent records a pass-level failure (store sync, placement) in its status, so a node
+  whose reconcile pass failed no longer reads as healthy in `ops nodes status`.
+- Provisioning and identity writes fail on a non-zero command exit code instead of silently
+  continuing — most importantly resource-limit drop-ins, which could otherwise be dropped
+  and never retried.
+- A unit whose stop fails is retained for the next reconcile instead of being deleted and
+  forgotten while still running.
+- The coarse reload fallback also restarts native systemd units (`.timer`/`.socket`/`.path`)
+  that depend on a changed support file.
+- Long unit-file lines no longer silently truncate parsing/validation.
+- The `deploy` command rejects an unknown flag instead of swallowing it (and its value) as a
+  node name; the reconcile pass is bounded by a timeout so a stalled store can't pin the node
+  lock; the registry login re-runs when only the login block changes; `state.json` is fsynced
+  before its atomic rename; and `reconcile.Remove` validates the cadre name.
 
 ## [0.0.1] - 2026-07-10
 
