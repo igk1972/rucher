@@ -2,6 +2,8 @@ module rucher
 
 go 1.26
 
+toolchain go1.26.5
+
 require (
 	filippo.io/age v1.2.1
 	github.com/go-git/go-git/v5 v5.19.1
