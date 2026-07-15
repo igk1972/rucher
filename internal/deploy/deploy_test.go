@@ -173,6 +173,39 @@ func TestDeployPreservesOrderUnderConcurrency(t *testing.T) {
 	}
 }
 
+func TestDeployRejectsShellUnsafeRefs(t *testing.T) {
+	dir := nodesDirWith(t, "web", "10.0.0.1")
+	tg := target("10.0.0.1")
+	arch := func() *sshx.Fake {
+		return &sshx.Fake{Responses: map[string]sshx.Result{
+			sshx.Key(tg, []string{"dpkg", "--print-architecture"}): {Stdout: "arm64\n"},
+		}}
+	}
+
+	// A shell-injection payload in the prebuilt podman version must be rejected before
+	// the provision script (which runs as root via `sudo sh -s`) is ever assembled.
+	f := arch()
+	rows, err := Run(f, dir, "", nil, Options{Binary: []byte("x"), PodmanSource: "prebuilt", PodmanVersion: `v6";reboot;"`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows[0].OK || len(rows[0].Errors) == 0 || !strings.Contains(rows[0].Errors[0], "invalid podman version") {
+		t.Fatalf("bad podman version must fail with an invalid-tag error: %+v", rows[0])
+	}
+	if hasCmd(f, "sudo sh -s") {
+		t.Fatal("provision script must not run for a rejected version")
+	}
+
+	// Same for the release download tag (reaches the node inside a curl URL).
+	rows, err = Run(arch(), dir, "", nil, Options{Version: "v1;rm -rf /"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows[0].OK || len(rows[0].Errors) == 0 || !strings.Contains(rows[0].Errors[0], "invalid release version") {
+		t.Fatalf("bad release tag must fail: %+v", rows[0])
+	}
+}
+
 func TestPodmanTarballURL(t *testing.T) {
 	// Empty version resolves to the newest release via the latest/download redirect.
 	if got, want := podmanTarballURL(""),

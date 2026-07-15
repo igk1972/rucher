@@ -8,6 +8,7 @@ package deploy
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -17,6 +18,15 @@ import (
 	"rucher/internal/parallel"
 	"rucher/internal/sshresolve"
 	"rucher/internal/sshx"
+)
+
+// A release tag / owner-repo reaches the node inside a shell command (curl URL in the
+// provision script, download URL). Constrain them to shell-safe characters so a value
+// like `v6";reboot;"` cannot break out and run as root. sshx joins argv into the remote
+// shell, so this is the injection boundary.
+var (
+	refRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	repoRe = regexp.MustCompile(`^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`)
 )
 
 const (
@@ -172,6 +182,9 @@ func deployOne(r sshx.Runner, nodesDir, limaDir, name string, opts Options) Row 
 	if opts.PodmanVersion != "" {
 		version = opts.PodmanVersion
 	}
+	if source == "prebuilt" && version != "" && !refRe.MatchString(version) {
+		return fail(row, "invalid podman version tag "+version+" (expected a release tag)")
+	}
 	if msg, ok := runStep(r, target, []string{"sudo", "sh", "-s"}, []byte(provisionScript(source, version))); !ok {
 		return fail(row, "provision base platform: "+msg)
 	}
@@ -187,6 +200,12 @@ func deployOne(r sshx.Runner, nodesDir, limaDir, name string, opts Options) Row 
 	} else {
 		if row.Arch != "amd64" && row.Arch != "arm64" {
 			return fail(row, "unsupported architecture "+row.Arch+" (no release asset)")
+		}
+		if opts.Version != "" && !refRe.MatchString(opts.Version) {
+			return fail(row, "invalid release version tag "+opts.Version)
+		}
+		if opts.Repo != "" && !repoRe.MatchString(opts.Repo) {
+			return fail(row, "invalid repo "+opts.Repo+" (expected owner/name)")
 		}
 		url := assetURL(opts, row.Arch)
 		if msg, ok := runStep(r, target, []string{"sudo", "curl", "-fsSL", url, "-o", stagePath}, nil); !ok {
