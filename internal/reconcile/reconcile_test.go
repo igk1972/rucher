@@ -73,6 +73,34 @@ func TestApplyFreshWritesFilesAndStarts(t *testing.T) {
 	}
 }
 
+func TestApplyFailsWhenFileWriteExitsNonZero(t *testing.T) {
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+
+	body := "[Container]\nImage=nginx\n"
+	c := cadre.Cadre{Name: "web"}
+	c.Files = []cadre.File{{Name: "web.container", Content: []byte(body), Hash: fileset.Hash([]byte(body)), IsUnit: true}}
+
+	// tee exits non-zero (e.g. disk quota). The runner reports this via Code, not err.
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web":                                 {Stdout: "1234", Code: 0},
+		"user:1234:tee " + systemdDir("web") + "/web.container": {Code: 1, Stderr: "No space left on device"},
+	}}
+
+	if _, err := Apply(f, c); err == nil {
+		t.Fatal("Apply must fail when a file write exits non-zero")
+	}
+
+	// State must NOT record the file: a failed write that is silently saved would be
+	// invisible to every future diff. An absent state file (load returns empty) is correct.
+	st, err := state.Load(statePath("web"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := st.Files["web.container"]; ok {
+		t.Fatalf("state recorded web.container despite the failed write: %+v", st.Files)
+	}
+}
+
 func TestApplyRoutesSystemdUnitToUserDirAndEnables(t *testing.T) {
 	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())

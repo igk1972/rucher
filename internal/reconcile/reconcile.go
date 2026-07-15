@@ -276,16 +276,20 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	//    Quadlet dir; native systemd units go to the user unit dir (~/.config/systemd/user).
 	qDir := systemdDir(c.Name)
 	uDir := userUnitDir(c.Name)
-	r.User(o.User, uid, []string{"mkdir", "-p", qDir}, nil)
+	if err := userWrite(r, o.User, uid, []string{"mkdir", "-p", qDir}, nil); err != nil {
+		return p, err
+	}
 	if writesSystemdUnit(p.WriteFiles) {
-		r.User(o.User, uid, []string{"mkdir", "-p", uDir}, nil)
+		if err := userWrite(r, o.User, uid, []string{"mkdir", "-p", uDir}, nil); err != nil {
+			return p, err
+		}
 	}
 	for _, f := range p.WriteFiles {
 		dir := qDir
 		if f.IsSystemdUnit {
 			dir = uDir
 		}
-		if _, err := r.User(o.User, uid, []string{"tee", filepath.Join(dir, f.Name)}, f.Content); err != nil {
+		if err := userWrite(r, o.User, uid, []string{"tee", filepath.Join(dir, f.Name)}, f.Content); err != nil {
 			return p, err
 		}
 	}
@@ -294,7 +298,9 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 		if fileset.IsSystemdUnit(name) || fileset.IsReserved(name) {
 			dir = uDir
 		}
-		r.User(o.User, uid, []string{"rm", "-f", filepath.Join(dir, name)}, nil)
+		if err := userWrite(r, o.User, uid, []string{"rm", "-f", filepath.Join(dir, name)}, nil); err != nil {
+			return p, err
+		}
 	}
 	// 4. secrets
 	for _, key := range p.CreateSecrets {
@@ -373,6 +379,23 @@ func nextState(c cadre.Cadre, uid int, secretHashes map[string]string) state.Sta
 		}
 	}
 	return s
+}
+
+// userWrite runs a filesystem mutation (mkdir/tee/rm) as the cadre user and fails on a
+// transport error OR a non-zero exit code. node.Runner reports a command's non-zero exit
+// via Result.Code, not err (see node.Runner) — so without this check a failed write (disk
+// full, permission denied) would be swallowed and state.Save would still record the change
+// as done, hiding it from every future diff. Aborting here leaves state untouched, so the
+// next reconcile idempotently retries.
+func userWrite(r node.Runner, user string, uid int, argv []string, stdin []byte) error {
+	res, err := r.User(user, uid, argv, stdin)
+	if err != nil {
+		return fmt.Errorf("%s: %w", argv[0], err)
+	}
+	if res.Code != 0 {
+		return fmt.Errorf("%s exited %d: %s", strings.Join(argv, " "), res.Code, strings.TrimSpace(res.Stderr))
+	}
+	return nil
 }
 
 // writesSystemdUnit reports whether any file to write is a native systemd unit, so the
