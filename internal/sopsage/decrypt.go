@@ -34,13 +34,21 @@ func Decrypt(identityData, sopsData []byte) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer clear(dataKey)
 
 	out := make(map[string]string, len(pairs))
 	macValues := make([][]byte, 0, len(pairs))
 	for _, p := range pairs {
-		// sops leaves empty values as plaintext; pass non-ENC values through (their
-		// bytes still feed the MAC).
+		// Cadre files are fully encrypted; the only legitimate plaintext is an empty
+		// value (sops cannot encrypt one). Rejecting any other plaintext stops an
+		// attacker from substituting a value straight into the output map. This runs
+		// after the mac_only_encrypted guard above, which owns the legitimate
+		// plaintext-value case with a clearer error.
 		if !isEncValue(p.Enc) {
+			if p.Enc != "" {
+				return nil, fmt.Errorf("unexpected plaintext data value for key %q", p.Key)
+			}
+			// Empty values stay plaintext; their 0 bytes still feed the MAC.
 			out[p.Key] = p.Enc
 			macValues = append(macValues, []byte(p.Enc))
 			continue

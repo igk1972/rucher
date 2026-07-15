@@ -4,6 +4,7 @@ package sopsage
 
 import (
 	"crypto/sha512"
+	"crypto/subtle"
 	"fmt"
 )
 
@@ -33,7 +34,7 @@ func verifyMAC(stored string, key []byte, lastModified, computed string) error {
 	if err != nil {
 		return fmt.Errorf("decrypt mac: %w", err)
 	}
-	if string(plain) != computed {
+	if subtle.ConstantTimeCompare(plain, []byte(computed)) != 1 {
 		return fmt.Errorf("MAC mismatch: file integrity check failed")
 	}
 	return nil

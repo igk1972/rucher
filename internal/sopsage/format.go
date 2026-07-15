@@ -45,6 +45,7 @@ func parseEncryptedFile(data []byte) ([]encPair, sopsMeta, error) {
 	var pairs []encPair
 	var meta sopsMeta
 	haveMeta := false
+	seen := make(map[string]bool)
 	for i := 0; i+1 < len(root.Content); i += 2 {
 		key := root.Content[i].Value
 		val := root.Content[i+1]
@@ -55,6 +56,13 @@ func parseEncryptedFile(data []byte) ([]encPair, sopsMeta, error) {
 			haveMeta = true
 			continue
 		}
+		// yaml.v3 Node mode keeps duplicate keys; without rejecting them an appended
+		// `key: ""` blanks the secret (last-write-wins output) while an empty value adds
+		// 0 bytes to the MAC, so verifyMAC still passes.
+		if seen[key] {
+			return nil, sopsMeta{}, fmt.Errorf("duplicate data key %q", key)
+		}
+		seen[key] = true
 		pairs = append(pairs, encPair{Key: key, Enc: val.Value})
 	}
 	if !haveMeta {

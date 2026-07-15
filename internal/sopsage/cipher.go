@@ -73,6 +73,14 @@ func decryptScalar(enc string, key []byte, additionalData string) (plaintext []b
 	if err != nil {
 		return nil, "", err
 	}
+	// gcm.Open panics (not errors) on a wrong-length nonce, so a tampered file with a
+	// short/empty iv would crash the caller; reject bad lengths up front.
+	if len(iv) != gcm.NonceSize() {
+		return nil, "", fmt.Errorf("invalid iv length %d, want %d", len(iv), gcm.NonceSize())
+	}
+	if len(tag) != tagSize {
+		return nil, "", fmt.Errorf("invalid tag length %d, want %d", len(tag), tagSize)
+	}
 	// Recombine into the ciphertext||tag layout gcm.Open expects.
 	plaintext, err = gcm.Open(nil, iv, append(data, tag...), []byte(additionalData))
 	if err != nil {

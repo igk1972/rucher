@@ -33,6 +33,7 @@ func Encrypt(recipients []string, values []KV, lastModified string) ([]byte, err
 	if _, err := rand.Read(dataKey); err != nil {
 		return nil, err
 	}
+	defer clear(dataKey)
 
 	// Wrap the data key to each recipient — one armored age stanza each.
 	stanzas := make([]ageStanza, 0, len(recipients))
