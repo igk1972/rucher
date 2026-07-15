@@ -70,6 +70,12 @@ func Save(path string, s State) error {
 		tmp.Close()
 		return err
 	}
+	// fsync before the atomic rename: without it a crash right after Save can leave the target
+	// pointing at a zero-length or partially written file (rename is durable, its bytes are not).
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
