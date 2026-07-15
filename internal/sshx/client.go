@@ -20,6 +20,12 @@ import (
 // status sweep.
 const defaultExecTimeout = 30 * time.Second
 
+// maxCapturedOutput caps each captured stream (stdout, stderr). The exec timeout
+// bounds time but not bytes, so without this a malicious node could stream
+// gigabytes and OOM the operator during a parallel sweep. rucher's commands emit
+// tiny output, so a few MiB is generous.
+const maxCapturedOutput = 4 << 20 // 4 MiB per stream
+
 // Client is the real SSH Runner.
 type Client struct {
 	KnownHosts  string        // path to a known_hosts file (TOFU accept-new); created if missing
@@ -86,9 +92,10 @@ func (c *Client) Run(t Target, cmd []string, stdin []byte) (Result, error) {
 	if stdin != nil {
 		session.Stdin = bytes.NewReader(stdin)
 	}
-	var out, errb bytes.Buffer
-	session.Stdout = &out
-	session.Stderr = &errb
+	out := &cappedBuffer{max: maxCapturedOutput}
+	errb := &cappedBuffer{max: maxCapturedOutput}
+	session.Stdout = out
+	session.Stderr = errb
 
 	execTO := c.ExecTimeout
 	if execTO <= 0 {
@@ -138,6 +145,28 @@ func waitRun(done <-chan error, timeout time.Duration) (err error, timedOut bool
 		return nil, true
 	}
 }
+
+// cappedBuffer is an io.Writer that accumulates at most max bytes and then fails
+// the write, bounding the memory a single remote command's output can consume.
+// The error propagates out of session.Run so the caller sees the host as failed;
+// returning it also stops the io.Copy draining the ssh channel, throttling the
+// remote instead of reading its stream to EOF.
+type cappedBuffer struct {
+	buf bytes.Buffer
+	max int
+}
+
+func (c *cappedBuffer) Write(p []byte) (int, error) {
+	if room := c.max - c.buf.Len(); len(p) > room {
+		if room > 0 {
+			c.buf.Write(p[:room]) // keep a truncated prefix for diagnostics
+		}
+		return room, fmt.Errorf("output exceeded %d bytes", c.max)
+	}
+	return c.buf.Write(p)
+}
+
+func (c *cappedBuffer) String() string { return c.buf.String() }
 
 func loadIdentity(path string) (ssh.Signer, error) {
 	keyBytes, err := os.ReadFile(path)

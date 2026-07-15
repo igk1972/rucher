@@ -3,10 +3,12 @@
 package sshx
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -185,6 +187,45 @@ func TestWaitRunTimesOut(t *testing.T) {
 	}
 	if err != nil {
 		t.Fatalf("timeout err should be nil, got %v", err)
+	}
+}
+
+func TestCappedBufferErrorsPastCap(t *testing.T) {
+	c := &cappedBuffer{max: 10}
+
+	// A write within the cap is accepted verbatim.
+	if n, err := c.Write([]byte("hello")); err != nil || n != 5 {
+		t.Fatalf("under-cap write = (%d, %v), want (5, nil)", n, err)
+	}
+
+	// A write crossing the cap fails with a clear error and keeps only what fit.
+	n, err := c.Write([]byte("world!!!")) // 5 + 8 = 13 > 10
+	if err == nil {
+		t.Fatal("write past the cap must error")
+	}
+	if !strings.Contains(err.Error(), "output exceeded 10 bytes") {
+		t.Fatalf("err = %v, want it to mention the byte cap", err)
+	}
+	if n != 5 {
+		t.Fatalf("accepted %d bytes past the cap, want the 5 that still fit", n)
+	}
+	if got := c.String(); len(got) > 10 || got != "helloworld" {
+		t.Fatalf("captured = %q, want it truncated at the 10-byte cap", got)
+	}
+}
+
+func TestCappedBufferStopsIOCopy(t *testing.T) {
+	// io.Copy from a large source (a session's stdout stream is exactly this)
+	// must terminate with the cap error rather than reading to EOF, and never
+	// hold more than the cap in memory.
+	const cap = 1 << 10
+	c := &cappedBuffer{max: cap}
+	src := bytes.NewReader(make([]byte, 1<<20)) // 1 MiB into a 1 KiB cap
+	if _, err := io.Copy(c, src); err == nil {
+		t.Fatal("io.Copy into a capped buffer must stop with an error")
+	}
+	if got := len(c.String()); got != cap {
+		t.Fatalf("captured %d bytes, want exactly the %d-byte cap", got, cap)
 	}
 }
 
