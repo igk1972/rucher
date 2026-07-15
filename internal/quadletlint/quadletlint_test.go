@@ -54,6 +54,36 @@ func TestCheckUnknownKey(t *testing.T) {
 	}
 }
 
+func TestCheckValidNonContainerTypes(t *testing.T) {
+	// Every unit type must dispatch to the right Convert* (incl. the single-return
+	// Kube/Image) and a minimal valid unit of each must not produce a false fatal —
+	// otherwise operators with these unit types could never pass validate.
+	_, fatal := Check(map[string]string{
+		"d.volume":  "[Volume]\n",
+		"n.network": "[Network]\n",
+		"p.pod":     "[Pod]\n",
+		"i.image":   "[Image]\nImage=docker.io/library/nginx:alpine\n",
+		"k.kube":    "[Kube]\nYaml=app.yml\n",
+	})
+	if len(fatal) != 0 {
+		t.Fatalf("minimal valid units of each type must not be fatal, got %v", fatal)
+	}
+}
+
+func TestCheckIsolatesErrorsPerUnit(t *testing.T) {
+	// A bad unit must not taint the good ones: exactly one fatal, naming the culprit.
+	_, fatal := Check(map[string]string{
+		"good.container": "[Container]\nImage=nginx\n",
+		"bad.container":  "[Container]\nExec=sleep 1\n", // no Image
+	})
+	if len(fatal) != 1 || !strings.Contains(fatal[0], "bad.container") {
+		t.Fatalf("want a single fatal naming bad.container, got %v", fatal)
+	}
+	if hasSubstr(fatal, "good.container") {
+		t.Fatalf("the valid unit must not appear in fatal: %v", fatal)
+	}
+}
+
 func TestCheckCrossReferenceResolves(t *testing.T) {
 	// A container referencing a .volume in the same cadre must validate; the same
 	// reference without the .volume present must fail.
