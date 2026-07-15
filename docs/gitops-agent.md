@@ -28,7 +28,10 @@ Two backends are supported (chosen by `store.kind` in the agent config):
 - **git** (`kind: git`) — clone/pull a branch with an in-process git client (`go-git`). Auth is optional:
   - `sshKey` → git-over-SSH with that private key. By default the SSH transport verifies the
     server against `~/.ssh/known_hosts` (pre-seed it, or set `insecureHostKey: true` to skip
-    verification for freshly provisioned nodes).
+    verification for freshly provisioned nodes). **`insecureHostKey: true` is dangerous:** the
+    agent applies whatever the store returns **as root**, so a MITM on the git fetch is
+    remote code execution as root on the node. Prefer pre-seeding `known_hosts`; use it only
+    for a trusted, freshly provisioned network and turn it off once the host key is pinned.
   - `token` → HTTPS basic auth (`user` defaults to `git`; some providers want e.g.
     `oauth2`).
   - neither → anonymous / local-path / shared-mount access.

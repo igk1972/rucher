@@ -33,7 +33,9 @@ func knownHostsPath() string {
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "known_hosts"
+		// No home dir: use a stable temp path, not a CWD-relative "known_hosts", which
+		// would split TOFU pinning across whatever directory the operator ran from.
+		return filepath.Join(os.TempDir(), "rucher-known_hosts")
 	}
 	return filepath.Join(home, ".config", "rucher", "known_hosts")
 }
