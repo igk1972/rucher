@@ -83,7 +83,7 @@ func TestValidateResources(t *testing.T) {
 			t.Errorf("resources.cpuQuota %q should be rejected", bad)
 		}
 	}
-	for _, ok := range []string{"512M", "1G", "2048", "infinity", "20%"} {
+	for _, ok := range []string{"512M", "1G", "2048", "512B", "infinity", "20%"} {
 		if err := (Manifest{Resources: Resources{MemoryMax: ok}}).Validate(); err != nil {
 			t.Errorf("resources.memoryMax %q should pass, got %v", ok, err)
 		}

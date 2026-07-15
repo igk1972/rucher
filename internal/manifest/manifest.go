@@ -121,11 +121,11 @@ func (m Manifest) Validate() error {
 	return nil
 }
 
-// memoryMaxRe matches a systemd MemoryMax value: a byte size (optional K/M/G/T/P/E
+// memoryMaxRe matches a systemd MemoryMax value: a byte size (optional B/K/M/G/T/P/E
 // suffix, base 1024), a percentage, or "infinity". cpuQuotaRe matches a CPUQuota
 // percentage. Anchored, so any embedded newline fails to match.
 var (
-	memoryMaxRe = regexp.MustCompile(`^(infinity|[0-9]+(\.[0-9]+)?([KMGTPE])?|[0-9]+(\.[0-9]+)?%)$`)
+	memoryMaxRe = regexp.MustCompile(`^(infinity|[0-9]+(\.[0-9]+)?([BKMGTPE])?|[0-9]+(\.[0-9]+)?%)$`)
 	cpuQuotaRe  = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?%$`)
 )
 
