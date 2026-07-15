@@ -103,9 +103,9 @@ func TestApplyFailsWhenFileWriteExitsNonZero(t *testing.T) {
 
 func TestApplyReappliesResourcesOnUidChange(t *testing.T) {
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
-	// Prior state has a different uid and identical resource limits, so the plan's
-	// Resources gate stays quiet — but the new uid must still get the drop-in and the
-	// old uid's slice must be cleaned.
+	// Different prior uid, identical limits: the plan's Resources gate stays quiet, but the
+	// new uid must still get the drop-in — and the old uid's drop-in must be left untouched
+	// (it may belong to another cadre that reused that uid).
 	if err := state.Save(statePath("web"), state.State{
 		Name: "web", UID: 999, Files: map[string]string{}, SecretHashes: map[string]string{},
 		Resources: manifest.Resources{MemoryMax: "512M"},
@@ -127,8 +127,8 @@ func TestApplyReappliesResourcesOnUidChange(t *testing.T) {
 			sawNewDropIn = true
 		}
 	}
-	if !sawOldSliceRm {
-		t.Error("the previous uid's slice drop-in must be removed on a uid change")
+	if sawOldSliceRm {
+		t.Error("the previous uid's slice drop-in must NOT be removed: it may have been reused by another cadre")
 	}
 	if !sawNewDropIn {
 		t.Error("resource limits must be re-applied to the new uid")
