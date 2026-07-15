@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"rucher/internal/age"
 	"rucher/internal/agent"
@@ -123,17 +124,21 @@ func cmdAgentRun(configPath string, out io.Writer) int {
 		return 1
 	}
 	defer unlock()
+	// Cap the pass so a stalled store remote cannot pin the node lock indefinitely;
+	// a manual `node agent run` has no systemd timeout backstop like the timer does.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 	var st agent.Status
 	var runErr error
 	switch cfg.Store.Kind {
 	case "git":
-		st, runErr = agent.Run(context.Background(), node.NewExec(), store.Git{
+		st, runErr = agent.Run(ctx, node.NewExec(), store.Git{
 			URL: cfg.Store.URL, Branch: cfg.Store.Branch, CachePath: storeCachePath,
 			SSHKey: cfg.Store.SSHKey, Token: cfg.Store.Token,
 			User: cfg.Store.User, InsecureHostKey: cfg.Store.InsecureHostKey,
 		}, nodeID, nodeIdentity)
 	case "s3":
-		st, runErr = agent.Run(context.Background(), node.NewExec(), store.S3{
+		st, runErr = agent.Run(ctx, node.NewExec(), store.S3{
 			Endpoint: cfg.Store.Endpoint, Bucket: cfg.Store.Bucket, Prefix: cfg.Store.Prefix,
 			AccessKey: cfg.Store.AccessKey, SecretKey: cfg.Store.SecretKey,
 			UseSSL: cfg.Store.UseSSL, Region: cfg.Store.Region, CachePath: storeCachePath,
