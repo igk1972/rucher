@@ -4,6 +4,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,6 +13,7 @@ import (
 
 	"rucher/internal/age"
 	"rucher/internal/node"
+	"rucher/internal/reconcile"
 	"rucher/internal/state"
 	"rucher/internal/store"
 )
@@ -139,5 +141,38 @@ func TestRunFailsCadreIsolated(t *testing.T) {
 	// Pin the failure CAUSE: it must be the identity unseal, not some earlier step.
 	if !strings.Contains(st.Applied[0].Error, "unseal") {
 		t.Fatalf("Applied[0].Error = %q, want it to mention the unseal failure", st.Applied[0].Error)
+	}
+}
+
+// TestRunPassLevelFailureSetsError covers the pass-level failure path: a store that
+// cannot sync must yield a Status carrying the failure in Error, so the persisted
+// status does not read as a healthy/empty node.
+func TestRunPassLevelFailureSetsError(t *testing.T) {
+	fs := &store.Fake{Err: errors.New("remote unreachable")}
+	st, err := Run(context.Background(), &node.Fake{}, fs, "node-a", "node-key-unused")
+	if err == nil {
+		t.Fatal("Run returned nil error, want a store sync failure")
+	}
+	if !strings.Contains(st.Error, "remote unreachable") {
+		t.Fatalf("Status.Error = %q, want it to carry the sync failure", st.Error)
+	}
+}
+
+// TestInstallIdentityErrorsOnInstallExit covers L7: a non-zero exit from `install`
+// (reported via Result.Code, not err) must fail installIdentity.
+func TestInstallIdentityErrorsOnInstallExit(t *testing.T) {
+	nodeID, nodeRcpt, _ := age.GenerateIdentity()
+	compID, _, _ := age.GenerateIdentity()
+	sealed, _ := age.Seal(nodeRcpt, []byte(compID))
+
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "identity.age"), sealed, 0o644)
+
+	idPath := reconcile.IdentityPath("web")
+	f := &node.Fake{Responses: map[string]node.Result{
+		"user:1234:install -m 600 /dev/stdin " + idPath: {Code: 1, Stderr: "permission denied"},
+	}}
+	if err := installIdentity(f, "web", 1234, dir, nodeID); err == nil {
+		t.Fatal("installIdentity returned nil, want an error when install exits non-zero")
 	}
 }

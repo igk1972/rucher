@@ -94,6 +94,11 @@ func collectOne(r sshx.Runner, nodesDir, limaDir, name string, live bool) Row {
 		row.Revision = st.Revision
 		row.Applied = len(st.Applied)
 		row.Removed = len(st.Removed)
+		// A pass-level failure (store sync, placement, listing) has no per-cadre
+		// Result to surface, so fold it in alongside them or the node reads healthy.
+		if st.Error != "" {
+			row.Errors = append(row.Errors, st.Error)
+		}
 		for _, a := range st.Applied {
 			if !a.OK {
 				row.Errors = append(row.Errors, a.Name+": "+a.Error)

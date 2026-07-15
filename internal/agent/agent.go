@@ -31,21 +31,29 @@ type Status struct {
 	Revision string   `json:"revision"`
 	Applied  []Result `json:"applied"`
 	Removed  []string `json:"removed"`
+	// Error carries a pass-level failure (store sync, placement, listing). Without it
+	// a failed pass persists a zero/partial Status and `ops nodes status` reads the
+	// node as healthy; the field lets the reader surface the failure instead.
+	Error string `json:"error,omitempty"`
 }
 
 func Run(ctx context.Context, r node.Runner, s store.Store, nodeID, nodeIdentity string) (Status, error) {
 	co, rev, err := s.Sync(ctx)
 	if err != nil {
-		return Status{}, fmt.Errorf("store sync: %w", err)
+		err = fmt.Errorf("store sync: %w", err)
+		return Status{Error: err.Error()}, err
 	}
 	st := Status{Revision: rev}
 
 	pdata, err := os.ReadFile(filepath.Join(co, "placement.yml"))
 	if err != nil {
-		return st, fmt.Errorf("read placement.yml: %w", err)
+		err = fmt.Errorf("read placement.yml: %w", err)
+		st.Error = err.Error()
+		return st, err
 	}
 	assigned, err := placement.Assigned(pdata, nodeID)
 	if err != nil {
+		st.Error = err.Error()
 		return st, err
 	}
 
@@ -62,6 +70,7 @@ func Run(ctx context.Context, r node.Runner, s store.Store, nodeID, nodeIdentity
 	// remove cadres managed on this node but no longer assigned
 	managed, err := reconcile.List()
 	if err != nil {
+		st.Error = err.Error()
 		return st, err
 	}
 	for _, name := range managed {
@@ -72,7 +81,9 @@ func Run(ctx context.Context, r node.Runner, s store.Store, nodeID, nodeIdentity
 	}
 
 	if failed {
-		return st, fmt.Errorf("one or more cadres failed to apply")
+		err = fmt.Errorf("one or more cadres failed to apply")
+		st.Error = err.Error()
+		return st, err
 	}
 	return st, nil
 }
@@ -113,13 +124,15 @@ func installIdentity(r node.Runner, name string, uid int, dir, nodeIdentity stri
 	}
 	user := provision.UserName(name)
 	idPath := reconcile.IdentityPath(name) // same path A's decrypt reads
-	if _, err := r.User(user, uid, []string{"mkdir", "-p", filepath.Dir(idPath)}, nil); err != nil {
-		return err
+	// A non-zero exit surfaces via Result.Code, not err, so both must be checked or a
+	// failed mkdir/install would silently leave the identity absent or unwritten.
+	if res, err := r.User(user, uid, []string{"mkdir", "-p", filepath.Dir(idPath)}, nil); err != nil || res.Code != 0 {
+		return fmt.Errorf("mkdir %s identity dir: code=%d stderr=%s err=%v", name, res.Code, res.Stderr, err)
 	}
 	// install writes with the final 0600 in one step; tee would create the private key at
 	// the user's umask (0644) and leave a TOCTOU window until a separate chmod.
-	if _, err := r.User(user, uid, []string{"install", "-m", "600", "/dev/stdin", idPath}, identity); err != nil {
-		return err
+	if res, err := r.User(user, uid, []string{"install", "-m", "600", "/dev/stdin", idPath}, identity); err != nil || res.Code != 0 {
+		return fmt.Errorf("install %s identity: code=%d stderr=%s err=%v", name, res.Code, res.Stderr, err)
 	}
 	return nil
 }

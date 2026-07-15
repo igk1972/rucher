@@ -150,6 +150,30 @@ func TestCollectCapturesTransportError(t *testing.T) {
 	}
 }
 
+// TestCollectFoldsPassLevelError covers M9: a node reachable over ssh whose agent
+// status carries a pass-level Error must surface it, not read as a healthy node.
+func TestCollectFoldsPassLevelError(t *testing.T) {
+	nodes := t.TempDir()
+	writeNode(t, nodes, "e", "network: {address: 5.5.5.5}\n")
+	target := sshx.Target{Addr: "5.5.5.5:22", User: "root"}
+
+	statusJSON := `{"revision":"","applied":[],"removed":[],"error":"store sync: remote unreachable"}`
+	f := &sshx.Fake{Responses: map[string]sshx.Result{
+		sshx.Key(target, []string{"cat", statusPath}): {Stdout: statusJSON},
+	}}
+	rows, err := Collect(f, nodes, "/nonexistent", nil, false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := rows[0]
+	if !e.Reachable {
+		t.Fatalf("e should be reachable (ssh succeeded): %+v", e)
+	}
+	if !slices.Contains(e.Errors, "store sync: remote unreachable") {
+		t.Fatalf("pass-level error not surfaced: %+v", e)
+	}
+}
+
 func TestCollectFlagsCorruptStatus(t *testing.T) {
 	nodes := t.TempDir()
 	writeNode(t, nodes, "d", "network: {address: 4.4.4.4}\n")
