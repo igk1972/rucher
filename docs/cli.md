@@ -308,7 +308,8 @@ Gather each node's agent status over SSH and print it. Default output is a table
 block; `--json` emits a JSON array instead. `--live` additionally runs `rucher node cadre status`
 on each reachable node and appends the live per-unit output. With no node names, every node under
 `--dir` that has a `configuration.yml` is queried. Exit code is 1 if any node is
-unreachable. See [management-network.md](management-network.md).
+unreachable or reported errors (a reachable node whose reconcile pass failed).
+See [management-network.md](management-network.md).
 
 Nodes are queried in parallel, at most `--concurrency` at a time (default 8; must be `>= 1`).
 The output order always matches the node list, independent of the concurrency level.

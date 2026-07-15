@@ -59,8 +59,8 @@ func cmdNodesStatus(nodesDir string, names []string, live, jsonOut bool, concurr
 }
 
 // renderNodesTable writes the status table plus an errors detail block and, when
-// live is set, per-node live status blocks. It returns 1 if any node is
-// unreachable, else 0.
+// live is set, per-node live status blocks. It returns 1 if any node is unreachable
+// or reported errors (a reachable node whose reconcile pass failed), else 0.
 func renderNodesTable(out io.Writer, rows []nodestatus.Row, live bool) int {
 	tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "NODE\tADDRESS\tREACHABLE\tREVISION\tAPPLIED\tREMOVED\tERRORS")
@@ -69,6 +69,9 @@ func renderNodesTable(out io.Writer, rows []nodestatus.Row, live bool) int {
 		reach := "yes"
 		if !r.Reachable {
 			reach, rc = "no", 1
+		}
+		if len(r.Errors) > 0 {
+			rc = 1 // a reachable node whose pass failed must not read as healthy
 		}
 		errs := ""
 		if len(r.Errors) > 0 {
@@ -105,11 +108,11 @@ func renderNodesTable(out io.Writer, rows []nodestatus.Row, live bool) int {
 }
 
 // renderNodesJSON writes rows as an indented JSON array followed by a newline.
-// It returns 1 if any node is unreachable, else 0.
+// It returns 1 if any node is unreachable or reported errors, else 0.
 func renderNodesJSON(out io.Writer, rows []nodestatus.Row) int {
 	rc := 0
 	for _, r := range rows {
-		if !r.Reachable {
+		if !r.Reachable || len(r.Errors) > 0 {
 			rc = 1
 			break
 		}

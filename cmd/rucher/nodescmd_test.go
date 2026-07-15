@@ -108,4 +108,17 @@ func TestRenderHostsTableRC(t *testing.T) {
 	if rc := renderNodesTable(&buf, allReachable, false); rc != 0 {
 		t.Fatalf("rc = %d, want 0 when all rows reachable", rc)
 	}
+
+	// A reachable node whose pass failed (Errors set) must also yield rc=1.
+	reachableWithErrors := []nodestatus.Row{
+		{Node: "a", Reachable: true, Errors: []string{"store sync: unreachable"}},
+	}
+	buf.Reset()
+	if rc := renderNodesTable(&buf, reachableWithErrors, false); rc != 1 {
+		t.Fatalf("rc = %d, want 1 when a reachable node reports errors", rc)
+	}
+	buf.Reset()
+	if rc := renderNodesJSON(&buf, reachableWithErrors); rc != 1 {
+		t.Fatalf("json rc = %d, want 1 when a reachable node reports errors", rc)
+	}
 }
