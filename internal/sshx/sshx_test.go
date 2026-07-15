@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -61,6 +62,97 @@ func TestAcceptNewTOFU(t *testing.T) {
 	key2 := newTestHostKey(t)
 	if err := acceptNewHostKey(path)(host, remote, key2); err == nil {
 		t.Fatal("mismatched key should be rejected")
+	}
+}
+
+// nonEmptyLines counts the pinned entries in a known_hosts file.
+func nonEmptyLines(b []byte) int {
+	n := 0
+	for _, l := range strings.Split(string(b), "\n") {
+		if strings.TrimSpace(l) != "" {
+			n++
+		}
+	}
+	return n
+}
+
+func TestAppendKnownHostIdempotent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "known_hosts")
+	if err := ensureFile(path); err != nil {
+		t.Fatalf("ensure file: %v", err)
+	}
+	const host = "127.0.0.1:22"
+	key := newTestHostKey(t)
+
+	// Pinning the same host key twice must leave a single entry (the stale-snapshot
+	// race would otherwise duplicate the line).
+	if err := appendKnownHost(path, host, key); err != nil {
+		t.Fatalf("first append: %v", err)
+	}
+	if err := appendKnownHost(path, host, key); err != nil {
+		t.Fatalf("second append: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read known_hosts: %v", err)
+	}
+	if n := nonEmptyLines(data); n != 1 {
+		t.Fatalf("want 1 known_hosts entry, got %d:\n%s", n, data)
+	}
+}
+
+func TestAppendKnownHostConcurrentSameKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "known_hosts")
+	if err := ensureFile(path); err != nil {
+		t.Fatalf("ensure file: %v", err)
+	}
+	const host = "127.0.0.1:22"
+	key := newTestHostKey(t)
+
+	// Two goroutines pinning the same new host concurrently (a parallel sweep
+	// first-contacting one host) must still yield exactly one entry.
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := appendKnownHost(path, host, key); err != nil {
+				t.Errorf("append: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read known_hosts: %v", err)
+	}
+	if n := nonEmptyLines(data); n != 1 {
+		t.Fatalf("want 1 known_hosts entry, got %d:\n%s", n, data)
+	}
+}
+
+func TestAppendKnownHostRejectsDifferentKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "known_hosts")
+	if err := ensureFile(path); err != nil {
+		t.Fatalf("ensure file: %v", err)
+	}
+	const host = "127.0.0.1:22"
+
+	// First key pins. A second, different key for the same host (a node that
+	// presents a different key on a racing connection) must be rejected, not
+	// appended — the file keeps only the first pin (fail closed).
+	if err := appendKnownHost(path, host, newTestHostKey(t)); err != nil {
+		t.Fatalf("pin first key: %v", err)
+	}
+	if err := appendKnownHost(path, host, newTestHostKey(t)); err == nil {
+		t.Fatal("a differing key for a pinned host must be rejected")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read known_hosts: %v", err)
+	}
+	if n := nonEmptyLines(data); n != 1 {
+		t.Fatalf("want the single original entry, got %d:\n%s", n, data)
 	}
 }
 

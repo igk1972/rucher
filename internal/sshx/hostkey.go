@@ -157,10 +157,32 @@ func throwawayHostKey() ssh.PublicKey {
 }
 
 // appendKnownHost pins the presented key for hostname in the known_hosts file.
+//
+// The accept decision upstream is made against a possibly stale snapshot, so two
+// concurrent first-contact goroutines can both reach here for the same host. It
+// re-verifies against the file as it stands now, under the lock: an identical
+// pin is a no-op (no duplicate line) and a now-differing key is rejected rather
+// than appended, so the race can never widen TOFU to trust a second key.
 func appendKnownHost(path, hostname string, key ssh.PublicKey) error {
-	line := knownhosts.Line([]string{knownhosts.Normalize(hostname)}, key)
 	knownHostsMu.Lock()
 	defer knownHostsMu.Unlock()
+
+	cb, err := knownhosts.New(path)
+	if err != nil {
+		return err // cannot parse the file: refuse to append (fail closed)
+	}
+	switch err := cb(hostname, probeAddr(hostname), key); {
+	case err == nil:
+		return nil // already pinned with this exact key
+	default:
+		var keyErr *knownhosts.KeyError
+		if errors.As(err, &keyErr) && len(keyErr.Want) > 0 {
+			return err // a different key is now pinned: reject
+		}
+		// len(Want) == 0 -> still unknown: fall through and pin it.
+	}
+
+	line := knownhosts.Line([]string{knownhosts.Normalize(hostname)}, key)
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
