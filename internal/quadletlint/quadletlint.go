@@ -41,7 +41,7 @@ func Check(files map[string]string) (warnings, fatal []string) {
 		units = append(units, u)
 	}
 
-	// Convert in dependency order (image/artifact < volume/network < build <
+	// Convert in dependency order (image < volume/network < build <
 	// container/kube < pod) so a unit's referenced units are resolved first.
 	sort.SliceStable(units, func(i, j int) bool {
 		return quadlet.SupportedExtensions[filepath.Ext(units[i].Filename)] <
@@ -60,8 +60,6 @@ func Check(files map[string]string) (warnings, fatal []string) {
 			resource = quadlet.GetContainerResourceName(u)
 		case ".build":
 			resource = quadlet.GetBuiltImageName(u)
-		case ".artifact":
-			svc = quadlet.GetArtifactServiceName(u)
 		case ".pod":
 			containers = make([]string, 0)
 			resource = quadlet.GetPodResourceName(u)
@@ -86,8 +84,6 @@ func Check(files map[string]string) (warnings, fatal []string) {
 			_, err = quadlet.ConvertKube(u, info, isUser)
 		case ".image":
 			_, err = quadlet.ConvertImage(u, info, isUser)
-		case ".artifact":
-			_, err = quadlet.ConvertArtifact(u, info, isUser)
 		default:
 			continue // not a Quadlet unit type; caller should not have passed it
 		}
