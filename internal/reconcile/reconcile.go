@@ -62,7 +62,7 @@ func New(r node.Runner, name string) (string, error) {
 		return "", err
 	}
 	user := provision.UserName(name)
-	if _, err := r.User(user, uid, []string{"mkdir", "-p", ageDir(name)}, nil); err != nil {
+	if err := userWrite(r, user, uid, []string{"mkdir", "-p", ageDir(name)}, nil); err != nil {
 		return "", err
 	}
 	idp := IdentityPath(name)
@@ -71,7 +71,7 @@ func New(r node.Runner, name string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if _, err := r.User(user, uid, []string{"tee", recipientPath(name)}, []byte(recipient+"\n")); err != nil {
+		if err := userWrite(r, user, uid, []string{"tee", recipientPath(name)}, []byte(recipient+"\n")); err != nil {
 			return "", err
 		}
 		return recipient, nil
@@ -90,10 +90,10 @@ func New(r node.Runner, name string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("derive recipient for %s: %w", name, err)
 	}
-	// Rewrite recipient.txt (idempotent). Not ignored: in the interruption this branch heals
-	// — identity written but recipient.txt not — this is the write that creates it, so a
-	// silent failure would leave Recipient() unable to read it. Symmetric with generation.
-	if _, err := r.User(user, uid, []string{"tee", recipientPath(name)}, []byte(recipient+"\n")); err != nil {
+	// Rewrite recipient.txt from the identity (the source of truth), idempotently, to self-heal
+	// a run interrupted after the identity was written but before recipient.txt was — which
+	// would otherwise leave Recipient() unable to read it.
+	if err := userWrite(r, user, uid, []string{"tee", recipientPath(name)}, []byte(recipient+"\n")); err != nil {
 		return "", err
 	}
 	return recipient, nil

@@ -349,6 +349,22 @@ func TestNewSelfHealsMissingRecipient(t *testing.T) {
 	}
 }
 
+func TestNewSurfacesRecipientWriteFailure(t *testing.T) {
+	// The recipient.txt write must fail loudly on a non-zero exit (the runner reports it via
+	// Code, not err), not be silently swallowed — otherwise Recipient() later can't read it.
+	idp := IdentityPath("web")
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web":                 {Stdout: "1500"},
+		"root:cat /etc/subuid":                  {},
+		"root:cat /etc/subgid":                  {},
+		"user:1500:test -f " + idp:              {Code: 1}, // force generation
+		"user:1500:tee " + recipientPath("web"): {Code: 1, Stderr: "No space left on device"},
+	}}
+	if _, err := New(f, "web"); err == nil {
+		t.Fatal("New must fail when the recipient.txt write exits non-zero")
+	}
+}
+
 func TestStatusReportsUnitStates(t *testing.T) {
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 	if err := state.Save(statePath("web"), state.State{Name: "web", UID: 1234, Units: []string{"web.container"}}); err != nil {
