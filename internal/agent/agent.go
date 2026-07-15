@@ -157,7 +157,10 @@ func readSealed(dir string) ([]byte, error) {
 const StatusPath = "/var/lib/rucher/agent-status.json"
 
 func WriteStatus(path string, st Status) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	// 0711 (not 0755) on the dir: it is also the parent of cadre homes, so it must stay
+	// traversable but need not be listable. The status file itself is 0600 — it carries every
+	// cadre's names and error text, which no co-tenant cadre user should read.
+	if err := os.MkdirAll(filepath.Dir(path), 0o711); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(st, "", "  ")
@@ -165,7 +168,7 @@ func WriteStatus(path string, st Status) error {
 		return err
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)

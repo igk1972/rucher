@@ -176,3 +176,18 @@ func TestInstallIdentityErrorsOnInstallExit(t *testing.T) {
 		t.Fatal("installIdentity returned nil, want an error when install exits non-zero")
 	}
 }
+
+func TestWriteStatusFileIsPrivate(t *testing.T) {
+	// The status file carries cross-cadre metadata; a co-tenant cadre user must not read it.
+	path := filepath.Join(t.TempDir(), "sub", "agent-status.json")
+	if err := WriteStatus(path, Status{Revision: "r1"}); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o600 {
+		t.Fatalf("status file mode = %o, want 0600", fi.Mode().Perm())
+	}
+}
