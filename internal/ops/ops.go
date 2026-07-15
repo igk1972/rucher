@@ -107,7 +107,9 @@ func UnitService(unit string) string {
 	}
 	stem, ext := unit[:dot], unit[dot+1:]
 	switch ext {
-	case "container":
+	case "container", "kube":
+		// Quadlet names a .container's and a .kube's service after the bare stem
+		// (foo.service); .volume/.network/.pod/.image/.build get the -<ext> suffix.
 		return stem + ".service"
 	default:
 		return stem + "-" + ext + ".service"

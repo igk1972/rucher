@@ -13,6 +13,7 @@ import (
 func TestUnitService(t *testing.T) {
 	cases := map[string]string{
 		"web.container": "web.service",
+		"app.kube":      "app.service", // .kube, like .container, maps to the bare stem
 		"data.volume":   "data-volume.service",
 		"net.network":   "net-network.service",
 		"app.pod":       "app-pod.service",
