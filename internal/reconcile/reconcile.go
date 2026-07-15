@@ -388,7 +388,7 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	//    converged cadre risks a rate-limit (docker.io 429) for nothing, and auth.json
 	//    persists, so a no-op plan skips it. A change confined to the login block leaves the
 	//    plan empty, so regHash catches that case (see registriesHash).
-	regHash := registriesHash(c.Manifest.Registries.Login)
+	regHash := registriesHash(c.Manifest.Registries.Login, secretValues)
 	if !p.Empty() || regHash != prior.RegistriesHash {
 		for _, l := range c.Manifest.Registries.Login {
 			pw, ok := secretValues[l.PasswordKey]
@@ -428,7 +428,7 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	}
 
 	// 7. persist new state
-	next := nextState(c, uid, secretHashes)
+	next := nextState(c, uid, secretHashes, secretValues)
 	// Retain units whose stop failed (with their prior file hash) so the next reconcile sees
 	// them as still-present-but-undesired and retries the stop-then-remove.
 	for u := range stopFailed {
@@ -447,14 +447,14 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	return p, nil
 }
 
-func nextState(c cadre.Cadre, uid int, secretHashes map[string]string) state.State {
+func nextState(c cadre.Cadre, uid int, secretHashes, secretValues map[string]string) state.State {
 	s := state.State{
 		Name:           c.Name,
 		UID:            uid,
 		Files:          map[string]string{},
 		SecretHashes:   secretHashes,
 		Resources:      c.Manifest.Resources,
-		RegistriesHash: registriesHash(c.Manifest.Registries.Login),
+		RegistriesHash: registriesHash(c.Manifest.Registries.Login, secretValues),
 	}
 	if s.SecretHashes == nil {
 		s.SecretHashes = map[string]string{}
@@ -473,14 +473,24 @@ func nextState(c cadre.Cadre, uid int, secretHashes map[string]string) state.Sta
 	return s
 }
 
-// registriesHash fingerprints the login block for the re-login gate — its fields only, never
-// the secret values (the plan's secret diff already covers those).
-func registriesHash(logins []manifest.Login) string {
+// registriesHash fingerprints the login block AND a hash of each login's resolved password,
+// so the re-login gate fires both when the block changes and when a password rotates — even
+// when its passwordKey is not in secrets.create (whose keys are the only ones the plan's
+// secret diff tracks). Only the password's hash is folded in, never the plaintext.
+func registriesHash(logins []manifest.Login, secretValues map[string]string) string {
 	if len(logins) == 0 {
 		return ""
 	}
-	b, _ := json.Marshal(logins)
-	return fileset.Hash(b)
+	var b strings.Builder
+	blk, _ := json.Marshal(logins)
+	b.Write(blk)
+	for _, l := range logins {
+		b.WriteByte('\n')
+		b.WriteString(l.PasswordKey)
+		b.WriteByte('=')
+		b.WriteString(fileset.Hash([]byte(secretValues[l.PasswordKey])))
+	}
+	return fileset.Hash([]byte(b.String()))
 }
 
 // userWrite runs a filesystem mutation (mkdir/tee/rm) as the cadre user and fails on a

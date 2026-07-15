@@ -762,6 +762,51 @@ func TestApplyRelogsInWhenOnlyLoginBlockChanges(t *testing.T) {
 	}
 }
 
+func TestApplyRelogsInWhenNonAllowlistedPasswordRotates(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+
+	mk := func(pw string) cadre.Cadre {
+		sopsPath := writeCadreSecrets(t, "web", []sopsage.KV{
+			{Key: "db_password", Value: "dbpw"},
+			{Key: "ghcr_token", Value: pw},
+		})
+		return cadre.Cadre{
+			Name:     "web",
+			SopsPath: sopsPath,
+			// The allowlist omits ghcr_token, so a rotation of the login password is invisible
+			// to the plan's secret diff — registriesHash must catch it instead.
+			Manifest: manifest.Manifest{
+				Secrets: manifest.Secrets{Create: []string{"db_password"}},
+				Registries: manifest.Registries{Login: []manifest.Login{
+					{Registry: "ghcr.io", Username: "u", PasswordKey: "ghcr_token"},
+				}},
+			},
+		}
+	}
+	sawLogin := func(f *node.Fake) bool {
+		for _, call := range f.Calls {
+			if len(call.Argv) >= 2 && call.Argv[0] == "podman" && call.Argv[1] == "login" {
+				return true
+			}
+		}
+		return false
+	}
+
+	f1 := &node.Fake{Responses: map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234"}}}
+	if _, err := Apply(f1, mk("pw1")); err != nil {
+		t.Fatal(err)
+	}
+	// Rotate only the non-allowlisted registry password; the plan is otherwise empty.
+	f2 := &node.Fake{Responses: map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234"}}}
+	if _, err := Apply(f2, mk("pw2")); err != nil {
+		t.Fatal(err)
+	}
+	if !sawLogin(f2) {
+		t.Fatal("rotating a non-allowlisted registry password must re-run podman login")
+	}
+}
+
 func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
