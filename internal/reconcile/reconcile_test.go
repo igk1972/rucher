@@ -253,7 +253,9 @@ func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 	var idCall, teed *node.Call
 	for i := range f.Calls {
 		c := &f.Calls[i]
-		if len(c.Argv) == 2 && c.Argv[0] == "tee" && c.Argv[1] == idp {
+		// The private identity is written atomically at 0600 (install), the public
+		// recipient (not secret) with a plain tee.
+		if strings.Join(c.Argv, " ") == "install -m 600 /dev/stdin "+idp {
 			idCall = c
 		}
 		if len(c.Argv) == 2 && c.Argv[0] == "tee" && c.Argv[1] == recp {
@@ -262,7 +264,7 @@ func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 	}
 	// The identity written to disk must back-derive to the returned recipient.
 	if idCall == nil {
-		t.Fatalf("no tee %s call recorded", idp)
+		t.Fatalf("no `install -m 600 /dev/stdin %s` call recorded", idp)
 	}
 	back, err := age.RecipientFor(strings.TrimSpace(string(idCall.Stdin)))
 	if err != nil {

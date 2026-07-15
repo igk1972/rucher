@@ -43,22 +43,20 @@ func TestRunAppliesAssignedCadre(t *testing.T) {
 	if st.Revision != "rev1" || len(st.Applied) != 1 || !st.Applied[0].OK {
 		t.Fatalf("status = %+v", st)
 	}
-	// the unsealed identity must have been written to the cadre's identity path via the user
-	var wroteIdentity, chmodIdentity bool
+	// The unsealed identity (a private key) must be written atomically at 0600 via
+	// `install -m 600`, never a tee that would leave a 0644 window.
+	var wroteIdentity bool
 	for _, c := range f.Calls {
-		if len(c.Argv) >= 2 && c.Argv[0] == "tee" && strings.HasSuffix(c.Argv[1], "/age/identity.txt") && string(c.Stdin) == compID {
+		if c.Argv[0] == "install" && len(c.Argv) >= 5 && c.Argv[1] == "-m" && c.Argv[2] == "600" &&
+			strings.HasSuffix(c.Argv[4], "/age/identity.txt") && string(c.Stdin) == compID {
 			wroteIdentity = true
 		}
-		// the private key must be locked down to 0600
-		if len(c.Argv) >= 3 && c.Argv[0] == "chmod" && c.Argv[1] == "600" && strings.HasSuffix(c.Argv[2], "/age/identity.txt") {
-			chmodIdentity = true
+		if c.Argv[0] == "tee" && strings.HasSuffix(c.Argv[len(c.Argv)-1], "/age/identity.txt") {
+			t.Fatal("identity must not be written with tee (0644 window)")
 		}
 	}
 	if !wroteIdentity {
-		t.Fatal("unsealed cadre identity was not installed")
-	}
-	if !chmodIdentity {
-		t.Fatal("unsealed cadre identity was not chmod 600")
+		t.Fatal("unsealed cadre identity was not installed with `install -m 600`")
 	}
 }
 

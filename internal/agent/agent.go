@@ -116,11 +116,9 @@ func installIdentity(r node.Runner, name string, uid int, dir, nodeIdentity stri
 	if _, err := r.User(user, uid, []string{"mkdir", "-p", filepath.Dir(idPath)}, nil); err != nil {
 		return err
 	}
-	if _, err := r.User(user, uid, []string{"tee", idPath}, identity); err != nil {
-		return err
-	}
-	// tee creates the file at the user's umask; the unsealed identity is a private key.
-	if _, err := r.User(user, uid, []string{"chmod", "600", idPath}, nil); err != nil {
+	// install writes with the final 0600 in one step; tee would create the private key at
+	// the user's umask (0644) and leave a TOCTOU window until a separate chmod.
+	if _, err := r.User(user, uid, []string{"install", "-m", "600", "/dev/stdin", idPath}, identity); err != nil {
 		return err
 	}
 	return nil

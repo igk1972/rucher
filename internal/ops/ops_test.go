@@ -116,24 +116,24 @@ func TestGenerateAgeKey(t *testing.T) {
 	}
 
 	// The key is random, so we prove correctness by capturing the identity written to
-	// disk and back-deriving its recipient: it must equal the returned one.
-	var teed *node.Call
-	var sawChmod bool
+	// disk and back-deriving its recipient: it must equal the returned one. The write
+	// must use `install -m 600` (atomic 0600), never a tee that leaves a 0644 window.
+	var installed *node.Call
 	for i := range f.Calls {
 		c := &f.Calls[i]
-		if len(c.Argv) == 2 && c.Argv[0] == "tee" && c.Argv[1] == "/id/identity.txt" {
-			teed = c
+		if strings.Join(c.Argv, " ") == "install -m 600 /dev/stdin /id/identity.txt" {
+			installed = c
 		}
-		if strings.Join(c.Argv, " ") == "chmod 600 /id/identity.txt" {
-			sawChmod = true
+		if c.Argv[0] == "tee" {
+			t.Fatalf("identity must not be written with tee (0644 window): %v", c.Argv)
 		}
 	}
-	if teed == nil {
-		t.Fatal("no `tee /id/identity.txt` call recorded")
+	if installed == nil {
+		t.Fatal("no `install -m 600 /dev/stdin /id/identity.txt` call recorded")
 	}
-	id := strings.TrimSpace(string(teed.Stdin))
+	id := strings.TrimSpace(string(installed.Stdin))
 	if !strings.HasPrefix(id, "AGE-SECRET-KEY-1") {
-		t.Fatalf("tee stdin = %q, want an AGE-SECRET-KEY-1 identity", id)
+		t.Fatalf("install stdin = %q, want an AGE-SECRET-KEY-1 identity", id)
 	}
 	back, err := age.RecipientFor(id)
 	if err != nil {
@@ -141,9 +141,6 @@ func TestGenerateAgeKey(t *testing.T) {
 	}
 	if back != recipient {
 		t.Fatalf("recipient from written identity = %q, want returned %q", back, recipient)
-	}
-	if !sawChmod {
-		t.Fatal("expected a `chmod 600 /id/identity.txt` user call")
 	}
 }
 
