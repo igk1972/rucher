@@ -110,3 +110,18 @@ func TestValidateRejectsMultilinePruneSchedule(t *testing.T) {
 		t.Fatal("expected error for multi-line prune.schedule")
 	}
 }
+
+func TestValidatePruneScheduleWords(t *testing.T) {
+	// Typo'd shortcuts are caught; real shortcuts, weekdays and full calendar
+	// expressions pass (the latter is not deeply parsed).
+	for _, bad := range []string{"dialy", "wekly", "evryday"} {
+		if err := (Manifest{Prune: Prune{Schedule: bad}}).Validate(); err == nil {
+			t.Errorf("prune.schedule %q should be rejected", bad)
+		}
+	}
+	for _, ok := range []string{"daily", "weekly", "Mon", "*-*-* 04:00:00", "Mon..Fri 09:00"} {
+		if err := (Manifest{Prune: Prune{Schedule: ok}}).Validate(); err != nil {
+			t.Errorf("prune.schedule %q should pass, got %v", ok, err)
+		}
+	}
+}

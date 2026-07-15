@@ -99,5 +99,32 @@ func (m Manifest) Validate() error {
 	if strings.Contains(m.Prune.Schedule, "\n") {
 		return fmt.Errorf("manifest: prune.schedule must be a single line")
 	}
+	// Catch the common typo (e.g. "dialy"): a bare alphabetic word must be a known
+	// OnCalendar shortcut or weekday. Anything with digits/punctuation is a full
+	// calendar expression we don't parse here (no systemd on the operator machine) —
+	// an invalid one would otherwise only surface when the timer fails to enable on the
+	// node, aborting an otherwise-healthy reconcile.
+	if s := m.Prune.Schedule; s != "" && isAlphaWord(s) && !calendarWords[strings.ToLower(s)] {
+		return fmt.Errorf("manifest: prune.schedule %q is not a known OnCalendar shortcut", s)
+	}
 	return nil
+}
+
+// calendarWords are the single-word OnCalendar values (systemd shortcuts + weekday names)
+// that are valid on their own.
+var calendarWords = map[string]bool{
+	"minutely": true, "hourly": true, "daily": true, "weekly": true, "monthly": true,
+	"yearly": true, "quarterly": true, "semiannually": true, "annually": true,
+	"mon": true, "tue": true, "wed": true, "thu": true, "fri": true, "sat": true, "sun": true,
+	"monday": true, "tuesday": true, "wednesday": true, "thursday": true,
+	"friday": true, "saturday": true, "sunday": true,
+}
+
+func isAlphaWord(s string) bool {
+	for _, r := range s {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') {
+			return false
+		}
+	}
+	return s != ""
 }
