@@ -265,6 +265,18 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	}
 	p := plan.Compute(c, secretHashes, prior)
 
+	// A uid change (the cadre user was recreated out-of-band, or state was restored onto a
+	// rebuilt node) must re-apply limits even when the Resources struct is unchanged — the
+	// plan gate only compares Resources — and drop the previous uid's slice drop-in, which
+	// would otherwise stay armed for whoever next reuses that uid.
+	if prior.UID != 0 && uid != prior.UID {
+		r.Root([]string{"rm", "-rf", fmt.Sprintf("/etc/systemd/system/user-%d.slice.d", prior.UID)}, nil)
+		r.Root([]string{"systemctl", "daemon-reload"}, nil)
+		if res := c.Manifest.Resources; res.MemoryMax != "" || res.CPUQuota != "" {
+			p.Resources = &res
+		}
+	}
+
 	// 1. resource limits
 	if p.Resources != nil {
 		if err := provision.ApplyResources(r, uid, *p.Resources); err != nil {

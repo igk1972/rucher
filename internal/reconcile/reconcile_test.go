@@ -101,6 +101,40 @@ func TestApplyFailsWhenFileWriteExitsNonZero(t *testing.T) {
 	}
 }
 
+func TestApplyReappliesResourcesOnUidChange(t *testing.T) {
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+	// Prior state has a different uid and identical resource limits, so the plan's
+	// Resources gate stays quiet — but the new uid must still get the drop-in and the
+	// old uid's slice must be cleaned.
+	if err := state.Save(statePath("web"), state.State{
+		Name: "web", UID: 999, Files: map[string]string{}, SecretHashes: map[string]string{},
+		Resources: manifest.Resources{MemoryMax: "512M"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	c := cadre.Cadre{Name: "web", Manifest: manifest.Manifest{Resources: manifest.Resources{MemoryMax: "512M"}}}
+	f := &node.Fake{Responses: map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234"}}}
+	if _, err := Apply(f, c); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawOldSliceRm, sawNewDropIn bool
+	for _, call := range f.Calls {
+		switch strings.Join(call.Argv, " ") {
+		case "rm -rf /etc/systemd/system/user-999.slice.d":
+			sawOldSliceRm = true
+		case "tee /etc/systemd/system/user-1234.slice.d/50-rucher.conf":
+			sawNewDropIn = true
+		}
+	}
+	if !sawOldSliceRm {
+		t.Error("the previous uid's slice drop-in must be removed on a uid change")
+	}
+	if !sawNewDropIn {
+		t.Error("resource limits must be re-applied to the new uid")
+	}
+}
+
 func TestApplyRoutesSystemdUnitToUserDirAndEnables(t *testing.T) {
 	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
