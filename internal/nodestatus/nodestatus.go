@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"rucher/internal/agent"
 	"rucher/internal/nodecfg"
@@ -43,7 +44,26 @@ func Collect(r sshx.Runner, nodesDir, limaDir string, names []string, live bool,
 	rows := parallel.Map(names, concurrency, func(name string) Row {
 		return collectOne(r, nodesDir, limaDir, name, live)
 	})
+	// Node-supplied output (live status, error text) is printed raw to the operator's
+	// terminal; strip control sequences so a malicious node can't inject ANSI/OSC escapes.
+	for i := range rows {
+		rows[i].Live = sanitizeNodeOutput(rows[i].Live)
+		for j := range rows[i].Errors {
+			rows[i].Errors[j] = sanitizeNodeOutput(rows[i].Errors[j])
+		}
+	}
 	return rows, nil
+}
+
+// sanitizeNodeOutput drops terminal control characters from node-supplied text. Printable
+// runes, newline and tab are kept; every other control character (including ESC) is removed.
+func sanitizeNodeOutput(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\t' || !unicode.IsControl(r) {
+			return r
+		}
+		return -1
+	}, s)
 }
 
 // collectOne fetches one node's status. Every failure is captured in the Row

@@ -201,3 +201,16 @@ func TestCollectFlagsCorruptStatus(t *testing.T) {
 		t.Fatalf("a corrupt status must be flagged, got errors %v", d.Errors)
 	}
 }
+
+func TestSanitizeNodeOutput(t *testing.T) {
+	// ESC and other control chars are stripped; newline/tab and printable text survive.
+	in := "ok\x1b[31mRED\x1b]0;title\x07 line\ttab\ndone\x00"
+	got := sanitizeNodeOutput(in)
+	want := "ok[31mRED]0;title line\ttab\ndone"
+	if got != want {
+		t.Fatalf("sanitizeNodeOutput = %q, want %q", got, want)
+	}
+	if strings.ContainsRune(got, 0x1b) {
+		t.Fatal("ESC survived sanitization")
+	}
+}
