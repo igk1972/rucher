@@ -84,6 +84,9 @@ By making a contribution to this project, I certify that:
 - Keep commits focused; sign off each one.
 - Run `go test ./...`; if the change touches on-node behavior, run the
   integration suite (see below).
+- CI also gates on a tidy module graph and a clean vulnerability scan, so before pushing run
+  `go mod tidy` (it must leave `go.mod`/`go.sum` unchanged) and
+  `go run golang.org/x/vuln/cmd/govulncheck@latest ./...`.
 - New source files should carry the SPDX header:
   `// SPDX-License-Identifier: AGPL-3.0-or-later`.
 
