@@ -45,7 +45,7 @@ For each node (all nodes under `--dir` when none are named), the tool:
 3. runs `cat /var/lib/rucher/agent-status.json` over SSH and parses the agent's
    [status](gitops-agent.md) (revision, applied count, removed count, per-cadre
    errors);
-4. with `--live`, additionally runs `rucher node cadre status` on the node and captures its live per-unit
+4. with `--live`, additionally runs `sudo rucher node cadre status` on the node and captures its live per-unit
    `ActiveState`/`SubState`.
 
 Output is a table by default:
@@ -60,7 +60,8 @@ errors:
 
 `--json` emits the rows as a JSON array instead (an empty result is `[]`, not `null`). A node
 that connects but fails records the reason under `errors:` so a transport/config failure is
-distinguishable from a plain "node down"; the exit code is 1 if any node is unreachable.
+distinguishable from a plain "node down"; the exit code is 1 if any node is unreachable **or
+reported errors** (including a reachable node whose reconcile pass failed).
 
 Nodes are queried concurrently, at most `--concurrency` at a time (default 8; must be `>= 1`).
 The row order always follows the node list, independent of the concurrency level, so the table
