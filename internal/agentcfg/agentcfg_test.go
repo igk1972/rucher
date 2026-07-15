@@ -55,6 +55,43 @@ store:
 	}
 }
 
+func TestLoadUseSSLDefaultsTrue(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.yml")
+	// s3 store without useSSL: TLS must default on (secure by default).
+	os.WriteFile(path, []byte(`
+store:
+  kind: s3
+  endpoint: s3.example.com:9000
+  bucket: infra
+`), 0o644)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Store.UseSSL {
+		t.Fatal("UseSSL must default to true when unspecified")
+	}
+}
+
+func TestLoadUseSSLExplicitOptOut(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.yml")
+	// An explicit `useSSL: false` must still opt out of TLS.
+	os.WriteFile(path, []byte(`
+store:
+  kind: s3
+  endpoint: s3.example.com:9000
+  bucket: infra
+  useSSL: false
+`), 0o644)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Store.UseSSL {
+		t.Fatal("explicit useSSL: false must be honored")
+	}
+}
+
 func TestNodeIDDefaultsToHostname(t *testing.T) {
 	c := Config{}
 	id, err := c.NodeID()

@@ -27,7 +27,9 @@ type StoreConfig struct {
 	AccessKey string `yaml:"accessKey"`
 	SecretKey string `yaml:"secretKey"`
 	Region    string `yaml:"region"`
-	UseSSL    bool   `yaml:"useSSL"`
+	// omitempty pairs with Load's secure default: a marshaled config with SSL
+	// off omits the key, so it reloads as TLS-on rather than pinning plaintext.
+	UseSSL bool `yaml:"useSSL,omitempty"`
 }
 
 type Config struct {
@@ -41,7 +43,9 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("read agent config: %w", err)
 	}
-	var c Config
+	// Seed TLS on before decoding so an omitted useSSL keeps it on (secure by
+	// default), while an explicit `useSSL: false` in the doc still opts out.
+	c := Config{Store: StoreConfig{UseSSL: true}}
 	if err := yaml.Unmarshal(data, &c); err != nil {
 		return Config{}, fmt.Errorf("parse agent config: %w", err)
 	}
