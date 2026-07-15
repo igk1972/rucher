@@ -185,3 +185,23 @@ func TestApplyResourcesErrorsOnTeeFailure(t *testing.T) {
 		t.Fatal("ApplyResources must error when tee exits non-zero")
 	}
 }
+
+func TestEnsureUserTouchesSubidMaps(t *testing.T) {
+	// A minimal image may lack /etc/subuid; EnsureUser must ensure both maps exist rather than
+	// treat a missing file as a fatal provisioning error.
+	f := &node.Fake{Responses: map[string]node.Result{"root:id -u rucher-web": {Stdout: "1500"}}}
+	if _, err := EnsureUser(f, "web"); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"touch /etc/subuid", "touch /etc/subgid"} {
+		found := false
+		for _, c := range f.Calls {
+			if strings.Join(c.Argv, " ") == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expected a %q call to ensure the subid map exists", want)
+		}
+	}
+}

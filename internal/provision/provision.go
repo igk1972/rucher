@@ -100,6 +100,15 @@ func EnsureUser(r node.Runner, name string) (int, error) {
 	// Allocate a unique, non-overlapping subuid/subgid block per cadre user. A failed cat
 	// must error rather than feed empty content to hasSubid/nextSubidStart (which would
 	// misjudge the map as empty and clobber an existing allocation).
+	// Ensure both subid maps exist before reading them: shadow-utils ships them, but a minimal
+	// image may not, and an absent file must not fail provisioning (usermod appends below). touch
+	// is a no-op when the file already exists and keeps the cat's Code check strict for real
+	// read failures.
+	for _, m := range []string{"/etc/subuid", "/etc/subgid"} {
+		if res, err := r.Root([]string{"touch", m}, nil); err != nil || res.Code != 0 {
+			return 0, fmt.Errorf("touch %s: code=%d stderr=%s err=%v", m, res.Code, res.Stderr, err)
+		}
+	}
 	subuidRes, err := r.Root([]string{"cat", "/etc/subuid"}, nil)
 	if err != nil || subuidRes.Code != 0 {
 		return 0, fmt.Errorf("cat /etc/subuid: code=%d stderr=%s err=%v", subuidRes.Code, subuidRes.Stderr, err)
