@@ -28,6 +28,10 @@ func TestCmdPlanPrintsUnits(t *testing.T) {
 	if !strings.Contains(out.String(), "rucher-prune.timer") {
 		t.Fatalf("plan output = %q, want the synthesized prune timer listed", out.String())
 	}
+	// The synthesized timer is enabled, not just written — the plan must show that.
+	if !strings.Contains(out.String(), "enable   rucher-prune.timer") {
+		t.Fatalf("plan output = %q, want an enable line for the prune timer", out.String())
+	}
 }
 
 func TestCmdPlanNamedNotFound(t *testing.T) {

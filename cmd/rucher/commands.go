@@ -79,14 +79,35 @@ func cmdPlan(dir string, names []string, out io.Writer) int {
 		c.Files = append(c.Files, prune.Files(c.Manifest.Prune)...)
 		p := plan.Compute(c, nil, state.State{})
 		fmt.Fprintf(out, "cadre %s:\n", c.Name)
+		for _, f := range p.WriteFiles {
+			fmt.Fprintf(out, "  write    %s\n", f.Name)
+		}
+		for _, name := range p.RemoveFiles {
+			fmt.Fprintf(out, "  remove   %s\n", name)
+		}
+		for _, k := range p.CreateSecrets {
+			fmt.Fprintf(out, "  secret+  %s\n", k)
+		}
+		for _, k := range p.RemoveSecrets {
+			fmt.Fprintf(out, "  secret-  %s\n", k)
+		}
 		for _, u := range p.StartUnits {
-			fmt.Fprintf(out, "  start   %s\n", u)
+			fmt.Fprintf(out, "  start    %s\n", u)
 		}
 		for _, u := range p.RestartUnits {
-			fmt.Fprintf(out, "  restart %s\n", u)
+			fmt.Fprintf(out, "  restart  %s\n", u)
 		}
-		for _, f := range p.WriteFiles {
-			fmt.Fprintf(out, "  write   %s\n", f.Name)
+		for _, u := range p.StopUnits {
+			fmt.Fprintf(out, "  stop     %s\n", u)
+		}
+		for _, u := range p.EnableUnits {
+			fmt.Fprintf(out, "  enable   %s\n", u)
+		}
+		for _, u := range p.RestartSystemdUnits {
+			fmt.Fprintf(out, "  restart  %s\n", u)
+		}
+		for _, u := range p.DisableUnits {
+			fmt.Fprintf(out, "  disable  %s\n", u)
 		}
 	}
 	return rc
