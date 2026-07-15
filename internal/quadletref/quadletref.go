@@ -4,10 +4,9 @@
 package quadletref
 
 import (
-	"bufio"
-	"bytes"
 	"path/filepath"
 	"strings"
+	"unicode"
 )
 
 type Refs struct {
@@ -41,9 +40,11 @@ func Extract(unitContent []byte) Refs {
 			r.Files = append(r.Files, base)
 		}
 	}
-	sc := bufio.NewScanner(bytes.NewReader(unitContent))
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
+	// Fold systemd trailing-`\` continuations first: a Secret= or --secret on a
+	// continuation line would otherwise be invisible, and a missed secret ref means
+	// no restart on rotation (a stale credential, with no coarse fallback to save us).
+	for _, line := range strings.Split(joinContinuations(unitContent), "\n") {
+		line = strings.TrimSpace(line)
 		key, val, ok := strings.Cut(line, "=")
 		if !ok {
 			continue
@@ -68,20 +69,32 @@ func Extract(unitContent []byte) Refs {
 	return r
 }
 
-// mountSource pulls source= out of a "type=bind,source=/x,..." Mount value.
+// mountSource pulls the source out of a "type=bind,source=/x,..." Mount value.
+// podman accepts both source= and its src= alias.
 func mountSource(v string) string {
 	for _, part := range strings.Split(v, ",") {
-		if s, ok := strings.CutPrefix(strings.TrimSpace(part), "source="); ok {
+		part = strings.TrimSpace(part)
+		if s, ok := strings.CutPrefix(part, "source="); ok {
+			return s
+		}
+		if s, ok := strings.CutPrefix(part, "src="); ok {
 			return s
 		}
 	}
 	return ""
 }
 
+// joinContinuations folds systemd line continuations the way podman's parser does:
+// a `\` immediately followed by a newline becomes a single space, joining the two
+// physical lines into one logical line.
+func joinContinuations(content []byte) string {
+	return strings.ReplaceAll(string(content), "\\\n", " ")
+}
+
 // podmanArgSecrets finds secret names behind `--secret name[,opts]` (and --secret=name),
 // so a secret mounted via raw PodmanArgs still ties its unit to a rotation.
 func podmanArgSecrets(v string) []string {
-	toks := strings.Fields(v)
+	toks := splitQuoted(v)
 	var out []string
 	for i := 0; i < len(toks); i++ {
 		var arg string
@@ -103,9 +116,14 @@ func podmanArgSecrets(v string) []string {
 	return out
 }
 
-// podmanArgFiles finds file paths behind -v/--volume/--mount/--env-file.
+// fileArgPrefixes are the podman flags whose value is a support-file path, in
+// the single-token `--flag=value` form.
+var fileArgPrefixes = []string{"--volume=", "--mount=", "--env-file=", "-v="}
+
+// podmanArgFiles finds file paths behind -v/--volume/--mount/--env-file, in both
+// the space form (`--volume x`) and the equals form (`--volume=x`).
 func podmanArgFiles(v string) []string {
-	toks := strings.Fields(v)
+	toks := splitQuoted(v)
 	var out []string
 	for i := 0; i < len(toks); i++ {
 		switch toks[i] {
@@ -114,7 +132,67 @@ func podmanArgFiles(v string) []string {
 				out = append(out, toks[i+1])
 				i++
 			}
+			continue
+		}
+		for _, pfx := range fileArgPrefixes {
+			if s, ok := strings.CutPrefix(toks[i], pfx); ok {
+				out = append(out, s)
+				break
+			}
 		}
 	}
+	return out
+}
+
+// splitQuoted splits a PodmanArgs value on whitespace the way systemd's quoted
+// parsing does: single quotes are literal, double quotes and backslashes escape,
+// so a quoted `--volume "/my data:/data"` yields one token with the real path.
+func splitQuoted(v string) []string {
+	var out []string
+	var cur strings.Builder
+	inWord := false
+	escaped := false
+	var quote rune // 0, '\'' or '"'
+	flush := func() {
+		if inWord {
+			out = append(out, cur.String())
+			cur.Reset()
+			inWord = false
+		}
+	}
+	for _, r := range v {
+		switch {
+		case escaped:
+			cur.WriteRune(r)
+			escaped = false
+		case quote == '\'': // single quotes are literal
+			if r == '\'' {
+				quote = 0
+			} else {
+				cur.WriteRune(r)
+			}
+		case quote == '"':
+			switch r {
+			case '\\':
+				escaped = true
+			case '"':
+				quote = 0
+			default:
+				cur.WriteRune(r)
+			}
+		case r == '\\':
+			escaped = true
+			inWord = true
+		case r == '\'' || r == '"':
+			quote = r
+			inWord = true
+		case unicode.IsSpace(r):
+			flush()
+		default:
+			cur.WriteRune(r)
+			inWord = true
+		}
+	}
+	flush()
 	return out
 }
