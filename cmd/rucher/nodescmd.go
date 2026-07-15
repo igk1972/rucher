@@ -33,11 +33,15 @@ func knownHostsPath() string {
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		// No home dir: keep the pin file per-user inside a 0700 dir so a co-tenant on
-		// a shared /tmp cannot pre-create a world-writable known_hosts and inject a
-		// host key to defeat TOFU. A fixed shared name would be predictable and unsafe.
-		dir := filepath.Join(os.TempDir(), fmt.Sprintf("rucher-%d", os.Getuid()))
-		os.MkdirAll(dir, 0o700)
+		// No home dir: use a fresh, private (0700, unpredictable-name) temp dir so a co-tenant
+		// on a shared /tmp cannot pre-create a predictable path and plant a known_hosts to
+		// defeat TOFU. MkdirTemp creates the dir owned by us; pinning does not persist across
+		// runs in this degraded case, which is acceptable. On the (pathological) failure to
+		// make a temp dir, an empty path fails host-key setup closed downstream.
+		dir, err := os.MkdirTemp("", "rucher-known-hosts-")
+		if err != nil {
+			return ""
+		}
 		return filepath.Join(dir, "known_hosts")
 	}
 	return filepath.Join(home, ".config", "rucher", "known_hosts")

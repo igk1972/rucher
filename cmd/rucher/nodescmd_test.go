@@ -5,10 +5,10 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -28,17 +28,18 @@ func TestKnownHostsPath(t *testing.T) {
 			t.Fatalf("knownHostsPath() = %q, want a path ending in .config/rucher/known_hosts", got)
 		}
 	})
-	// M13: with no home dir the fallback must be per-user, never a fixed shared
-	// /tmp name a co-tenant could pre-create to defeat TOFU pinning.
-	t.Run("fallback is per-user when home unavailable", func(t *testing.T) {
+	// M13/L2: with no home dir the fallback must be an unpredictable private temp dir, never a
+	// fixed/predictable name a co-tenant could pre-create to defeat TOFU pinning.
+	t.Run("fallback is an unpredictable temp path when home unavailable", func(t *testing.T) {
 		t.Setenv("RUCHER_KNOWN_HOSTS", "")
 		t.Setenv("HOME", "")
 		got := knownHostsPath()
-		if got == filepath.Join(os.TempDir(), "rucher-known_hosts") {
-			t.Fatalf("fallback must not be the fixed shared /tmp name: %q", got)
+		if got == filepath.Join(os.TempDir(), "rucher-known_hosts") ||
+			got == filepath.Join(os.TempDir(), fmt.Sprintf("rucher-%d", os.Getuid()), "known_hosts") {
+			t.Fatalf("fallback must not be a predictable /tmp name: %q", got)
 		}
-		if !strings.Contains(got, strconv.Itoa(os.Getuid())) {
-			t.Fatalf("fallback should be per-user (contain uid): %q", got)
+		if got2 := knownHostsPath(); got == got2 {
+			t.Fatalf("fallback must be unpredictable (distinct per call), got %q twice", got)
 		}
 	})
 }
