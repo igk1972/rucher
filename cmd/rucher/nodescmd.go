@@ -33,9 +33,12 @@ func knownHostsPath() string {
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		// No home dir: use a stable temp path, not a CWD-relative "known_hosts", which
-		// would split TOFU pinning across whatever directory the operator ran from.
-		return filepath.Join(os.TempDir(), "rucher-known_hosts")
+		// No home dir: keep the pin file per-user inside a 0700 dir so a co-tenant on
+		// a shared /tmp cannot pre-create a world-writable known_hosts and inject a
+		// host key to defeat TOFU. A fixed shared name would be predictable and unsafe.
+		dir := filepath.Join(os.TempDir(), fmt.Sprintf("rucher-%d", os.Getuid()))
+		os.MkdirAll(dir, 0o700)
+		return filepath.Join(dir, "known_hosts")
 	}
 	return filepath.Join(home, ".config", "rucher", "known_hosts")
 }
