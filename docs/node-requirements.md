@@ -1,8 +1,11 @@
 # Node requirements
 
 Each node runs the `rucher` binary as **root** and runs cadres as rootless
-podman under per-user systemd. The requirements below are prerequisites that the provisioning
-tooling ensures on every node; the manager assumes they are present.
+podman under per-user systemd. The requirements below are prerequisites that
+`ops nodes deploy` provisions automatically on a **Debian/apt** node (the provisioner
+shells out to `apt-get`/`dpkg`); on another distribution — or if you skip the
+provisioner — you satisfy them yourself. The `rucher` binary itself is
+distribution-agnostic; only the automated node provisioning is Debian-oriented.
 
 ## Base platform
 
@@ -24,8 +27,8 @@ tooling ensures on every node; the manager assumes they are present.
   - the `uidmap` package providing the setuid helpers `newuidmap` / `newgidmap`;
   - `/etc/subuid` and `/etc/subgid` present. The manager allocates a unique,
     non-overlapping 65536-ID subuid/subgid block per cadre user
-    (`usermod --add-subuids/--add-subgids`), so these files must exist and be writable by
-    root; existing ranges are respected.
+    (`usermod --add-subuids/--add-subgids`); `ops nodes deploy` creates both files
+    (`touch`) if they are missing, and existing ranges are respected.
 
 Each cadre gets a dedicated `rucher-<name>` user with linger enabled, its own
 podman secret store and a running user systemd manager (see [cadres.md](cadres.md)).
@@ -58,15 +61,18 @@ podman secret store and a running user systemd manager (see [cadres.md](cadres.m
 ## Cadre overlays (only if used)
 
 - The **`tun` kernel module** loaded and **`/dev/net/tun`** present and accessible to the
-  cadre's user. Only needed for cadres that run a kernel-mode overlay sidecar;
-  the manager does not configure it. See [overlays.md](overlays.md).
+  cadre's user. Only needed for cadres that run a kernel-mode overlay sidecar.
+  `ops nodes deploy` sets this up automatically: it runs `modprobe tun`, persists the module
+  via `/etc/modules-load.d/tun.conf`, and installs a udev rule that makes `/dev/net/tun`
+  world-accessible. Configure it yourself only on a node you provision by hand. See
+  [overlays.md](overlays.md).
 
 ## Summary
 
 | Requirement | Needed for | Notes |
 |-------------|-----------|-------|
 | systemd + per-user managers | always | linger, `runuser`, `user@.service`, `journalctl` |
-| podman (static build) | always | rootless |
+| podman 6.x (apt package or prebuilt `.deb`) | always | rootless |
 | `uidmap`, `/etc/subuid`+`/etc/subgid` | always | per-cadre subuid/subgid ranges |
 | standard `sshd` | operator plane | native Go SSH client from the operator |
 | `tun` module + `/dev/net/tun` | overlays only | kernel-mode sidecar |
