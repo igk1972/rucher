@@ -64,3 +64,13 @@ func TestParseDeployRejectsUnknownFlag(t *testing.T) {
 		t.Fatalf("--store-no-ssl must set UseSSL=false, got %+v", df.store.UseSSL)
 	}
 }
+
+func TestParseDeployStoreUser(t *testing.T) {
+	df, err := parseDeploy([]string{"--store-url", "git@x:r.git", "--store-user", "deploy", "web"})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if df.store.User != "deploy" {
+		t.Fatalf("store.User = %q, want deploy", df.store.User)
+	}
+}

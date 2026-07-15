@@ -76,6 +76,9 @@ func parseDeploy(args []string) (deployFlags, error) {
 		case "--store-token":
 			v, err = need(i)
 			df.store.Token, i = v, i+1
+		case "--store-user":
+			v, err = need(i)
+			df.store.User, i = v, i+1
 		case "--store-endpoint":
 			v, err = need(i)
 			df.store.Endpoint, i = v, i+1
