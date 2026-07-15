@@ -68,6 +68,33 @@ func TestValidateRejectsIncompleteLogin(t *testing.T) {
 	}
 }
 
+func TestValidateResources(t *testing.T) {
+	// A newline (or otherwise malformed value) must be rejected so it cannot inject
+	// directives into the root-owned slice drop-in; valid systemd values pass.
+	for _, bad := range []string{
+		"1G\n[Unit]\nExecStart=/bin/evil", "512M\n", "512 M", "10x", "%", "-1G",
+	} {
+		if err := (Manifest{Resources: Resources{MemoryMax: bad}}).Validate(); err == nil {
+			t.Errorf("resources.memoryMax %q should be rejected", bad)
+		}
+	}
+	for _, bad := range []string{"50%\nExecStart=x", "50", "fast", "%"} {
+		if err := (Manifest{Resources: Resources{CPUQuota: bad}}).Validate(); err == nil {
+			t.Errorf("resources.cpuQuota %q should be rejected", bad)
+		}
+	}
+	for _, ok := range []string{"512M", "1G", "2048", "infinity", "20%"} {
+		if err := (Manifest{Resources: Resources{MemoryMax: ok}}).Validate(); err != nil {
+			t.Errorf("resources.memoryMax %q should pass, got %v", ok, err)
+		}
+	}
+	for _, ok := range []string{"50%", "200%", ""} {
+		if err := (Manifest{Resources: Resources{CPUQuota: ok}}).Validate(); err != nil {
+			t.Errorf("resources.cpuQuota %q should pass, got %v", ok, err)
+		}
+	}
+}
+
 func TestLoadPruneDefaults(t *testing.T) {
 	m, err := Load(nil)
 	if err != nil {

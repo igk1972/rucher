@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"time"
 
@@ -90,6 +91,16 @@ func (m Manifest) Validate() error {
 			return fmt.Errorf("manifest: login[%d] needs registry, username and passwordKey", i)
 		}
 	}
+	// Resources are interpolated verbatim into a root-owned slice drop-in
+	// (provision.ApplyResources); a newline would inject extra [Slice]/[Unit] directives.
+	// The anchored regexes accept only the shapes systemd itself takes, so any newline is
+	// rejected too.
+	if v := m.Resources.MemoryMax; v != "" && !memoryMaxRe.MatchString(v) {
+		return fmt.Errorf("manifest: resources.memoryMax %q is not a valid systemd memory size (like 512M, 1G or infinity)", v)
+	}
+	if v := m.Resources.CPUQuota; v != "" && !cpuQuotaRe.MatchString(v) {
+		return fmt.Errorf("manifest: resources.cpuQuota %q is not a valid systemd percentage (like 50%% or 200%%)", v)
+	}
 	if m.Prune.Until != "" {
 		if _, err := time.ParseDuration(m.Prune.Until); err != nil {
 			return fmt.Errorf("manifest: prune.until %q is not a duration (like 168h)", m.Prune.Until)
@@ -109,6 +120,14 @@ func (m Manifest) Validate() error {
 	}
 	return nil
 }
+
+// memoryMaxRe matches a systemd MemoryMax value: a byte size (optional K/M/G/T/P/E
+// suffix, base 1024), a percentage, or "infinity". cpuQuotaRe matches a CPUQuota
+// percentage. Anchored, so any embedded newline fails to match.
+var (
+	memoryMaxRe = regexp.MustCompile(`^(infinity|[0-9]+(\.[0-9]+)?([KMGTPE])?|[0-9]+(\.[0-9]+)?%)$`)
+	cpuQuotaRe  = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?%$`)
+)
 
 // calendarWords are the single-word OnCalendar values (systemd shortcuts + weekday names)
 // that are valid on their own.
