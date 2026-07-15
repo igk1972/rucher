@@ -97,7 +97,11 @@ func parseDeploy(args []string) (deployFlags, error) {
 		case "--store-insecure-host-key":
 			df.store.InsecureHostKey = true
 		case "--store-ssl":
-			df.store.UseSSL = true
+			t := true
+			df.store.UseSSL = &t
+		case "--store-no-ssl":
+			f := false
+			df.store.UseSSL = &f
 		case "--concurrency":
 			v, err = need(i)
 			if err == nil {

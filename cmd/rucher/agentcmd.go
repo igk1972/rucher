@@ -145,7 +145,7 @@ func cmdAgentRun(configPath string, out io.Writer) int {
 		st, runErr = agent.Run(ctx, node.NewExec(), store.S3{
 			Endpoint: cfg.Store.Endpoint, Bucket: cfg.Store.Bucket, Prefix: cfg.Store.Prefix,
 			AccessKey: cfg.Store.AccessKey, SecretKey: cfg.Store.SecretKey,
-			UseSSL: cfg.Store.UseSSL, Region: cfg.Store.Region, CachePath: storeCachePath,
+			UseSSL: *cfg.Store.UseSSL, Region: cfg.Store.Region, CachePath: storeCachePath,
 		}, nodeID, nodeIdentity)
 	default:
 		fmt.Fprintln(out, "error: unsupported store kind:", cfg.Store.Kind)

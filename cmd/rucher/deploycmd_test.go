@@ -51,7 +51,16 @@ func TestParseDeployRejectsUnknownFlag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("--store-ssl should still parse: %v", err)
 	}
-	if !df.store.UseSSL || len(df.names) != 1 || df.names[0] != "web" {
+	if df.store.UseSSL == nil || !*df.store.UseSSL || len(df.names) != 1 || df.names[0] != "web" {
 		t.Fatalf("flags = %+v", df)
+	}
+
+	// --store-no-ssl must set an explicit false so a plaintext endpoint can be deployed.
+	df, err = parseDeploy([]string{"--store-no-ssl", "web"})
+	if err != nil {
+		t.Fatalf("--store-no-ssl should parse: %v", err)
+	}
+	if df.store.UseSSL == nil || *df.store.UseSSL {
+		t.Fatalf("--store-no-ssl must set UseSSL=false, got %+v", df.store.UseSSL)
 	}
 }

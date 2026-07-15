@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestLoadAndNodeID(t *testing.T) {
@@ -68,7 +70,7 @@ store:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.Store.UseSSL {
+	if c.Store.UseSSL == nil || !*c.Store.UseSSL {
 		t.Fatal("UseSSL must default to true when unspecified")
 	}
 }
@@ -87,8 +89,29 @@ store:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Store.UseSSL {
+	if c.Store.UseSSL == nil || *c.Store.UseSSL {
 		t.Fatal("explicit useSSL: false must be honored")
+	}
+}
+
+func TestUseSSLFalseSurvivesMarshal(t *testing.T) {
+	// deploy marshals a StoreConfig and the node reloads it: an explicit false must round-trip
+	// (the old plain-bool+omitempty dropped it, silently forcing TLS on).
+	f := false
+	data, err := yaml.Marshal(Config{Store: StoreConfig{Kind: "s3", UseSSL: &f}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "agent.yml")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Store.UseSSL == nil || *c.Store.UseSSL {
+		t.Fatalf("explicit useSSL:false did not survive marshal/reload: %s", data)
 	}
 }
 
