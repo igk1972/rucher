@@ -33,6 +33,11 @@ func (c Cadre) Warnings() []string {
 					f.Name, val))
 			}
 		}
+		// Surface a scan error (e.g. a line past maxUnitLine) as an advisory rather than
+		// silently dropping later checks — parity with validateUnit, which errors on it.
+		if err := sc.Err(); err != nil {
+			out = append(out, fmt.Sprintf("unit %s: advisory scan incomplete: %v", f.Name, err))
+		}
 	}
 	return out
 }
