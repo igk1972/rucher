@@ -807,6 +807,27 @@ func TestApplyRelogsInWhenNonAllowlistedPasswordRotates(t *testing.T) {
 	}
 }
 
+func TestApplySkipsEmptySecretWithoutAllowlist(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+	sopsPath := writeCadreSecrets(t, "web", []sopsage.KV{
+		{Key: "real", Value: "v"},
+		{Key: "injected", Value: ""}, // an empty value is MAC-invisible; must not become a secret
+	})
+	c := cadre.Cadre{Name: "web", SopsPath: sopsPath} // no secrets.create allowlist
+	f := &node.Fake{Responses: map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234"}}}
+	p, err := Apply(f, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(p.CreateSecrets, "real") {
+		t.Fatalf("CreateSecrets = %v, want real", p.CreateSecrets)
+	}
+	if slices.Contains(p.CreateSecrets, "injected") {
+		t.Fatalf("CreateSecrets = %v, must not materialize an empty-valued secret", p.CreateSecrets)
+	}
+}
+
 func TestApplyHonorsSecretsCreateAllowlist(t *testing.T) {
 	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())

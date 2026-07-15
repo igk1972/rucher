@@ -272,16 +272,25 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 		if err != nil {
 			return plan.Plan{}, fmt.Errorf("cadre %s: %w", c.Name, err)
 		}
-		// Which decrypted keys become podman secrets: all of them, or exactly the allowlist.
-		forCreate := secretValues
+		// Which decrypted keys become podman secrets: exactly the allowlist, or all of them
+		// minus empty values. An empty value is never a meaningful secret and, being
+		// MAC-invisible in the SOPS format, is the one thing an attacker could append to the
+		// at-rest file undetected; not materializing it closes that injection in the
+		// no-allowlist case.
+		forCreate := map[string]string{}
 		if create := c.Manifest.Secrets.Create; len(create) > 0 {
-			forCreate = map[string]string{}
 			for _, k := range create {
 				v, ok := secretValues[k]
 				if !ok {
 					return plan.Plan{}, fmt.Errorf("cadre %s: secrets.create lists %q, absent from %s", c.Name, k, c.SopsPath)
 				}
 				forCreate[k] = v
+			}
+		} else {
+			for k, v := range secretValues {
+				if v != "" {
+					forCreate[k] = v
+				}
 			}
 		}
 		secretHashes = secrets.Hashes(forCreate)
