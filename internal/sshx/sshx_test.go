@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 // newTestHostKey generates a fresh ed25519 key pair and returns its ssh.PublicKey.
@@ -128,6 +129,28 @@ func TestAppendKnownHostConcurrentSameKey(t *testing.T) {
 	}
 	if n := nonEmptyLines(data); n != 1 {
 		t.Fatalf("want 1 known_hosts entry, got %d:\n%s", n, data)
+	}
+}
+
+func TestAppendKnownHostRefusesRevokedKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "known_hosts")
+	const host = "127.0.0.1:22"
+	key := newTestHostKey(t)
+	// A @revoked marker for this exact key: presenting it yields a RevokedError (not a
+	// KeyError), which must be refused rather than pinned.
+	line := knownhosts.Line([]string{knownhosts.Normalize(host)}, key)
+	if err := os.WriteFile(path, []byte("@revoked "+line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := appendKnownHost(path, host, key); err == nil {
+		t.Fatal("a @revoked key must be refused, not pinned")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := nonEmptyLines(data); n != 1 {
+		t.Fatalf("revoked entry must not gain a pinned line, got %d:\n%s", n, data)
 	}
 }
 

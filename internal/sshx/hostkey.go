@@ -176,10 +176,13 @@ func appendKnownHost(path, hostname string, key ssh.PublicKey) error {
 		return nil // already pinned with this exact key
 	default:
 		var keyErr *knownhosts.KeyError
-		if errors.As(err, &keyErr) && len(keyErr.Want) > 0 {
+		if !errors.As(err, &keyErr) {
+			return err // not a KeyError (e.g. a @revoked key): fail closed, never pin
+		}
+		if len(keyErr.Want) > 0 {
 			return err // a different key is now pinned: reject
 		}
-		// len(Want) == 0 -> still unknown: fall through and pin it.
+		// len(keyErr.Want) == 0 -> genuinely unknown host: fall through and pin it.
 	}
 
 	line := knownhosts.Line([]string{knownhosts.Normalize(hostname)}, key)
