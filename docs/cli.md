@@ -11,7 +11,9 @@ ops    from the operator machine — plan, seal cadre keys, manage the nodes ove
 The `node` group shells out on the node (`runuser`/`systemctl`/`podman`) and its cadre lifecycle
 commands run as **root** (they create users and drive per-user systemd). The `ops` group is
 cross-platform. Unknown commands and missing required arguments print a usage line and exit
-non-zero.
+non-zero. Flag parsing is per-command: most commands reject an unrecognized or incomplete
+flag, but a few fall back to a default or treat the token as a positional argument — so
+double-check flag spelling.
 
 ## Command map
 
@@ -265,7 +267,7 @@ de-duplicated. This is an operator-side command used when building the store. Se
 rucher ops key seal web --to age1nodeA... --to age1nodeB...   # -> web's recipient
 ```
 
-### `rucher ops secrets encrypt [--to <rcpt> ... | --cadre <name> --seal-to <node-rcpt> ...] [--in FILE] [--out FILE]`
+### `rucher ops secrets encrypt [--to <rcpt> ... | --cadre <name> --seal-to <node-rcpt> ...] [--dir DIR] [--in FILE] [--out FILE]`
 
 Encrypt a flat `key: value` YAML map to SOPS+age — byte-compatible with the `sops` CLI, the
 in-process replacement for `sops --encrypt`. Two modes:
@@ -320,11 +322,11 @@ rucher ops nodes status --live node-a
 rucher ops nodes status --json
 ```
 
-### `rucher ops nodes [--dir DIR] deploy [--version TAG | --binary PATH] [store flags] [--concurrency N] [--json] [node...]`
+### `rucher ops nodes [--dir DIR] deploy [--version TAG | --binary PATH] [--repo OWNER/REPO] [store flags] [--concurrency N] [--json] [node...]`
 
 Install/update rucher on the named nodes over SSH and bootstrap them, from the operator.
 For each node (all under `--dir` when none named): probe its architecture, **provision the
-base platform idempotently** (static podman if absent, `uidmap`, `/dev/net/tun`), deliver
+base platform idempotently** (podman if absent, `uidmap`, `/dev/net/tun`), deliver
 the `rucher` binary to `/usr/local/bin/rucher`, run `node key init` (printing the node's age
 recipient), and — when a store is configured — write `/etc/rucher/agent.yml` and run
 `node agent install` (systemd timer).
@@ -345,8 +347,8 @@ Agent bootstrap turns on when a store is given: `--store-url <url>` (git) or `--
 (s3), with `--store-kind git|s3` (default git), `--store-branch` (default main),
 `--interval` (default 30s), and auth passthroughs (`--store-ssh-key`, `--store-token`, `--store-user`,
 `--store-insecure-host-key`; S3: `--store-endpoint/-prefix/-access-key/-secret-key/-region`).
-The S3 store uses TLS by default; pass `--store-no-ssl` (or set `useSSL: false` in the agent
-config) for a trusted plaintext endpoint. Without a store, deploy stops after the binary + `node key init`.
+The S3 store uses TLS by default (`--store-ssl` states this explicitly); pass `--store-no-ssl`
+(or set `useSSL: false` in the agent config) for a trusted plaintext endpoint. Without a store, deploy stops after the binary + `node key init`.
 
 Nodes deploy in parallel, at most `--concurrency` at a time (default 4 — lower than `status`
 because each deploy is heavy: base-platform provisioning and multi-MB binary transfers; must be
