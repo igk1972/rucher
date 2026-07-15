@@ -17,7 +17,10 @@ import (
 // on non-unix builds since node-side mutation only ever runs on Linux.
 func LockNode() (func(), error) {
 	dir := BaseDir()
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	// 0711, not 0700: BaseDir is the parent of every cadre user's home, so a rootless cadre
+	// user needs the search (+x) bit to reach its own home; each home stays 0700 (useradd), so
+	// others still cannot list this dir or read a sibling cadre's home.
+	if err := os.MkdirAll(dir, 0o711); err != nil {
 		return nil, err
 	}
 	f, err := os.OpenFile(filepath.Join(dir, ".lock"), os.O_CREATE|os.O_RDWR, 0o600)

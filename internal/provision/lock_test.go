@@ -70,3 +70,20 @@ func TestLockNodeSerializesHolders(t *testing.T) {
 		t.Fatal("second LockNode did not acquire after release (deadlock)")
 	}
 }
+
+func TestLockNodeBaseDirIsTraversable(t *testing.T) {
+	// BaseDir is the parent of cadre homes; a rootless cadre user needs +x to reach its home.
+	t.Setenv("RUCHER_CADRES_DIR", filepath.Join(t.TempDir(), "cadres"))
+	unlock, err := LockNode()
+	if err != nil {
+		t.Fatalf("LockNode: %v", err)
+	}
+	defer unlock()
+	fi, err := os.Stat(BaseDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm()&0o001 == 0 {
+		t.Fatalf("BaseDir mode = %o, want the others-execute bit set for rootless home traversal", fi.Mode().Perm())
+	}
+}
