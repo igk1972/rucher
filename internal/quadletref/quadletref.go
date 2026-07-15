@@ -84,11 +84,31 @@ func mountSource(v string) string {
 	return ""
 }
 
-// joinContinuations folds systemd line continuations the way podman's parser does:
-// a `\` immediately followed by a newline becomes a single space, joining the two
-// physical lines into one logical line.
+// joinContinuations folds systemd line continuations the way podman's parser does: each
+// physical line is trimmed (which drops a trailing CR, so CRLF units fold too) and a line
+// ending in `\` has the `\` removed and the next trimmed line concatenated with no inserted
+// separator. Matching podman matters — a Secret=/--secret split across a continuation must
+// still be found, or a rotated secret silently fails to restart its unit (no coarse fallback).
 func joinContinuations(content []byte) string {
-	return strings.ReplaceAll(string(content), "\\\n", " ")
+	var out []string
+	var cur strings.Builder
+	pending := false
+	for _, line := range strings.Split(string(content), "\n") {
+		line = strings.TrimSpace(line)
+		if rest, ok := strings.CutSuffix(line, "\\"); ok {
+			cur.WriteString(rest)
+			pending = true
+			continue
+		}
+		cur.WriteString(line)
+		out = append(out, cur.String())
+		cur.Reset()
+		pending = false
+	}
+	if pending { // trailing `\` at EOF: flush what was accumulated
+		out = append(out, cur.String())
+	}
+	return strings.Join(out, "\n")
 }
 
 // podmanArgSecrets finds secret names behind `--secret name[,opts]` (and --secret=name),

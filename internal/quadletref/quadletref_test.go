@@ -38,6 +38,29 @@ func TestExtractSecretOnContinuationLine(t *testing.T) {
 	}
 }
 
+func TestExtractSecretOnCRLFContinuation(t *testing.T) {
+	// CRLF-authored units must fold too: podman trims each line (dropping the CR) before the
+	// trailing-`\` check, so the ref on the continuation line is still found.
+	unit := []byte("[Container]\r\nImage=nginx\r\nPodmanArgs=--secret dbpass \\\r\n  --volume /srv/data:/data\r\n")
+	r := Extract(unit)
+	if !slices.Contains(r.Secrets, "dbpass") {
+		t.Fatalf("Secrets = %v, want dbpass", r.Secrets)
+	}
+	if !slices.Contains(r.Files, "data") {
+		t.Fatalf("Files = %v, want data", r.Files)
+	}
+}
+
+func TestExtractSecretSplitMidToken(t *testing.T) {
+	// A continuation splitting a token mid-word concatenates with no separator (like podman),
+	// so `--secret my\<nl>secret` is the single secret `mysecret`, not `my`.
+	unit := []byte("[Container]\nImage=nginx\nPodmanArgs=--secret my\\\nsecret\n")
+	r := Extract(unit)
+	if !slices.Contains(r.Secrets, "mysecret") {
+		t.Fatalf("Secrets = %v, want mysecret", r.Secrets)
+	}
+}
+
 func TestExtractPodmanArgsEqualsForms(t *testing.T) {
 	// The single-token equals form must be tracked like the space form.
 	for _, tc := range []struct {
