@@ -290,6 +290,24 @@ func TestSynthesizedUnitsDisableTransition(t *testing.T) {
 	}
 }
 
+func TestRemovingAnyQuadletExtensionTriggersReload(t *testing.T) {
+	// removedAnyUnit must recognize every extension fileset knows (regression guard for
+	// the former hand-maintained duplicate list): a removed .kube/.image/.build unit
+	// still needs a daemon-reload.
+	for _, ext := range []string{".container", ".kube", ".image", ".build", ".volume"} {
+		unit := "app" + ext
+		c := comp(map[string]string{"web.container": "[Container]\nImage=nginx\n"})
+		prior := state.State{
+			Files:        map[string]string{"web.container": c.Files[0].Hash, unit: "h"},
+			Units:        []string{"web.container"},
+			SecretHashes: map[string]string{},
+		}
+		if p := Compute(c, nil, prior); !p.DaemonReload {
+			t.Fatalf("removing %s must trigger daemon-reload", unit)
+		}
+	}
+}
+
 func TestStopUnitsWhenUnitRemoved(t *testing.T) {
 	c := comp(map[string]string{"web.container": "[Container]\nImage=nginx\n"})
 	prior := state.State{

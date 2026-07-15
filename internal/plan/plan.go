@@ -186,16 +186,7 @@ func anyRef(refs []string, changed map[string]bool) bool {
 
 func removedAnyUnit(removed []string) bool {
 	for _, name := range removed {
-		if len(name) > 0 && isUnitName(name) {
-			return true
-		}
-	}
-	return false
-}
-
-func isUnitName(name string) bool {
-	for _, ext := range []string{".container", ".volume", ".network", ".pod", ".kube", ".image", ".build"} {
-		if len(name) >= len(ext) && name[len(name)-len(ext):] == ext {
+		if fileset.IsUnitFile(name) {
 			return true
 		}
 	}
