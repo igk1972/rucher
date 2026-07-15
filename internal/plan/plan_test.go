@@ -97,6 +97,31 @@ func TestRemovedSupportFileRestartsReferencingUnit(t *testing.T) {
 	}
 }
 
+func TestRemovedOrphanSupportFileDoesNotRestartAllUnits(t *testing.T) {
+	// Removing a support file no unit references must not trip the coarse fallback and
+	// restart every unit in the cadre — the regression this guards against.
+	c := comp(map[string]string{
+		"web.container":   "[Container]\nImage=nginx\n", // references no support file
+		"other.container": "[Container]\nImage=redis\n",
+	})
+	prior := state.State{
+		Files: map[string]string{
+			"web.container":   fileset.Hash([]byte("[Container]\nImage=nginx\n")),
+			"other.container": fileset.Hash([]byte("[Container]\nImage=redis\n")),
+			"notes.txt":       fileset.Hash([]byte("scratch\n")), // present before, now removed, referenced by nobody
+		},
+		Units:        []string{"web.container", "other.container"},
+		SecretHashes: map[string]string{},
+	}
+	p := Compute(c, nil, prior)
+	if !slices.Contains(p.RemoveFiles, "notes.txt") {
+		t.Fatalf("RemoveFiles = %v, want notes.txt", p.RemoveFiles)
+	}
+	if len(p.RestartUnits) != 0 {
+		t.Fatalf("RestartUnits = %v, want none: removing an unreferenced support file must not restart units", p.RestartUnits)
+	}
+}
+
 func TestRemovedFileIsDeleted(t *testing.T) {
 	c := comp(map[string]string{"web.container": "[Container]\nImage=nginx\n"})
 	prior := state.State{

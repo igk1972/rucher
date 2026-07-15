@@ -49,6 +49,7 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 
 	// Files: write changed/new, remember which support files changed.
 	changedSupport := map[string]bool{}
+	removedSupport := map[string]bool{}
 	unitFileChanged := map[string]bool{}
 	systemdUnitChanged := map[string]bool{} // new or changed native systemd unit files
 	for name, f := range desiredFiles {
@@ -67,10 +68,11 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 	for name := range prior.Files {
 		if _, ok := desiredFiles[name]; !ok {
 			p.RemoveFiles = append(p.RemoveFiles, name)
-			// A removed support file must also restart the units that referenced it (e.g.
-			// deleting an EnvironmentFile to revert to defaults); treat it like a change.
+			// A removed support file must restart the units that referenced it, but it is kept
+			// out of changedSupport: unreferenced by definition, it would otherwise trip the
+			// coarse orphan fallback below and restart every unit in the cadre.
 			if !fileset.IsUnitFile(name) && !fileset.IsSystemdUnit(name) {
-				changedSupport[name] = true
+				removedSupport[name] = true
 			}
 		}
 	}
@@ -145,7 +147,8 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 			continue
 		}
 		refs := quadletref.Extract(f.Content)
-		if anyRef(refs.Files, changedSupport) || anyRef(refs.Secrets, changedSecret) {
+		if anyRef(refs.Files, changedSupport) || anyRef(refs.Files, removedSupport) ||
+			anyRef(refs.Secrets, changedSecret) {
 			p.RestartUnits = append(p.RestartUnits, f.Name)
 		}
 	}
