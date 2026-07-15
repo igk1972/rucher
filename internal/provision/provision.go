@@ -94,23 +94,25 @@ func EnsureUser(r node.Runner, name string) (int, error) {
 		}
 	}
 	// linger keeps /run/user/<uid> and the user systemd manager alive across logins.
-	if _, err := r.Root([]string{"loginctl", "enable-linger", user}, nil); err != nil {
-		return 0, err
+	if res, err := r.Root([]string{"loginctl", "enable-linger", user}, nil); err != nil || res.Code != 0 {
+		return 0, fmt.Errorf("enable-linger %s: code=%d stderr=%s err=%v", user, res.Code, res.Stderr, err)
 	}
-	// Allocate a unique, non-overlapping subuid/subgid block per cadre user.
+	// Allocate a unique, non-overlapping subuid/subgid block per cadre user. A failed cat
+	// must error rather than feed empty content to hasSubid/nextSubidStart (which would
+	// misjudge the map as empty and clobber an existing allocation).
 	subuidRes, err := r.Root([]string{"cat", "/etc/subuid"}, nil)
-	if err != nil {
-		return 0, err
+	if err != nil || subuidRes.Code != 0 {
+		return 0, fmt.Errorf("cat /etc/subuid: code=%d stderr=%s err=%v", subuidRes.Code, subuidRes.Stderr, err)
 	}
 	if !hasSubid(subuidRes.Stdout, user) {
 		subgidRes, err := r.Root([]string{"cat", "/etc/subgid"}, nil)
-		if err != nil {
-			return 0, err
+		if err != nil || subgidRes.Code != 0 {
+			return 0, fmt.Errorf("cat /etc/subgid: code=%d stderr=%s err=%v", subgidRes.Code, subgidRes.Stderr, err)
 		}
 		start := nextSubidStart(subuidRes.Stdout, subgidRes.Stdout)
 		rng := fmt.Sprintf("%d-%d", start, start+subidCount-1)
-		if _, err := r.Root([]string{"usermod", "--add-subuids", rng, "--add-subgids", rng, user}, nil); err != nil {
-			return 0, err
+		if res, err := r.Root([]string{"usermod", "--add-subuids", rng, "--add-subgids", rng, user}, nil); err != nil || res.Code != 0 {
+			return 0, fmt.Errorf("usermod subid %s: code=%d stderr=%s err=%v", user, res.Code, res.Stderr, err)
 		}
 	}
 	res, err := r.Root([]string{"id", "-u", user}, nil)
@@ -144,33 +146,38 @@ func EnsureUser(r node.Runner, name string) (int, error) {
 func writeStorageConf(r node.Runner, user string, uid int, home string) error {
 	conf := fmt.Sprintf("[storage]\ndriver = \"overlay\"\nrunroot = \"/run/user/%d/containers\"\ngraphroot = \"%s/.local/share/containers/storage\"\n", uid, home)
 	dir := home + "/.config/containers"
-	if _, err := r.User(user, uid, []string{"mkdir", "-p", dir}, nil); err != nil {
-		return err
+	if res, err := r.User(user, uid, []string{"mkdir", "-p", dir}, nil); err != nil || res.Code != 0 {
+		return fmt.Errorf("mkdir %s: code=%d stderr=%s err=%v", dir, res.Code, res.Stderr, err)
 	}
-	if _, err := r.User(user, uid, []string{"tee", dir + "/storage.conf"}, []byte(conf)); err != nil {
-		return err
+	if res, err := r.User(user, uid, []string{"tee", dir + "/storage.conf"}, []byte(conf)); err != nil || res.Code != 0 {
+		return fmt.Errorf("write %s/storage.conf: code=%d stderr=%s err=%v", dir, res.Code, res.Stderr, err)
 	}
 	return nil
 }
 
-func ApplyResources(r node.Runner, uid int, res manifest.Resources) error {
+func ApplyResources(r node.Runner, uid int, resources manifest.Resources) error {
 	dir := fmt.Sprintf("/etc/systemd/system/user-%d.slice.d", uid)
-	if _, err := r.Root([]string{"mkdir", "-p", dir}, nil); err != nil {
-		return err
+	// A non-zero exit (read-only/full FS) must fail: plan.Compute only re-applies
+	// Resources when they change, so a dropped write is never retried and the cap silently
+	// never lands.
+	if res, err := r.Root([]string{"mkdir", "-p", dir}, nil); err != nil || res.Code != 0 {
+		return fmt.Errorf("mkdir %s: code=%d stderr=%s err=%v", dir, res.Code, res.Stderr, err)
 	}
 	var b strings.Builder
 	b.WriteString("[Slice]\n")
-	if res.MemoryMax != "" {
-		fmt.Fprintf(&b, "MemoryMax=%s\n", res.MemoryMax)
+	if resources.MemoryMax != "" {
+		fmt.Fprintf(&b, "MemoryMax=%s\n", resources.MemoryMax)
 	}
-	if res.CPUQuota != "" {
-		fmt.Fprintf(&b, "CPUQuota=%s\n", res.CPUQuota)
+	if resources.CPUQuota != "" {
+		fmt.Fprintf(&b, "CPUQuota=%s\n", resources.CPUQuota)
 	}
 	conf := dir + "/50-rucher.conf"
 	// tee reads the drop-in body from stdin (never argv).
-	if _, err := r.Root([]string{"tee", conf}, []byte(b.String())); err != nil {
-		return err
+	if res, err := r.Root([]string{"tee", conf}, []byte(b.String())); err != nil || res.Code != 0 {
+		return fmt.Errorf("write %s: code=%d stderr=%s err=%v", conf, res.Code, res.Stderr, err)
 	}
-	_, err := r.Root([]string{"systemctl", "daemon-reload"}, nil)
-	return err
+	if res, err := r.Root([]string{"systemctl", "daemon-reload"}, nil); err != nil || res.Code != 0 {
+		return fmt.Errorf("systemctl daemon-reload: code=%d stderr=%s err=%v", res.Code, res.Stderr, err)
+	}
+	return nil
 }

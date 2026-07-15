@@ -149,3 +149,14 @@ func TestApplyResourcesWritesDropInAndReloads(t *testing.T) {
 		t.Fatal("expected root daemon-reload")
 	}
 }
+
+func TestApplyResourcesErrorsOnTeeFailure(t *testing.T) {
+	// A non-zero exit (e.g. read-only FS) must surface as an error: plan.Compute only
+	// re-applies Resources on change, so a silently-dropped write never retries.
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:tee /etc/systemd/system/user-1234.slice.d/50-rucher.conf": {Code: 1, Stderr: "read-only file system"},
+	}}
+	if err := ApplyResources(f, 1234, manifest.Resources{MemoryMax: "512M"}); err == nil {
+		t.Fatal("ApplyResources must error when tee exits non-zero")
+	}
+}
