@@ -299,10 +299,22 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 	// slice drop-in is left untouched: another cadre may have reused that uid, and a true orphan
 	// is reaped by `remove --purge`.
 	base := prior
-	if prior.UID != 0 && uid != prior.UID {
+	uidChanged := prior.UID != 0 && uid != prior.UID
+	if uidChanged {
 		base = state.State{}
 	}
 	p := plan.Compute(c, secretHashes, base)
+	if uidChanged {
+		// The zeroed baseline forces re-apply of everything to the new uid but empties the
+		// removal sets. Fold in the stops/disables/removes computed against the real prior so a
+		// unit the operator has since dropped is still stopped and deleted rather than lingering
+		// (and getting its .service regenerated) if the old home persisted.
+		rem := plan.Compute(c, secretHashes, prior)
+		p.StopUnits = rem.StopUnits
+		p.DisableUnits = rem.DisableUnits
+		p.RemoveFiles = rem.RemoveFiles
+		p.DaemonReload = p.DaemonReload || rem.DaemonReload
+	}
 
 	// 1. resource limits
 	if p.Resources != nil {

@@ -181,6 +181,40 @@ func TestApplyReappliesSecretsAndFilesOnUidChange(t *testing.T) {
 	}
 }
 
+func TestApplyRemovesDroppedUnitOnUidChange(t *testing.T) {
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+	body := "[Container]\nImage=nginx\n"
+	// Prior (stale uid 999) has two units; desired drops old.container. The uid change forces a
+	// re-apply against a zeroed baseline, but old.container must still be stopped and removed.
+	if err := state.Save(statePath("web"), state.State{
+		Name: "web", UID: 999,
+		Files: map[string]string{
+			"web.container": fileset.Hash([]byte(body)),
+			"old.container": "oldhash",
+		},
+		Units:        []string{"web.container", "old.container"},
+		SecretHashes: map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	c := cadre.Cadre{Name: "web"}
+	c.Files = []cadre.File{{Name: "web.container", Content: []byte(body), Hash: fileset.Hash([]byte(body)), IsUnit: true}}
+	f := &node.Fake{Responses: map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234"}}}
+	p, err := Apply(f, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(p.StopUnits, "old.container") {
+		t.Fatalf("StopUnits = %v, want old.container", p.StopUnits)
+	}
+	if !slices.Contains(p.RemoveFiles, "old.container") {
+		t.Fatalf("RemoveFiles = %v, want old.container", p.RemoveFiles)
+	}
+	if !slices.Contains(p.StartUnits, "web.container") {
+		t.Fatalf("StartUnits = %v, want web.container re-applied", p.StartUnits)
+	}
+}
+
 func TestApplyKeepsUnitWhenStopFails(t *testing.T) {
 	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
 	body := "[Container]\nImage=nginx\n"
