@@ -10,10 +10,8 @@ ops    from the operator machine — plan, seal cadre keys, manage the nodes ove
 
 The `node` group shells out on the node (`runuser`/`systemctl`/`podman`) and its cadre lifecycle
 commands run as **root** (they create users and drive per-user systemd). The `ops` group is
-cross-platform. Unknown commands and missing required arguments print a usage line and exit
-non-zero. Flag parsing is per-command: most commands reject an unrecognized or incomplete
-flag, but a few fall back to a default or treat the token as a positional argument — so
-double-check flag spelling.
+cross-platform. Unknown commands, unrecognized flags, and missing or extra arguments print a
+usage line and exit non-zero.
 
 ## Command map
 
