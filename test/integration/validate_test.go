@@ -48,3 +48,35 @@ func TestOpsValidateQuadletLint(t *testing.T) {
 		t.Fatalf("cadre with an unknown key should fail naming it: code=%d out=%q", r.code, r.stdout)
 	}
 }
+
+// TestOpsValidateChecksNodeConfigs: `ops validate` strict-checks node configs too — a typo in
+// nodes/<name>/configuration.yml fails validation even though the runtime path tolerates an
+// unknown key. Host-only.
+func TestOpsValidateChecksNodeConfigs(t *testing.T) {
+	build(t)
+	root := t.TempDir()
+	cadres := filepath.Join(root, "cadres")
+	if err := os.MkdirAll(cadres, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeNode := func(name, body string) {
+		d := filepath.Join(root, "nodes", name)
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, "configuration.yml"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeNode("good", "connection:\n  host: 10.0.0.1\n")
+	writeNode("bad", "connection:\n  hst: 10.0.0.2\n") // "hst" typo
+
+	// validateNodeConfigs resolves ./nodes relative to the working dir (root here).
+	r := host(t, root, "ops", "validate", "--dir", cadres)
+	if r.code != 1 {
+		t.Fatalf("a typo'd node config must fail validation: code=%d out=%q", r.code, r.stdout)
+	}
+	if !strings.Contains(r.stdout, "node good: OK") || !strings.Contains(r.stdout, "node bad: ERROR") {
+		t.Fatalf("validate should pass good and fail bad:\n%s", r.stdout)
+	}
+}
