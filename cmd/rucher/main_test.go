@@ -123,3 +123,71 @@ func TestUnknownGroupFails(t *testing.T) {
 		t.Fatalf("code = %d, want 2", code)
 	}
 }
+
+// TestNodeAgentRejectsMalformedConfig covers L11: a bare --config or a stray token
+// must fail with a usage error, not fall back to the default config path.
+// These all return code 2 during parsing, before any node side effect.
+func TestNodeAgentRejectsMalformedConfig(t *testing.T) {
+	for _, args := range [][]string{
+		{"node", "agent", "run", "--config"},
+		{"node", "agent", "install", "--config"},
+		{"node", "agent", "run", "garbage"},
+	} {
+		var out bytes.Buffer
+		if code := run(args, &out); code != 2 {
+			t.Fatalf("%v: code = %d, want 2 (%q)", args, code, out.String())
+		}
+	}
+}
+
+func TestNodeAgentUnknownSubcommand(t *testing.T) {
+	var out bytes.Buffer
+	if code := run([]string{"node", "agent", "foo"}, &out); code != 2 {
+		t.Fatalf("code = %d, want 2", code)
+	}
+	if !strings.Contains(out.String(), "unknown node agent subcommand") {
+		t.Fatalf("expected unknown-subcommand message, got %q", out.String())
+	}
+}
+
+// TestNodesStatusRejectsUnknownFlag covers L12: a typo'd flag (--llive for --live)
+// must be rejected, not treated as a phantom node name to SSH into.
+func TestNodesStatusRejectsUnknownFlag(t *testing.T) {
+	var out bytes.Buffer
+	if code := run([]string{"ops", "nodes", "status", "--llive"}, &out); code != 2 {
+		t.Fatalf("code = %d, want 2 (%q)", code, out.String())
+	}
+	if !strings.Contains(out.String(), "unknown flag") {
+		t.Fatalf("expected unknown-flag message, got %q", out.String())
+	}
+}
+
+// TestNodeCadreStatusRejectsFlag: a flag-looking token to `node cadre status` is a typo,
+// not a cadre-name filter, so it must be rejected as a usage error.
+func TestNodeCadreStatusRejectsFlag(t *testing.T) {
+	var out bytes.Buffer
+	if code := run([]string{"node", "cadre", "status", "--live"}, &out); code != 2 {
+		t.Fatalf("code = %d, want 2 (%q)", code, out.String())
+	}
+	if !strings.Contains(out.String(), "unknown flag") {
+		t.Fatalf("expected unknown-flag message, got %q", out.String())
+	}
+}
+
+// TestFixedAritySubcommandsRejectExtraArgs: a fixed-arity subcommand must reject a
+// trailing token (a typo or stray flag) with a usage error, not silently ignore it.
+// All cases fail in the dispatcher before any node side effect.
+func TestFixedAritySubcommandsRejectExtraArgs(t *testing.T) {
+	for _, args := range [][]string{
+		{"node", "cadre", "new", "demo", "extra"},
+		{"node", "cadre", "logs", "demo", "app.service", "extra"},
+		{"node", "cadre", "recipient", "demo", "extra"},
+		{"node", "key", "init", "extra"},
+		{"node", "key", "show", "extra"},
+	} {
+		var out bytes.Buffer
+		if code := run(args, &out); code != 2 {
+			t.Fatalf("%v: code = %d, want 2 (%q)", args, code, out.String())
+		}
+	}
+}

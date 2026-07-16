@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"rucher/internal/age"
@@ -37,6 +38,11 @@ func parseKeygen(args []string) (name string, recipients []string, err error) {
 			}
 			i++
 		default:
+			// A flag-looking token is a typo, not a cadre name (names never start with
+			// "-"); report it as an unknown flag rather than a later "invalid cadre name".
+			if strings.HasPrefix(args[i], "-") {
+				return "", nil, fmt.Errorf("unknown flag %q", args[i])
+			}
 			if name != "" {
 				return "", nil, fmt.Errorf("unexpected argument: %q", args[i])
 			}

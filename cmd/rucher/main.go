@@ -83,6 +83,30 @@ func parseRm(args []string) (name string, purge bool, err error) {
 	return name, purge, nil
 }
 
+// parseAgentConfig pulls the optional `--config <path>` that may follow run/install.
+// Per docs/cli.md it must come first and be the only argument, so a bare `--config`
+// (no value) or any stray token is a usage error rather than being silently ignored —
+// which would fall back to the default config path and run against the wrong file.
+func parseAgentConfig(args []string) (string, error) {
+	configPath := "/etc/rucher/agent.yml"
+	if len(args) == 0 {
+		return configPath, nil
+	}
+	if args[0] != "--config" {
+		if strings.HasPrefix(args[0], "-") {
+			return "", fmt.Errorf("unknown flag %q", args[0])
+		}
+		return "", fmt.Errorf("unexpected argument %q", args[0])
+	}
+	if len(args) < 2 || args[1] == "" {
+		return "", fmt.Errorf("--config needs a value")
+	}
+	if len(args) > 2 {
+		return "", fmt.Errorf("unexpected argument %q", args[2])
+	}
+	return args[1], nil
+}
+
 // run is the testable entry point; it returns a process exit code. The command
 // surface is split by execution side: `node` acts on the local Linux host,
 // `ops` runs on the operator machine (cross-platform).
@@ -126,7 +150,7 @@ func runNode(args []string, stdout io.Writer) int {
 	case "cadre":
 		return runNodeCadre(args[1:], stdout)
 	case "key":
-		if len(args) < 2 {
+		if len(args) != 2 {
 			fmt.Fprintln(stdout, "usage: node key init|show")
 			return 2
 		}
@@ -144,20 +168,21 @@ func runNode(args []string, stdout io.Writer) int {
 			fmt.Fprintln(stdout, "usage: node agent run|install [--config PATH]")
 			return 2
 		}
-		configPath := "/etc/rucher/agent.yml"
-		rest := args[2:]
-		if len(rest) >= 2 && rest[0] == "--config" {
-			configPath = rest[1]
-		}
-		switch args[1] {
-		case "run":
-			return cmdAgentRun(configPath, stdout)
-		case "install":
-			return cmdAgentInstall(configPath, stdout)
-		default:
+		// Validate the subcommand before parsing flags so `node agent foo --config`
+		// reports the unknown subcommand rather than a --config complaint.
+		if args[1] != "run" && args[1] != "install" {
 			fmt.Fprintf(stdout, "unknown node agent subcommand: %s\n", args[1])
 			return 2
 		}
+		configPath, err := parseAgentConfig(args[2:])
+		if err != nil {
+			fmt.Fprintf(stdout, "error: %v\n\nusage: node agent run|install [--config PATH]\n", err)
+			return 2
+		}
+		if args[1] == "install" {
+			return cmdAgentInstall(configPath, stdout)
+		}
+		return cmdAgentRun(configPath, stdout)
 	default:
 		fmt.Fprintf(stdout, "unknown node subcommand: %s\n\n%s", args[0], usage())
 		return 2
@@ -172,7 +197,7 @@ func runNodeCadre(args []string, stdout io.Writer) int {
 	}
 	switch args[0] {
 	case "new":
-		if len(args) < 2 {
+		if len(args) != 2 {
 			fmt.Fprintln(stdout, "usage: node cadre new <name>")
 			return 2
 		}
@@ -189,9 +214,17 @@ func runNodeCadre(args []string, stdout io.Writer) int {
 		}
 		return cmdApply(dir, names, stdout)
 	case "status":
+		// `node cadre status` takes only cadre names; a flag-looking token is a typo
+		// (names never start with "-"), so reject it rather than silently print nothing.
+		for _, a := range args[1:] {
+			if strings.HasPrefix(a, "-") {
+				fmt.Fprintf(stdout, "error: unknown flag %q\n", a)
+				return 2
+			}
+		}
 		return cmdStatus(args[1:], stdout)
 	case "logs":
-		if len(args) < 3 {
+		if len(args) != 3 {
 			fmt.Fprintln(stdout, "usage: node cadre logs <name> <unit>")
 			return 2
 		}
@@ -204,7 +237,7 @@ func runNodeCadre(args []string, stdout io.Writer) int {
 		}
 		return cmdRm(name, purge, stdout)
 	case "recipient":
-		if len(args) < 2 {
+		if len(args) != 2 {
 			fmt.Fprintln(stdout, "usage: node cadre recipient <name>")
 			return 2
 		}
@@ -310,6 +343,13 @@ func runOpsNodes(args []string, stdout io.Writer) int {
 				}
 				concurrency, i = n, i+1
 			default:
+				// A node name never starts with "-" (names match [a-z0-9][a-z0-9-]*),
+				// so a flag-looking token is a typo (e.g. --llive for --live); reject it
+				// instead of treating it as a phantom node to SSH into.
+				if strings.HasPrefix(a, "-") {
+					fmt.Fprintf(stdout, "error: unknown flag %q\n", a)
+					return 2
+				}
 				names = append(names, a)
 			}
 		}

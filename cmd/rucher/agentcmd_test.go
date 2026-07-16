@@ -45,6 +45,31 @@ func TestParseKeygen(t *testing.T) {
 	if _, _, err := parseKeygen([]string{"web", "extra", "--to", "age1"}); err == nil {
 		t.Fatal("expected error on an extra positional argument")
 	}
+	if _, _, err := parseKeygen([]string{"--too", "web", "--to", "age1"}); err == nil {
+		t.Fatal("expected error on a flag-looking positional (typo), not a cadre name")
+	}
+}
+
+func TestParseAgentConfig(t *testing.T) {
+	if p, err := parseAgentConfig(nil); err != nil || p != "/etc/rucher/agent.yml" {
+		t.Fatalf("default: got %q, %v", p, err)
+	}
+	if p, err := parseAgentConfig([]string{"--config", "/tmp/a.yml"}); err != nil || p != "/tmp/a.yml" {
+		t.Fatalf("explicit: got %q, %v", p, err)
+	}
+	// A bare --config, a typo'd flag, a stray token, or a trailing argument are all
+	// usage errors — never a silent fallback to the default config path.
+	for _, bad := range [][]string{
+		{"--config"},                // flag with no value
+		{"--config", ""},            // empty value
+		{"--cfg", "x"},              // unknown flag
+		{"garbage"},                 // stray positional
+		{"--config", "/p", "extra"}, // trailing token
+	} {
+		if _, err := parseAgentConfig(bad); err == nil {
+			t.Fatalf("expected error for %v", bad)
+		}
+	}
 }
 
 // TestCmdKeygenRejectsTraversalName covers L5: an unvalidated name must not reach
