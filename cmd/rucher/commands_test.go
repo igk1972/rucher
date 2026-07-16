@@ -211,3 +211,30 @@ func TestDiscover(t *testing.T) {
 		t.Fatalf("discover all = %v, want 2 subdirs", all)
 	}
 }
+
+func TestValidateNodeConfigs(t *testing.T) {
+	nodesDir := filepath.Join(t.TempDir(), "nodes")
+	os.MkdirAll(filepath.Join(nodesDir, "good"), 0o755)
+	os.WriteFile(filepath.Join(nodesDir, "good", "configuration.yml"), []byte("connection:\n  host: 10.0.0.1\n"), 0o644)
+	os.MkdirAll(filepath.Join(nodesDir, "bad"), 0o755)
+	os.WriteFile(filepath.Join(nodesDir, "bad", "configuration.yml"), []byte("connection:\n  hst: 10.0.0.2\n"), 0o644) // "hst" typo
+
+	var out bytes.Buffer
+	if rc := validateNodeConfigs(nodesDir, &out); rc != 1 {
+		t.Fatalf("rc = %d, want 1 (a node has a typo)", rc)
+	}
+	s := out.String()
+	if !strings.Contains(s, "node good: OK") {
+		t.Fatalf("good node should pass: %q", s)
+	}
+	if !strings.Contains(s, "node bad: ERROR") {
+		t.Fatalf("bad node should be reported: %q", s)
+	}
+}
+
+func TestValidateNodeConfigsNoNodesDir(t *testing.T) {
+	var out bytes.Buffer
+	if rc := validateNodeConfigs(filepath.Join(t.TempDir(), "absent"), &out); rc != 0 {
+		t.Fatalf("a missing nodes dir must be a no-op, rc = %d", rc)
+	}
+}

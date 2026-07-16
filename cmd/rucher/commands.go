@@ -12,6 +12,7 @@ import (
 
 	"rucher/internal/cadre"
 	"rucher/internal/node"
+	"rucher/internal/nodecfg"
 	"rucher/internal/ops"
 	"rucher/internal/plan"
 	"rucher/internal/provision"
@@ -163,6 +164,26 @@ func cmdValidate(dir string, names []string, out io.Writer) int {
 			continue
 		}
 		fmt.Fprintf(out, "%s: OK\n", filepath.Base(d))
+	}
+	return rc
+}
+
+// validateNodeConfigs strict-checks each nodesDir/<name>/configuration.yml. The runtime
+// path (deploy/status) tolerates unknown keys; validation is where a typo is caught before
+// a deploy. A missing nodes dir is not an error — a cadre-only checkout has none.
+func validateNodeConfigs(nodesDir string, out io.Writer) int {
+	names, err := nodecfg.List(nodesDir)
+	if err != nil {
+		return 0
+	}
+	rc := 0
+	for _, n := range names {
+		if err := nodecfg.ValidateMerged(nodesDir, n); err != nil {
+			fmt.Fprintf(out, "node %s: ERROR %v\n", n, err)
+			rc = 1
+			continue
+		}
+		fmt.Fprintf(out, "node %s: OK\n", n)
 	}
 	return rc
 }

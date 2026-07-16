@@ -30,8 +30,20 @@ type Connection struct {
 // default) installs the distro package; "prebuilt" installs the .deb from a GitHub
 // Release (see deploy.podmanDebRepo), with Version pinning a release tag (empty = latest).
 type Podman struct {
-	Source  string `yaml:"source"`
-	Version string `yaml:"version"`
+	Source     string     `yaml:"source"`
+	Version    string     `yaml:"version"`
+	Registries Registries `yaml:"registries"`
+}
+
+type Registries struct {
+	Search []string        `yaml:"search"`
+	Login  []RegistryLogin `yaml:"login"`
+}
+
+type RegistryLogin struct {
+	Registry    string `yaml:"registry"`
+	Username    string `yaml:"username"`
+	PasswordEnv string `yaml:"passwordEnv"`
 }
 
 type Config struct {
@@ -40,57 +52,69 @@ type Config struct {
 	Podman     Podman     `yaml:"podman"`
 }
 
+// Load reads a single configuration.yml. The runtime path is lenient — an unknown key (a
+// field another tool sharing the file owns) is ignored, not fatal. ValidateMerged is where
+// a typo gets caught, via `ops validate`.
 func Load(path string) (Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, err
 	}
 	var c Config
-	if err := strictDecode(data, &c); err != nil {
+	if err := decode(data, &c, false); err != nil {
 		return Config{}, fmt.Errorf("parse %s: %w", path, err)
 	}
 	return c, nil
 }
 
-// strictDecode unmarshals YAML into out with unknown keys rejected, so a typo'd
-// config field is a hard error instead of a silently-dropped zero value. An
-// empty document is not an error (every field defaults).
-func strictDecode(data []byte, out any) error {
+// decode unmarshals YAML into out. With strict, an unknown key is a hard error (validation);
+// otherwise it is ignored. An empty document is not an error.
+func decode(data []byte, out any, strict bool) error {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
-	dec.KnownFields(true)
+	dec.KnownFields(strict)
 	if err := dec.Decode(out); err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
 	return nil
 }
 
-// LoadMerged reads the global ./nodes/configuration.yml (all nodes) (if present) and the
-// per-node ./nodes/<name>/configuration.yml, then deep-merges the per-node doc OVER
-// the global one (maps merge key-by-key; scalars and sequences are replaced) before
-// decoding into Config. The global file is optional; the per-node file is required.
+// LoadMerged reads the optional global ./nodes/configuration.yml and the required per-node
+// ./nodes/<name>/configuration.yml, deep-merging the per-node doc OVER the global one (maps
+// merge key-by-key; scalars and sequences are replaced). Lenient like Load; ValidateMerged
+// is the strict counterpart.
 func LoadMerged(nodesDir, name string) (Config, error) {
-	globalPath := filepath.Join(nodesDir, "configuration.yml")
-	global, err := readYAMLMap(globalPath)
-	if err != nil && !os.IsNotExist(err) {
-		return Config{}, err
-	}
-
-	nodePath := filepath.Join(nodesDir, name, "configuration.yml")
-	nodeDoc, err := readYAMLMap(nodePath)
-	if err != nil {
-		return Config{}, err
-	}
-
-	merged := deepMerge(global, nodeDoc)
-	out, err := yaml.Marshal(merged)
+	out, err := mergedBytes(nodesDir, name)
 	if err != nil {
 		return Config{}, err
 	}
 	var c Config
-	if err := strictDecode(out, &c); err != nil {
-		return Config{}, fmt.Errorf("parse merged %s: %w", nodePath, err)
+	if err := decode(out, &c, false); err != nil {
+		return Config{}, fmt.Errorf("parse merged %s config: %w", name, err)
 	}
 	return c, nil
+}
+
+// ValidateMerged strict-decodes a node's merged config, erroring on any unknown key — the
+// check `ops validate` runs before a deploy, which the lenient runtime path skips.
+func ValidateMerged(nodesDir, name string) error {
+	out, err := mergedBytes(nodesDir, name)
+	if err != nil {
+		return err
+	}
+	var c Config
+	return decode(out, &c, true)
+}
+
+func mergedBytes(nodesDir, name string) ([]byte, error) {
+	global, err := readYAMLMap(filepath.Join(nodesDir, "configuration.yml"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	nodeDoc, err := readYAMLMap(filepath.Join(nodesDir, name, "configuration.yml"))
+	if err != nil {
+		return nil, err
+	}
+	return yaml.Marshal(deepMerge(global, nodeDoc))
 }
 
 // readYAMLMap reads a YAML file into a map. An empty file yields a nil map.

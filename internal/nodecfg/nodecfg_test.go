@@ -33,21 +33,67 @@ connection:
 	}
 }
 
-func TestLoadRejectsUnknownField(t *testing.T) {
-	// A typo'd field must be a hard error, not a silently-dropped zero value.
+func TestLoadToleratesUnknownField(t *testing.T) {
+	// Runtime is lenient: an unknown key (a field another tool sharing the file owns) is
+	// ignored, not fatal — ValidateMerged, not Load, is where a typo is caught.
 	path := filepath.Join(t.TempDir(), "configuration.yml")
-	os.WriteFile(path, []byte("network:\n  adress: 100.1.2.3\n"), 0o644) // "adress" typo
-	if _, err := Load(path); err == nil {
-		t.Fatal("expected an error for an unknown config field")
+	os.WriteFile(path, []byte("network:\n  address: 100.1.2.3\n  extra: x\n"), 0o644)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load must tolerate an unknown field, got: %v", err)
+	}
+	if c.Network.Address != "100.1.2.3" {
+		t.Fatalf("known fields must still decode: %+v", c.Network)
 	}
 }
 
-func TestLoadMergedRejectsUnknownField(t *testing.T) {
+func TestValidateMergedRejectsUnknownField(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "web"), 0o755)
 	os.WriteFile(filepath.Join(dir, "web", "configuration.yml"), []byte("conection:\n  host: 10.0.0.5\n"), 0o644) // "conection" typo
-	if _, err := LoadMerged(dir, "web"); err == nil {
-		t.Fatal("expected an error for an unknown config field in the merged doc")
+	if err := ValidateMerged(dir, "web"); err == nil {
+		t.Fatal("ValidateMerged must reject an unknown/typo'd field")
+	}
+}
+
+func TestPodmanRegistries(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "web"), 0o755)
+	os.WriteFile(filepath.Join(dir, "web", "configuration.yml"), []byte(`
+podman:
+  source: apt
+  version: 5
+  registries:
+    search: [docker.io, quay.io]
+    login:
+      - registry: ghcr.io
+        username: deploy
+        passwordEnv: GHCR_TOKEN
+`), 0o644)
+	c, err := LoadMerged(dir, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Podman.Source != "apt" || c.Podman.Version != "5" {
+		t.Fatalf("podman fields: %+v", c.Podman)
+	}
+	if len(c.Podman.Registries.Search) != 2 || c.Podman.Registries.Search[0] != "docker.io" {
+		t.Fatalf("registries.search: %+v", c.Podman.Registries.Search)
+	}
+	if len(c.Podman.Registries.Login) != 1 || c.Podman.Registries.Login[0].PasswordEnv != "GHCR_TOKEN" {
+		t.Fatalf("registries.login: %+v", c.Podman.Registries.Login)
+	}
+	if err := ValidateMerged(dir, "web"); err != nil {
+		t.Fatalf("a well-formed registries must pass validation, got: %v", err)
+	}
+}
+
+func TestValidateMergedRejectsBadRegistryField(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "web"), 0o755)
+	os.WriteFile(filepath.Join(dir, "web", "configuration.yml"), []byte("podman:\n  registries:\n    serch: [docker.io]\n"), 0o644) // "serch" typo
+	if err := ValidateMerged(dir, "web"); err == nil {
+		t.Fatal("ValidateMerged must reject a typo inside registries")
 	}
 }
 

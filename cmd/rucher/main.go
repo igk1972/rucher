@@ -273,7 +273,11 @@ func runOps(args []string, stdout io.Writer) int {
 			fmt.Fprintln(stdout, "error:", err)
 			return 2
 		}
-		return cmdValidate(dir, names, stdout)
+		rc := cmdValidate(dir, names, stdout)
+		if nrc := validateNodeConfigs("nodes", stdout); nrc != 0 {
+			rc = nrc
+		}
+		return rc
 	case "plan":
 		dir, names, err := parseDir(args[1:])
 		if err != nil {
