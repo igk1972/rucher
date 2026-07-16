@@ -5,26 +5,6 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-**Core**
-- `-h`, `--help`, and `help` are recognized as help requests at every command group: they
-  print that group's usage and exit `0` (scoped, e.g. `rucher node --help` or
-  `rucher ops nodes --help`), instead of the old `unknown command: -h` with a non-zero exit.
-
-### Fixed
-
-**Multi-node**
-- `ops nodes status` no longer reports a reachable node whose agent has not yet written
-  `agent-status.json` as unreachable. A freshly deployed node, or a push-mode fleet driven by
-  `node cadre apply` with no pull agent, now shows `REACHABLE=yes` with a `pending` revision
-  (JSON `"pending": true`) and does not count toward the command's non-zero exit code; `--live`
-  still probes such nodes. A genuine transport/SSH failure, a reconcile error, or a status-file
-  read that fails for another reason (e.g. sudo is not passwordless) still marks the node
-  unreachable or bumps the exit code.
-
 ## [0.1.0] - 2026-07-16
 
 ### Added
@@ -48,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ops validate` deep-checks Quadlet unit contents with Podman's own parser (pinned to
   podman v6): an unknown key, a missing `Image=`, an invalid value, or a dangling
   cross-reference now fails validation on the operator machine instead of only on the node.
+- `-h`, `--help`, and `help` are recognized as help requests at every command group: each
+  prints that group's usage and exits `0` (scoped, e.g. `rucher node --help`,
+  `rucher ops nodes --help`). A genuinely unknown command still prints `unknown command: …`
+  and exits non-zero.
 
 **Multi-node**
 - `ops nodes deploy` accepts `--store-user` to set the git store user when it isn't embedded
@@ -102,6 +86,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on some systems.
 - `ops nodes status` reads the 0600 `agent-status.json` over `sudo`, so status works when the
   operator's SSH user is not root.
+- `ops nodes status` no longer reports a reachable node whose agent has not yet written
+  `agent-status.json` as unreachable. A freshly deployed node, or a push-mode fleet driven by
+  `node cadre apply` with no pull agent, now shows `REACHABLE=yes` with a `pending` revision
+  (JSON `"pending": true`) and does not count toward the command's non-zero exit code; `--live`
+  still probes such nodes. A genuine transport/SSH failure, a reconcile error, or a status-file
+  read that fails for another reason (e.g. sudo is not passwordless) still marks the node
+  unreachable or bumps the exit code.
 
 ### Security
 
@@ -155,6 +146,5 @@ rootless-podman services under per-user systemd, managed across many nodes from 
 
 linux and darwin (amd64/arm64), windows (amd64), with `SHA256SUMS.txt`.
 
-[Unreleased]: https://github.com/igk1972/rucher/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/igk1972/rucher/releases/tag/v0.1.0
 [0.0.1]: https://github.com/igk1972/rucher/releases/tag/v0.0.1
