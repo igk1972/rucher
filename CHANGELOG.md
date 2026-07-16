@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2026-07-15
+## [0.1.0] - 2026-07-16
 
 ### Added
 
@@ -35,14 +35,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.container`, …) — previously such a unit failed only on the node, at generation time.
 - The S3 store now uses **TLS by default** (`useSSL` defaults to `true`); a plaintext HTTP
   endpoint must be opted into explicitly with `useSSL: false` in the agent config.
-- Node config is now decoded strictly: an unknown or misspelled field is a hard error
-  instead of being silently ignored.
+- Node config strictness now lives in `ops validate`: the runtime path (`deploy`/`status`)
+  tolerates an unknown field a co-located tool may own (e.g. a shared `podman.registries`
+  block), while `ops validate` strict-checks each node's `configuration.yml` and fails on a typo.
 - The manifest validates `resources.memoryMax` / `resources.cpuQuota`, rejecting a malformed
   value (or one containing a newline) at load time.
 - `plan` output now lists enable/disable/stop/remove/secret actions, not only file writes, so a
   dry run shows the full set of changes a reconcile will make.
 - `node cadre rm --purge` stops the cadre's workloads before removing them, a graceful teardown
   instead of an abrupt unit deletion.
+- The CLI rejects an unrecognized flag or an extra argument across subcommands (e.g. a typo'd
+  `--llive`, or a bare `--config`) instead of silently treating it as a node/cadre name or
+  falling back to a default.
 
 ### Fixed
 
@@ -68,6 +72,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   node name; the reconcile pass is bounded by a timeout so a stalled store can't pin the node
   lock; the registry login re-runs when only the login block changes; `state.json` is fsynced
   before its atomic rename; and `reconcile.Remove` validates the cadre name.
+- Cadre identity keys are written via `cat` under `umask 077` rather than `install /dev/stdin`,
+  which a non-root cadre user cannot re-open through the manager's pipe — provisioning failed
+  on some systems.
+- `ops nodes status` reads the 0600 `agent-status.json` over `sudo`, so status works when the
+  operator's SSH user is not root.
 
 ### Security
 
