@@ -20,6 +20,58 @@ func TestRunNoArgsPrintsUsageAndFails(t *testing.T) {
 	}
 }
 
+// TestHelpFlagsExitZero: -h, --help and the `help` subcommand are help requests, not
+// errors — they must print usage and exit 0 at every command group, so a bare
+// `rucher --help` reads as success.
+func TestHelpFlagsExitZero(t *testing.T) {
+	cases := []struct {
+		args     []string
+		contains string
+	}{
+		{[]string{"-h"}, "rucher <node|ops>"},
+		{[]string{"--help"}, "rucher <node|ops>"},
+		{[]string{"help"}, "rucher <node|ops>"},
+		{[]string{"node", "-h"}, "node apply"},
+		{[]string{"node", "help"}, "node cadre"},
+		{[]string{"ops", "--help"}, "ops init"},
+		{[]string{"node", "cadre", "-h"}, "node cadre <new"},
+		{[]string{"ops", "nodes", "--help"}, "status|join|deploy"},
+		{[]string{"ops", "secrets", "help"}, "secrets encrypt"},
+		{[]string{"node", "key", "-h"}, "node key init|show"},
+		{[]string{"node", "agent", "--help"}, "node agent run|install"},
+		{[]string{"ops", "key", "-h"}, "ops key seal"},
+	}
+	for _, tc := range cases {
+		var out bytes.Buffer
+		if code := run(tc.args, &out); code != 0 {
+			t.Fatalf("run(%v) = %d, want 0 (%q)", tc.args, code, out.String())
+		}
+		if !strings.Contains(out.String(), tc.contains) {
+			t.Fatalf("run(%v) output %q, want to contain %q", tc.args, out.String(), tc.contains)
+		}
+	}
+}
+
+// TestUsageLayout pins the byte-level seams of the split usage() so a future edit to
+// nodeUsage/opsUsage can't silently drop or double the blank line between the two blocks
+// — a whitespace-only regression the substring checks elsewhere would miss.
+func TestUsageLayout(t *testing.T) {
+	u := usage()
+	if !strings.HasPrefix(u, "rucher <node|ops> ...\n\n") {
+		t.Fatalf("usage must start with the header + blank line, got: %q", u[:min(40, len(u))])
+	}
+	// Exactly one blank line joins the node block and the ops block.
+	if !strings.Contains(u, "install [--config PATH]\n\nops — from the operator machine:") {
+		t.Fatalf("node/ops blocks must be joined by a single blank line, got:\n%q", u)
+	}
+	if strings.HasSuffix(u, "\n\n") {
+		t.Fatal("usage must end with a single trailing newline, not a blank line")
+	}
+	if strings.Count(u, "ops secrets encrypt") != 1 || strings.Count(u, "node agent run") != 1 {
+		t.Fatal("each command block must appear exactly once")
+	}
+}
+
 func TestNodesStatusJSONWiring(t *testing.T) {
 	// An empty hosts dir means no rows, so the --json wiring in run() should emit
 	// an empty JSON array (not null) and exit 0 since nothing is unreachable.
