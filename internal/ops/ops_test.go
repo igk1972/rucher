@@ -155,11 +155,13 @@ func TestGenerateAgeKey(t *testing.T) {
 
 	// The key is random, so we prove correctness by capturing the identity written to
 	// disk and back-deriving its recipient: it must equal the returned one. The write
-	// must use `install -m 600` (atomic 0600), never a tee that leaves a 0644 window.
+	// must land at 0600 from creation (cat under umask 077), never a tee that leaves a
+	// 0644 window.
 	var installed *node.Call
 	for i := range f.Calls {
 		c := &f.Calls[i]
-		if strings.Join(c.Argv, " ") == "install -m 600 /dev/stdin /id/identity.txt" {
+		if c.Argv[0] == "sh" && len(c.Argv) == 5 && strings.Contains(c.Argv[2], "umask 077") &&
+			strings.Contains(c.Argv[2], "cat") && c.Argv[4] == "/id/identity.txt" {
 			installed = c
 		}
 		if c.Argv[0] == "tee" {
@@ -167,7 +169,7 @@ func TestGenerateAgeKey(t *testing.T) {
 		}
 	}
 	if installed == nil {
-		t.Fatal("no `install -m 600 /dev/stdin /id/identity.txt` call recorded")
+		t.Fatal("no identity-write (`sh -c 'umask 077 && cat > ...'`) call recorded")
 	}
 	id := strings.TrimSpace(string(installed.Stdin))
 	if !strings.HasPrefix(id, "AGE-SECRET-KEY-1") {

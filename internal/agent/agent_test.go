@@ -45,12 +45,13 @@ func TestRunAppliesAssignedCadre(t *testing.T) {
 	if st.Revision != "rev1" || len(st.Applied) != 1 || !st.Applied[0].OK {
 		t.Fatalf("status = %+v", st)
 	}
-	// The unsealed identity (a private key) must be written atomically at 0600 via
-	// `install -m 600`, never a tee that would leave a 0644 window.
+	// The unsealed identity (a private key) must be written at 0600 from creation via
+	// `cat` under umask 077, never a tee that would leave a 0644 window.
 	var wroteIdentity bool
 	for _, c := range f.Calls {
-		if c.Argv[0] == "install" && len(c.Argv) >= 5 && c.Argv[1] == "-m" && c.Argv[2] == "600" &&
-			strings.HasSuffix(c.Argv[4], "/age/identity.txt") && string(c.Stdin) == compID {
+		if c.Argv[0] == "sh" && len(c.Argv) == 5 && strings.Contains(c.Argv[2], "umask 077") &&
+			strings.Contains(c.Argv[2], "cat") && strings.HasSuffix(c.Argv[4], "/age/identity.txt") &&
+			string(c.Stdin) == compID {
 			wroteIdentity = true
 		}
 		if c.Argv[0] == "tee" && strings.HasSuffix(c.Argv[len(c.Argv)-1], "/age/identity.txt") {
@@ -58,7 +59,7 @@ func TestRunAppliesAssignedCadre(t *testing.T) {
 		}
 	}
 	if !wroteIdentity {
-		t.Fatal("unsealed cadre identity was not installed with `install -m 600`")
+		t.Fatal("unsealed cadre identity was not written at 0600 via cat under umask 077")
 	}
 }
 
@@ -158,8 +159,8 @@ func TestRunPassLevelFailureSetsError(t *testing.T) {
 	}
 }
 
-// TestInstallIdentityErrorsOnInstallExit covers L7: a non-zero exit from `install`
-// (reported via Result.Code, not err) must fail installIdentity.
+// TestInstallIdentityErrorsOnInstallExit covers L7: a non-zero exit from the identity
+// write (reported via Result.Code, not err) must fail installIdentity.
 func TestInstallIdentityErrorsOnInstallExit(t *testing.T) {
 	nodeID, nodeRcpt, _ := age.GenerateIdentity()
 	compID, _, _ := age.GenerateIdentity()
@@ -170,7 +171,7 @@ func TestInstallIdentityErrorsOnInstallExit(t *testing.T) {
 
 	idPath := reconcile.IdentityPath("web")
 	f := &node.Fake{Responses: map[string]node.Result{
-		"user:1234:install -m 600 /dev/stdin " + idPath: {Code: 1, Stderr: "permission denied"},
+		`user:1234:sh -c umask 077 && cat > "$1" sh ` + idPath: {Code: 1, Stderr: "permission denied"},
 	}}
 	if err := installIdentity(f, "web", 1234, dir, nodeID); err == nil {
 		t.Fatal("installIdentity returned nil, want an error when install exits non-zero")

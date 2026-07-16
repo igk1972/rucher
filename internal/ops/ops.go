@@ -82,8 +82,10 @@ func (o Ops) Login(reg, user string, password []byte, insecure bool) error {
 
 // GenerateAgeKey creates the cadre's age identity in-process and writes it to
 // identityPath as the cadre user, returning the corresponding recipient. The key is
-// written with `install -m600` so it lands at 0600 atomically — never briefly at the
-// user's umask (0644) as a tee+chmod pair would leave it. Mirrors agent.installIdentity.
+// written by `cat` under umask 077 so it lands at 0600 from creation — never briefly at
+// the default umask (0644) as a tee+chmod pair would leave it. `install -m600 /dev/stdin`
+// would be tidier but re-opens fd 0, which the non-root runuser target cannot do to
+// root's pipe (EACCES). Mirrors agent.installIdentity.
 func (o Ops) GenerateAgeKey(identityPath string) (string, error) {
 	identity, recipient, err := age.GenerateIdentity()
 	if err != nil {
@@ -95,7 +97,7 @@ func (o Ops) GenerateAgeKey(identityPath string) (string, error) {
 	if err := wrap(res, err, mkdir); err != nil {
 		return "", err
 	}
-	inst := []string{"install", "-m", "600", "/dev/stdin", identityPath}
+	inst := []string{"sh", "-c", `umask 077 && cat > "$1"`, "sh", identityPath}
 	res, err = o.R.User(o.User, o.UID, inst, []byte(identity+"\n"))
 	if err := wrap(res, err, inst); err != nil {
 		return "", err

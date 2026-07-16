@@ -413,9 +413,10 @@ func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 	var idCall, teed *node.Call
 	for i := range f.Calls {
 		c := &f.Calls[i]
-		// The private identity is written atomically at 0600 (install), the public
-		// recipient (not secret) with a plain tee.
-		if strings.Join(c.Argv, " ") == "install -m 600 /dev/stdin "+idp {
+		// The private identity is written at 0600 from creation (cat under umask 077), the
+		// public recipient (not secret) with a plain tee.
+		if len(c.Argv) == 5 && c.Argv[0] == "sh" && strings.Contains(c.Argv[2], "umask 077") &&
+			strings.Contains(c.Argv[2], "cat") && c.Argv[4] == idp {
 			idCall = c
 		}
 		if len(c.Argv) == 2 && c.Argv[0] == "tee" && c.Argv[1] == recp {
@@ -424,7 +425,7 @@ func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 	}
 	// The identity written to disk must back-derive to the returned recipient.
 	if idCall == nil {
-		t.Fatalf("no `install -m 600 /dev/stdin %s` call recorded", idp)
+		t.Fatalf("no identity-write (`sh -c 'umask 077 && cat > ...'`) call for %s recorded", idp)
 	}
 	back, err := age.RecipientFor(strings.TrimSpace(string(idCall.Stdin)))
 	if err != nil {

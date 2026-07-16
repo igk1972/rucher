@@ -130,9 +130,10 @@ func installIdentity(r node.Runner, name string, uid int, dir, nodeIdentity stri
 	if res, err := r.User(user, uid, []string{"mkdir", "-p", filepath.Dir(idPath)}, nil); err != nil || res.Code != 0 {
 		return fmt.Errorf("mkdir %s identity dir: code=%d stderr=%s err=%v", name, res.Code, res.Stderr, err)
 	}
-	// install writes with the final 0600 in one step; tee would create the private key at
-	// the user's umask (0644) and leave a TOCTOU window until a separate chmod.
-	if res, err := r.User(user, uid, []string{"install", "-m", "600", "/dev/stdin", idPath}, identity); err != nil || res.Code != 0 {
+	// cat under umask 077 writes the private key at 0600 from creation — no TOCTOU window a
+	// tee+chmod pair would leave. `install /dev/stdin` would re-open fd 0, which the non-root
+	// runuser target cannot do to root's pipe (EACCES).
+	if res, err := r.User(user, uid, []string{"sh", "-c", `umask 077 && cat > "$1"`, "sh", idPath}, identity); err != nil || res.Code != 0 {
 		return fmt.Errorf("install %s identity: code=%d stderr=%s err=%v", name, res.Code, res.Stderr, err)
 	}
 	return nil
