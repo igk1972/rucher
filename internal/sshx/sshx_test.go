@@ -279,6 +279,34 @@ func TestFakeRunKeyed(t *testing.T) {
 	}
 }
 
+// TestFakeRunErrsOverridesResponsesAndErr pins the Errs precedence: a per-key transport
+// error wins over both a canned Response for that key and the global Err, and returns a
+// zero Result (modeling a command that never ran).
+func TestFakeRunErrsOverridesResponsesAndErr(t *testing.T) {
+	tgt := Target{Addr: "h:22"}
+	cmd := []string{"cat", "/x"}
+	perKey := errors.New("conn refused")
+	f := &Fake{
+		Responses: map[string]Result{Key(tgt, cmd): {Stdout: "should be ignored"}},
+		Errs:      map[string]error{Key(tgt, cmd): perKey},
+		Err:       errors.New("global error"),
+	}
+
+	res, err := f.Run(tgt, cmd, nil)
+	if err != perKey {
+		t.Fatalf("err = %v, want the per-key Errs value %v", err, perKey)
+	}
+	if res != (Result{}) {
+		t.Fatalf("an Errs key must yield a zero Result, got %+v", res)
+	}
+
+	// A key absent from Errs falls back to the global Err (rather than a nil error).
+	other := []string{"cat", "/y"}
+	if _, err := f.Run(tgt, other, nil); err == nil || err.Error() != "global error" {
+		t.Fatalf("a non-Errs key should return the global Err, got %v", err)
+	}
+}
+
 func TestWaitRunReturnsResult(t *testing.T) {
 	sentinel := errors.New("remote failed")
 	done := make(chan error, 1)

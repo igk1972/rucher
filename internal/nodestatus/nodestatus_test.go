@@ -31,12 +31,17 @@ func TestCollectAggregatesAndIsolates(t *testing.T) {
 	catCmd := []string{"sudo", "cat", statusPath}
 
 	statusJSON := `{"revision":"rev9","applied":[{"name":"web","ok":true},{"name":"db","ok":false,"error":"boom"}],"removed":["old"]}`
-	f := &sshx.Fake{Responses: map[string]sshx.Result{
-		// node a returns a status doc
-		sshx.Key(targetA, catCmd): {Stdout: statusJSON},
-		// node b: ssh fails (unreachable)
-		sshx.Key(targetB, catCmd): {Code: 255, Stderr: "conn refused"},
-	}}
+	f := &sshx.Fake{
+		Responses: map[string]sshx.Result{
+			// node a returns a status doc
+			sshx.Key(targetA, catCmd): {Stdout: statusJSON},
+		},
+		// node b: ssh transport fails (unreachable). Per sshx.Runner an unreachable host
+		// surfaces as a non-nil error, not a non-zero remote exit code.
+		Errs: map[string]error{
+			sshx.Key(targetB, catCmd): errors.New("conn refused"),
+		},
+	}
 	rows, err := Collect(f, nodes, "/nonexistent", nil, false, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -199,6 +204,99 @@ func TestCollectFlagsCorruptStatus(t *testing.T) {
 	}
 	if !flagged {
 		t.Fatalf("a corrupt status must be flagged, got errors %v", d.Errors)
+	}
+}
+
+// TestCollectFreshNodePending: a reachable node whose agent has never written a status
+// file (`cat` reports "No such file", ssh itself succeeded) is healthy-but-pending, not
+// unreachable — Reachable + Pending with no error, so it neither reads as "node down"
+// nor bumps the command exit code.
+func TestCollectFreshNodePending(t *testing.T) {
+	nodes := t.TempDir()
+	writeNode(t, nodes, "fresh", "network: {address: 6.6.6.6}\n")
+	target := sshx.Target{Addr: "6.6.6.6:22", User: "root"}
+	catCmd := []string{"sudo", "cat", statusPath}
+
+	// ssh connected (nil error) but the remote `cat` exits non-zero: no status file yet.
+	f := &sshx.Fake{Responses: map[string]sshx.Result{
+		sshx.Key(target, catCmd): {Code: 1, Stderr: "cat: " + statusPath + ": No such file or directory"},
+	}}
+	rows, err := Collect(f, nodes, "/nonexistent", nil, false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := rows[0]
+	if !r.Reachable {
+		t.Fatalf("fresh node should be reachable (ssh succeeded): %+v", r)
+	}
+	if !r.Pending {
+		t.Fatalf("fresh node should be pending (no status file yet): %+v", r)
+	}
+	if len(r.Errors) != 0 {
+		t.Fatalf("a pending node must record no error, got %v", r.Errors)
+	}
+	if r.Revision != "" {
+		t.Fatalf("a pending node should have an empty revision, got %q", r.Revision)
+	}
+}
+
+// TestCollectReachableReadErrorSurfaces: a reachable node whose status read fails for a
+// reason OTHER than a missing file (e.g. sudo is not passwordless) must surface the error
+// and stay non-pending. It is a real fault, not a fresh node, so it bumps the exit code
+// instead of hiding behind a green "pending" — the boundary that distinguishes an absent
+// file from any other non-zero `cat`.
+func TestCollectReachableReadErrorSurfaces(t *testing.T) {
+	nodes := t.TempDir()
+	writeNode(t, nodes, "brk", "network: {address: 8.8.8.8}\n")
+	target := sshx.Target{Addr: "8.8.8.8:22", User: "root"}
+	catCmd := []string{"sudo", "cat", statusPath}
+
+	f := &sshx.Fake{Responses: map[string]sshx.Result{
+		sshx.Key(target, catCmd): {Code: 1, Stderr: "sudo: a password is required"},
+	}}
+	rows, err := Collect(f, nodes, "/nonexistent", nil, false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := rows[0]
+	if !r.Reachable {
+		t.Fatalf("node should be reachable (ssh succeeded): %+v", r)
+	}
+	if r.Pending {
+		t.Fatalf("a sudo failure must NOT be treated as pending: %+v", r)
+	}
+	if len(r.Errors) == 0 || !strings.Contains(r.Errors[0], "a password is required") {
+		t.Fatalf("the stderr must be surfaced as an error, got %v", r.Errors)
+	}
+}
+
+// TestCollectPendingNodeStillRunsLive: the --live probe is independent of the status
+// file, so a pending node (no status file) must still run it — otherwise a push-mode
+// fleet, which is permanently pending, could never be inspected with --live.
+func TestCollectPendingNodeStillRunsLive(t *testing.T) {
+	nodes := t.TempDir()
+	writeNode(t, nodes, "push", "network: {address: 7.7.7.7}\n")
+	target := sshx.Target{Addr: "7.7.7.7:22", User: "root"}
+	catCmd := []string{"sudo", "cat", statusPath}
+	liveCmd := []string{"sudo", "rucher", "node", "cadre", "status"}
+
+	f := &sshx.Fake{Responses: map[string]sshx.Result{
+		sshx.Key(target, catCmd):  {Code: 1, Stderr: "cat: " + statusPath + ": No such file or directory"},
+		sshx.Key(target, liveCmd): {Stdout: "web.service active running"},
+	}}
+	rows, err := Collect(f, nodes, "/nonexistent", nil, true /* live */, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := rows[0]
+	if !r.Reachable || !r.Pending {
+		t.Fatalf("push node should be reachable + pending: %+v", r)
+	}
+	if r.Live != "web.service active running" {
+		t.Fatalf("a pending node must still run --live, got Live=%q", r.Live)
+	}
+	if len(r.Errors) != 0 {
+		t.Fatalf("pending node with a healthy live probe must have no errors, got %v", r.Errors)
 	}
 }
 

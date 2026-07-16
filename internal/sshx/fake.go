@@ -18,6 +18,7 @@ type Fake struct {
 	mu        sync.Mutex
 	Calls     []Call
 	Responses map[string]Result // keyed by Key(target, cmd); missing key -> zero Result, nil error
+	Errs      map[string]error  // per-key transport error (a non-nil Run error); takes precedence over Responses and the global Err
 	Err       error             // if set, returned by every Run
 }
 
@@ -27,7 +28,13 @@ func (f *Fake) Run(t Target, cmd []string, stdin []byte) (Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.Calls = append(f.Calls, Call{Target: t, Cmd: cmd, Stdin: stdin})
-	return f.Responses[Key(t, cmd)], f.Err
+	key := Key(t, cmd)
+	// A per-key error models a transport/session failure for one specific host
+	// (unreachable), which the shared global Err can't express in a mixed fleet.
+	if err, ok := f.Errs[key]; ok {
+		return Result{}, err
+	}
+	return f.Responses[key], f.Err
 }
 
 // Key builds the Responses map key for a target + command. It folds in User and

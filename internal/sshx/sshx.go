@@ -22,8 +22,9 @@ type Result struct {
 // Runner runs a remote command over SSH and returns its output + exit code.
 //
 // A non-zero remote exit is reported via Result.Code with a nil error; only
-// dial/auth/transport/session-setup failures yield a non-nil error. This lets
-// callers treat `err != nil || res.Code != 0` as "unreachable".
+// dial/auth/transport/session-setup failures yield a non-nil error. So callers can
+// tell a command that ran but failed (`err == nil`, `res.Code != 0`) from an
+// unreachable host (`err != nil`) — a non-zero Code alone does not mean "unreachable".
 type Runner interface {
 	Run(t Target, cmd []string, stdin []byte) (Result, error)
 }

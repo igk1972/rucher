@@ -123,3 +123,56 @@ func TestRenderHostsTableRC(t *testing.T) {
 		t.Fatalf("json rc = %d, want 1 when a reachable node reports errors", rc)
 	}
 }
+
+// TestRenderPendingNode: a reachable-but-pending node (agent hasn't reported yet)
+// renders REACHABLE=yes with "pending" in the REVISION column and must not bump the
+// exit code — it is healthy-but-waiting, not a failure.
+func TestRenderPendingNode(t *testing.T) {
+	rows := []nodestatus.Row{{Node: "fresh", Address: "6.6.6.6", Reachable: true, Pending: true}}
+
+	var buf bytes.Buffer
+	if rc := renderNodesTable(&buf, rows, false); rc != 0 {
+		t.Fatalf("rc = %d, want 0 for a pending node (%q)", rc, buf.String())
+	}
+	out := buf.String()
+	if !strings.Contains(out, "pending") {
+		t.Fatalf("table should mark the node pending, got %q", out)
+	}
+	// The pending marker lives in REVISION; the node still reads as reachable.
+	line := ""
+	for _, l := range strings.Split(out, "\n") {
+		if strings.HasPrefix(l, "fresh") {
+			line = l
+		}
+	}
+	if !strings.Contains(line, "yes") || !strings.Contains(line, "pending") {
+		t.Fatalf("pending row should be reachable=yes with revision=pending, got %q", line)
+	}
+
+	// JSON keeps the revision empty and exposes the state via the pending field.
+	buf.Reset()
+	if rc := renderNodesJSON(&buf, rows); rc != 0 {
+		t.Fatalf("json rc = %d, want 0 for a pending node", rc)
+	}
+	if !strings.Contains(buf.String(), `"pending": true`) {
+		t.Fatalf("json should carry pending:true, got %q", buf.String())
+	}
+}
+
+// TestRenderPendingDoesNotMaskUnreachable: a pending node must not zero out the exit
+// code when the same run also has a genuinely unreachable node — the unreachable one
+// still drives rc=1 in both renderers.
+func TestRenderPendingDoesNotMaskUnreachable(t *testing.T) {
+	rows := []nodestatus.Row{
+		{Node: "p", Address: "1.1.1.1", Reachable: true, Pending: true},
+		{Node: "u", Address: "2.2.2.2", Reachable: false, Errors: []string{"conn refused"}},
+	}
+	var buf bytes.Buffer
+	if rc := renderNodesTable(&buf, rows, false); rc != 1 {
+		t.Fatalf("table rc = %d, want 1 (an unreachable node is present) (%q)", rc, buf.String())
+	}
+	buf.Reset()
+	if rc := renderNodesJSON(&buf, rows); rc != 1 {
+		t.Fatalf("json rc = %d, want 1 (an unreachable node is present)", rc)
+	}
+}

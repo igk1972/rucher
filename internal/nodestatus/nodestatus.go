@@ -23,6 +23,7 @@ type Row struct {
 	Node      string   `json:"node"`
 	Address   string   `json:"address"`
 	Reachable bool     `json:"reachable"`
+	Pending   bool     `json:"pending,omitempty"` // reachable, but the agent has not written a status file yet
 	Revision  string   `json:"revision"`
 	Applied   int      `json:"applied"`
 	Removed   int      `json:"removed"`
@@ -92,42 +93,53 @@ func collectOne(r sshx.Runner, nodesDir, limaDir, name string, live bool) Row {
 	// The status file is 0600 root, so read it via sudo — matching --live below and the
 	// rest of the operator plane, which all assume the SSH user has passwordless sudo.
 	res, err := r.Run(target, []string{"sudo", "cat", statusPath}, nil)
-	if err != nil || res.Code != 0 {
-		// Record why the node is unreachable so the operator can tell a
-		// transport/config failure from a plain "node down".
-		switch {
-		case err != nil:
-			row.Errors = append(row.Errors, err.Error())
-		default:
-			if first := strings.TrimSpace(strings.SplitN(res.Stderr, "\n", 2)[0]); first != "" {
-				row.Errors = append(row.Errors, first)
-			} else {
-				row.Errors = append(row.Errors, fmt.Sprintf("ssh exited %d", res.Code))
-			}
-		}
+	if err != nil {
+		// Per sshx.Runner, a non-nil error is a transport/session failure (dial, auth,
+		// timeout): the command never ran, so the node is genuinely unreachable. Record
+		// why so the operator can tell it from a plain "node down".
+		row.Errors = append(row.Errors, err.Error())
 		return row // Reachable stays false
 	}
+	// ssh connected and ran the probe, so the node IS reachable regardless of the
+	// command's own exit status.
 	row.Reachable = true
-	var st agent.Status
-	if err := json.Unmarshal([]byte(res.Stdout), &st); err != nil {
-		// A corrupt status file must not read as a healthy node (empty revision, 0
-		// applied) — surface it so the operator sees something is wrong.
-		row.Errors = append(row.Errors, "unreadable agent status: "+err.Error())
-	} else {
-		row.Revision = st.Revision
-		row.Applied = len(st.Applied)
-		row.Removed = len(st.Removed)
-		// A pass-level failure (store sync, placement, listing) has no per-cadre
-		// Result to surface, so fold it in alongside them or the node reads healthy.
-		if st.Error != "" {
-			row.Errors = append(row.Errors, st.Error)
-		}
-		for _, a := range st.Applied {
-			if !a.OK {
-				row.Errors = append(row.Errors, a.Name+": "+a.Error)
+	switch {
+	case res.Code != 0 && strings.Contains(res.Stderr, "No such file"):
+		// The status file does not exist yet: the agent has never completed a pass — a
+		// freshly deployed node, or a push-mode fleet driven by `node cadre apply` with no
+		// pull agent. Healthy-but-pending, not a failure: leave the revision empty and
+		// record no error, so it neither reads as failed nor bumps the exit code.
+		row.Pending = true
+	case res.Code != 0:
+		// ssh worked but reading the file failed for some other reason (e.g. sudo is not
+		// passwordless): surface it — dropping the stderr would hide a broken-but-reachable
+		// node behind a green status. Unlike pending, this bumps the exit code.
+		row.Errors = append(row.Errors, "read agent status: "+firstLineOr(res.Stderr, fmt.Sprintf("cat exited %d", res.Code)))
+	default:
+		var st agent.Status
+		if err := json.Unmarshal([]byte(res.Stdout), &st); err != nil {
+			// A corrupt status file must not read as a healthy node (empty revision, 0
+			// applied) — surface it so the operator sees something is wrong.
+			row.Errors = append(row.Errors, "unreadable agent status: "+err.Error())
+		} else {
+			row.Revision = st.Revision
+			row.Applied = len(st.Applied)
+			row.Removed = len(st.Removed)
+			// A pass-level failure (store sync, placement, listing) has no per-cadre
+			// Result to surface, so fold it in alongside them or the node reads healthy.
+			if st.Error != "" {
+				row.Errors = append(row.Errors, st.Error)
+			}
+			for _, a := range st.Applied {
+				if !a.OK {
+					row.Errors = append(row.Errors, a.Name+": "+a.Error)
+				}
 			}
 		}
 	}
+	// The live probe is independent of the status file, so run it for every reachable
+	// node — including a pending one (a push-mode node is permanently pending, yet its
+	// live unit state is exactly what --live is for).
 	if live {
 		lv, err := r.Run(target, []string{"sudo", "rucher", "node", "cadre", "status"}, nil)
 		switch {

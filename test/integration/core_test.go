@@ -35,9 +35,9 @@ func TestLiveShowsUnitStatus(t *testing.T) {
 		t.Fatalf("apply %s: code=%d stderr=%s", name, r.code, r.stderr)
 	}
 
-	// `ops nodes status` reports a node as reachable only if it can read the agent
-	// status file, and the --live probe runs only for reachable nodes. This test
-	// exercises the --live path directly, so seed a minimal status file.
+	// This test drives the --live path and asserts on a concrete revision, so seed a
+	// minimal agent-status.json — without it the node would be reachable-but-pending
+	// (empty revision).
 	seed := `{"revision":"ittest","applied":[],"removed":[]}`
 	if r := nodeSudoStdin(t, node1, []byte(seed), "tee", "/var/lib/rucher/agent-status.json"); r.code != 0 {
 		t.Fatalf("seed agent-status.json: %s", r.stderr)

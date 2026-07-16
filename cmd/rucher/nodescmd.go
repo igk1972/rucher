@@ -77,11 +77,18 @@ func renderNodesTable(out io.Writer, rows []nodestatus.Row, live bool) int {
 		if len(r.Errors) > 0 {
 			rc = 1 // a reachable node whose pass failed must not read as healthy
 		}
+		// A reachable node with no status file yet is pending, not failed: mark it in the
+		// REVISION cell (genuinely N/A) instead of leaving a blank that reads as a healthy
+		// node at the empty revision. It carries no error, so rc is left untouched.
+		rev := r.Revision
+		if r.Pending {
+			rev = "pending"
+		}
 		errs := ""
 		if len(r.Errors) > 0 {
 			errs = strconv.Itoa(len(r.Errors))
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%d\t%s\n", r.Node, r.Address, reach, r.Revision, r.Applied, r.Removed, errs)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%d\t%s\n", r.Node, r.Address, reach, rev, r.Applied, r.Removed, errs)
 	}
 	tw.Flush()
 	// The ERRORS column is only a count; print the actual messages below the
