@@ -213,8 +213,9 @@ Statically check each selected cadre without touching a node — a fast pre-comm
 loads every cadre and reports the first structural problem in each: a manifest that fails
 strict decode (an unknown/misspelled key like `memmoryMax`) or `manifest.Validate`, a unit
 file with no `[Section]` header, a Quadlet file missing its type section (`[Container]` in
-a `.container`, `[Volume]` in a `.volume`, …), or a unit whose `EnvironmentFile=` points at
-a cadre-local file the directory does not ship. Prints `<name>: OK` or
+a `.container`, `[Volume]` in a `.volume`, …), a unit whose `EnvironmentFile=` points at
+a cadre-local file the directory does not ship, or a cadre `.service` named after the
+`.service` Quadlet generates from one of the cadre's units (which it would otherwise shadow). Prints `<name>: OK` or
 `<name>: ERROR <reason>` per cadre; exits `0` only when all pass, `1` if any fail.
 
 Each Quadlet unit's **contents** are also checked with **Podman's own parser** (the same

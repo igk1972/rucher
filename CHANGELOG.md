@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   --filter until=…` as the cadre user, configured (or disabled) by the new manifest
   `prune:` block. The two unit names are reserved. Note: a binary downgraded below this
   version disables the timer but leaves the inert `.service` file behind (cosmetic).
+- Cadres can ship their own native `.service` units. They are installed into the user unit
+  dir alongside `.timer`/`.socket`/`.path`; one carrying an `[Install]` section is enabled
+  (`enable --now`, restarted on change, disabled on removal), while an `[Install]`-less
+  oneshot is only installed and daemon-reloaded, left for a companion unit to fire. A cadre
+  `.service` may not shadow the `.service` Quadlet generates from one of the cadre's units.
 - `ops validate` prints advisory `WARN` lines (exit code unchanged): a `PublishPort=`
   binding all interfaces (no host address, `0.0.0.0`, or `[::]`) is flagged with a hint
   to pin `127.0.0.1:<host>:<ctr>` unless the service is meant to be public.

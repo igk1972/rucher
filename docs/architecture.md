@@ -30,8 +30,9 @@ unit files (`.container`, `.pod`, `.volume`, `.network`, `.kube`, `.image`, `.bu
 any support files; the tool lays them into the user's
 `~/.config/containers/systemd/` directory, where podman's Quadlet generator turns them into
 `.service` units. The tool never generates units — it treats them as opaque and reconciles
-them. Native systemd then provides dependencies, lifecycle hooks and timers for free within
-a cadre. See [cadres.md](cadres.md).
+them. A cadre may also ship native systemd units (`.timer`/`.socket`/`.path`, or its own
+`.service`) into `~/.config/systemd/user/`. Native systemd then provides dependencies,
+lifecycle hooks and timers for free within a cadre. See [cadres.md](cadres.md).
 
 ## 2. The `rucher` CLI and reconciler
 

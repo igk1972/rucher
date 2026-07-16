@@ -23,14 +23,20 @@ The tool classifies each entry in the directory:
   identities matching `identity.*.age`.
 - **Unit files** — files whose extension is one of `.container`, `.volume`, `.network`,
   `.pod`, `.kube`, `.image`, `.build` (what podman's Quadlet generator understands).
-- **Systemd units** — `.timer`, `.socket`, `.path`: native systemd units that schedule or
-  activate a cadre's Quadlet services (e.g. a `.timer` firing a generated `.service`).
+- **Systemd units** — `.timer`, `.socket`, `.path`, `.service`: native systemd units the cadre
+  ships itself. A `.timer`/`.socket`/`.path` schedules or activates a service (e.g. a `.timer`
+  firing a generated `.service`). A `.service` lets a cadre supply its own unit — a oneshot
+  fired by a companion `.timer`/`.socket`/`.path` (like the synthesized prune), or a standalone
+  service. A cadre `.service` must not be named after the `.service` Quadlet generates from one
+  of the cadre's units (e.g. `web.container` → `web.service`), which it would otherwise shadow.
 - **Support files** — everything else (env files, configs, …). Copied in as-is.
 
 Quadlet units and support files are laid into the cadre user's
 `~/.config/containers/systemd/`; native systemd units go to `~/.config/systemd/user/`
-(where systemd's user manager looks for them) and are enabled directly. Units reference
-support files by their in-place path, e.g.
+(where systemd's user manager looks for them). A `.timer`/`.socket`/`.path` — and a `.service`
+carrying an `[Install]` section — is enabled directly; an `[Install]`-less `.service` is
+installed and daemon-reloaded but not enabled, left for its companion unit to activate. Units
+reference support files by their in-place path, e.g.
 `EnvironmentFile=%h/.config/containers/systemd/app.env`.
 
 ## Manifest schema (`rucher.yml`)
@@ -183,13 +189,15 @@ The plan is a minimal, idempotent change set:
     conservative fallback;
   - a unit that disappeared is **stopped** (before its file is removed, while its generated
     `.service` still resolves).
-- **Systemd units** (`.timer`/`.socket`/`.path`): a new one is **`enable --now`**'d (so it
-  also persists across reboot under linger), a changed one is **restarted**, and a removed one
-  is **`disable --now`**'d before its file is deleted.
+- **Systemd units** (`.timer`/`.socket`/`.path`, and a `.service` with `[Install]`): a new one
+  is **`enable --now`**'d (so it also persists across reboot under linger), a changed one is
+  **restarted**, and a removed one is **`disable --now`**'d before its file is deleted. An
+  `[Install]`-less `.service` is only written and daemon-reloaded — never enabled or restarted;
+  a change takes effect the next time its companion unit fires it.
 - **Synthesized prune units** — the desired file set additionally contains the image-GC units
   generated from the manifest's `prune:` block (unless disabled), so the same diff writes,
-  enables, updates and removes them. Only the `.timer` gets the enable/restart lifecycle; the
-  `.service` is only written — a change takes effect at the timer's next fire.
+  enables, updates and removes them. The `.timer` gets the enable/restart lifecycle; the
+  `[Install]`-less `.service` is only written — a change takes effect at the timer's next fire.
 
 `apply` executes in a fixed order: resource limits → stop removed units → write/remove files
 → create/remove secrets → registry logins → `daemon-reload` → start/restart/enable units →
@@ -202,7 +210,7 @@ persist new state.
 | Cadre user | `rucher-<name>` (`nologin`) |
 | Home | `/var/lib/rucher/cadres/<name>` |
 | Quadlet units + support files | `<home>/.config/containers/systemd/` |
-| Native systemd units (`.timer`/`.socket`/`.path`) + synthesized prune units | `<home>/.config/systemd/user/` |
+| Native systemd units (`.timer`/`.socket`/`.path`/`.service`) + synthesized prune units | `<home>/.config/systemd/user/` |
 | age identity / recipient | `<home>/.config/rucher/age/{identity.txt,recipient.txt}` |
 | Last-applied state (hashes only) | `/var/lib/rucher/cadres/state/<name>.json` |
 | Resource slice drop-in | `/etc/systemd/system/user-<uid>.slice.d/50-rucher.conf` |
