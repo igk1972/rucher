@@ -54,14 +54,24 @@ Output is a table by default:
 NODE    ADDRESS      REACHABLE  REVISION  APPLIED  REMOVED  ERRORS
 node-a  100.64.0.1   yes        1a2b3c…   2        0
 node-b  100.64.0.2   no                   0        0        1
+node-c  100.64.0.3   yes        pending   0        0
 errors:
   node-b: ssh dial 100.64.0.2:22: ...
 ```
 
-`--json` emits the rows as a JSON array instead (an empty result is `[]`, not `null`). A node
-that connects but fails records the reason under `errors:` so a transport/config failure is
-distinguishable from a plain "node down"; the exit code is 1 if any node is unreachable **or
-reported errors** (including a reachable node whose reconcile pass failed).
+`--json` emits the rows as a JSON array instead (an empty result is `[]`, not `null`). Each node
+resolves to one of three outcomes:
+
+- **status ok** — SSH connected and the agent's status file was read and parsed;
+- **pending** — SSH connected but the agent has not written a status file yet (a freshly deployed
+  node, or a push-mode fleet driven by `node cadre apply` with no pull agent): `REACHABLE=yes` with
+  `pending` in the REVISION column (JSON `"pending": true`, empty `revision`);
+- **unreachable** — SSH itself failed (dial/auth/timeout); the reason is recorded under `errors:`.
+
+The exit code is 1 if any node is unreachable **or reported errors** (a reachable node whose
+reconcile pass failed, or whose status file could not be read for a reason other than "not written
+yet"). Pending does not affect the exit code; JSON consumers must read the `pending` field rather
+than infer health from an empty `revision`.
 
 Nodes are queried concurrently, at most `--concurrency` at a time (default 8; must be `>= 1`).
 The row order always follows the node list, independent of the concurrency level, so the table
@@ -80,8 +90,9 @@ rucher ops nodes status --json > status.json
 The operator plane uses a built-in Go SSH client (`golang.org/x/crypto/ssh`) — **no system
 `ssh` binary is required**. It authenticates with the target's configured `identity` key
 and/or any keys exposed by an `SSH_AUTH_SOCK` agent, runs a single remote command, and
-returns stdout/stderr plus the remote exit code. A non-zero remote exit is not treated as a
-transport error, so callers use `err != nil || code != 0` as "unreachable". A per-command
+returns stdout/stderr plus the remote exit code. Only a dial/auth/transport failure is treated as
+"unreachable" (`err != nil`); a command that runs but exits non-zero is reported via its exit code,
+so a caller can tell "host down" from "the command failed on a reachable host". A per-command
 timeout (30s) bounds a node that connects but stalls.
 
 Host keys are trusted **TOFU** (trust on first use), backed by a per-tool known_hosts store

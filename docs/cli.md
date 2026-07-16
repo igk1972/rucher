@@ -13,6 +13,12 @@ commands run as **root** (they create users and drive per-user systemd). The `op
 cross-platform. Unknown commands, unrecognized flags, and missing or extra arguments print a
 usage line and exit non-zero.
 
+`-h`, `--help`, and `help` are help requests, not errors: at each command **group** they print
+that group's usage and exit **0**. `rucher --help` prints the full command map; a group scopes it
+(`rucher node --help`, `rucher ops nodes --help`, `rucher node cadre --help`, `rucher ops key --help`).
+A leaf verb (`ops nodes status`, `node cadre logs`, …) does not take `--help` — see its syntax in
+the command map above.
+
 ## Command map
 
 ```
@@ -308,8 +314,15 @@ Gather each node's agent status over SSH and print it. Default output is a table
 (`NODE ADDRESS REACHABLE REVISION APPLIED REMOVED ERRORS`) followed by an errors detail
 block; `--json` emits a JSON array instead. `--live` additionally runs `rucher node cadre status`
 on each reachable node and appends the live per-unit output. With no node names, every node under
-`--dir` that has a `configuration.yml` is queried. Exit code is 1 if any node is
-unreachable or reported errors (a reachable node whose reconcile pass failed).
+`--dir` that has a `configuration.yml` is queried.
+
+A node reached over SSH but whose agent has not written a status file yet — a freshly deployed node,
+or a push-mode fleet driven by `node cadre apply` with no pull agent — is reported as **reachable
+but pending**: `REACHABLE=yes` with `pending` in the REVISION column (JSON: `"pending": true` with an
+empty `revision`). Pending is not a failure and does not affect the exit code; JSON consumers must
+read the `pending` field rather than infer health from an empty `revision`. Exit code is 1 if any
+node is unreachable or reported errors (a reachable node whose reconcile pass failed, or whose status
+file could not be read for a reason other than "not written yet").
 See [management-network.md](management-network.md).
 
 Nodes are queried in parallel, at most `--concurrency` at a time (default 8; must be `>= 1`).
