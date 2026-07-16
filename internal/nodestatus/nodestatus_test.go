@@ -28,7 +28,7 @@ func TestCollectAggregatesAndIsolates(t *testing.T) {
 	// The Targets that Resolve yields for the two node configs.
 	targetA := sshx.Target{Addr: "1.1.1.1:22", User: "root"}
 	targetB := sshx.Target{Addr: "2.2.2.2:22", User: "root"}
-	catCmd := []string{"cat", statusPath}
+	catCmd := []string{"sudo", "cat", statusPath}
 
 	statusJSON := `{"revision":"rev9","applied":[{"name":"web","ok":true},{"name":"db","ok":false,"error":"boom"}],"removed":["old"]}`
 	f := &sshx.Fake{Responses: map[string]sshx.Result{
@@ -78,7 +78,7 @@ func TestCollectInheritsGlobalConnection(t *testing.T) {
 	// Keying the fake by the globaluser target proves the global connection default
 	// was merged in: without it Resolve would yield user "root" and the key would miss.
 	target := sshx.Target{Addr: "1.1.1.1:22", User: "globaluser"}
-	catCmd := []string{"cat", statusPath}
+	catCmd := []string{"sudo", "cat", statusPath}
 	statusJSON := `{"revision":"rev1","applied":[{"name":"web","ok":true}],"removed":[]}`
 	f := &sshx.Fake{Responses: map[string]sshx.Result{
 		sshx.Key(target, catCmd): {Stdout: statusJSON},
@@ -101,7 +101,7 @@ func TestCollectInheritsGlobalConnection(t *testing.T) {
 func TestCollectPreservesOrderUnderConcurrency(t *testing.T) {
 	nodes := t.TempDir()
 	names := []string{"n0", "n1", "n2", "n3", "n4"}
-	catCmd := []string{"cat", statusPath}
+	catCmd := []string{"sudo", "cat", statusPath}
 	resp := map[string]sshx.Result{}
 	for i, name := range names {
 		addr := fmt.Sprintf("10.0.0.%d", i)
@@ -159,7 +159,7 @@ func TestCollectFoldsPassLevelError(t *testing.T) {
 
 	statusJSON := `{"revision":"","applied":[],"removed":[],"error":"store sync: remote unreachable"}`
 	f := &sshx.Fake{Responses: map[string]sshx.Result{
-		sshx.Key(target, []string{"cat", statusPath}): {Stdout: statusJSON},
+		sshx.Key(target, []string{"sudo", "cat", statusPath}): {Stdout: statusJSON},
 	}}
 	rows, err := Collect(f, nodes, "/nonexistent", nil, false, 0)
 	if err != nil {
@@ -181,7 +181,7 @@ func TestCollectFlagsCorruptStatus(t *testing.T) {
 
 	// The node is reachable but its status file is not valid JSON.
 	f := &sshx.Fake{Responses: map[string]sshx.Result{
-		sshx.Key(target, []string{"cat", statusPath}): {Stdout: "{ not json"},
+		sshx.Key(target, []string{"sudo", "cat", statusPath}): {Stdout: "{ not json"},
 	}}
 	rows, err := Collect(f, nodes, "/nonexistent", nil, false, 0)
 	if err != nil {

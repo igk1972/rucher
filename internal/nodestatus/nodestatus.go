@@ -89,7 +89,9 @@ func collectOne(r sshx.Runner, nodesDir, limaDir, name string, live bool) Row {
 		row.Errors = []string{err.Error()}
 		return row
 	}
-	res, err := r.Run(target, []string{"cat", statusPath}, nil)
+	// The status file is 0600 root, so read it via sudo — matching --live below and the
+	// rest of the operator plane, which all assume the SSH user has passwordless sudo.
+	res, err := r.Run(target, []string{"sudo", "cat", statusPath}, nil)
 	if err != nil || res.Code != 0 {
 		// Record why the node is unreachable so the operator can tell a
 		// transport/config failure from a plain "node down".
