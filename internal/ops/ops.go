@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"rucher/internal/age"
+	"rucher/internal/fileset"
 	"rucher/internal/node"
 )
 
@@ -25,9 +26,9 @@ func (o Ops) sc(args ...string) error {
 }
 
 func (o Ops) DaemonReload() error    { return o.sc("daemon-reload") }
-func (o Ops) Start(u string) error   { return o.sc("start", UnitService(u)) }
-func (o Ops) Restart(u string) error { return o.sc("restart", UnitService(u)) }
-func (o Ops) Stop(u string) error    { return o.sc("stop", UnitService(u)) }
+func (o Ops) Start(u string) error   { return o.sc("start", fileset.UnitService(u)) }
+func (o Ops) Restart(u string) error { return o.sc("restart", fileset.UnitService(u)) }
+func (o Ops) Stop(u string) error    { return o.sc("stop", fileset.UnitService(u)) }
 
 // Native systemd units (.timer/.socket/.path) are their own unit name — no Quadlet
 // service mapping. EnableNow arms a new one (and persists it via the wants symlink so
@@ -103,23 +104,6 @@ func (o Ops) GenerateAgeKey(identityPath string) (string, error) {
 		return "", err
 	}
 	return recipient, nil
-}
-
-// UnitService maps a Quadlet unit filename to its generated .service name.
-func UnitService(unit string) string {
-	dot := strings.LastIndex(unit, ".")
-	if dot < 0 {
-		return unit // already a bare/service-style name; nothing to map
-	}
-	stem, ext := unit[:dot], unit[dot+1:]
-	switch ext {
-	case "container", "kube":
-		// Quadlet names a .container's and a .kube's service after the bare stem
-		// (foo.service); .volume/.network/.pod/.image/.build get the -<ext> suffix.
-		return stem + ".service"
-	default:
-		return stem + "-" + ext + ".service"
-	}
 }
 
 func wrap(res node.Result, err error, argv []string) error {

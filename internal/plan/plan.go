@@ -103,22 +103,33 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 		priorSystemd[u] = true
 	}
 	for _, f := range c.Files {
-		// IsSystemdUnit routes a file to the user unit dir; lifecycle applies only to
-		// real .timer/.socket/.path units. The synthesized prune .service carries the
-		// flag but is [Install]-less and fired by its timer, so it must never be
-		// enabled or restarted — a change takes effect at the next fire, after the
-		// daemon-reload this plan already schedules.
-		if !f.IsSystemdUnit || !fileset.IsSystemdUnit(f.Name) {
+		// ShouldEnable separates routing from lifecycle: a native unit is enabled only if
+		// it's an activator (.timer/.socket/.path) or a .service carrying [Install]. An
+		// [Install]-less .service (an operator oneshot, or the synthesized prune service) is
+		// fired by its companion unit, so it must never be enabled or restarted — a change
+		// takes effect at the next fire, after the daemon-reload this plan already schedules.
+		if !fileset.ShouldEnable(f.Name, f.Content) {
 			continue
 		}
 		if !priorSystemd[f.Name] {
 			p.EnableUnits = append(p.EnableUnits, f.Name)
+			// A unit enabled for the first time whose content is unchanged (so the file loop
+			// above queued no write) may predate this version as a support-file .service in the
+			// Quadlet dir. Re-place it in the user unit dir and reload, so `enable --now` can
+			// resolve it instead of failing on a file systemd's user manager never reads.
+			if prior.Files[f.Name] == f.Hash {
+				p.WriteFiles = append(p.WriteFiles, f)
+				p.DaemonReload = true
+			}
 		} else if systemdUnitChanged[f.Name] {
 			p.RestartSystemdUnits = append(p.RestartSystemdUnits, f.Name)
 		}
 	}
+	// Disable a unit that left the desired set, or that stayed but is no longer enable-worthy
+	// (a .service edited to drop its [Install] section) — otherwise its wants-symlink lingers
+	// and, worse, rucher forgets it was enabled and never disables it on a later removal.
 	for u := range priorSystemd {
-		if _, ok := desiredFiles[u]; !ok {
+		if f, ok := desiredFiles[u]; !ok || !fileset.ShouldEnable(f.Name, f.Content) {
 			p.DisableUnits = append(p.DisableUnits, u)
 		}
 	}
@@ -156,15 +167,15 @@ func Compute(c cadre.Cadre, secretHashes map[string]string, prior state.State) P
 	// Coarse fallback: a changed support file that no unit references -> restart every present
 	// unit, Quadlet and native systemd alike. A systemd unit's dependency on a support file
 	// isn't visible in its content, so a changed orphan file restarts it too, mirroring the
-	// Quadlet handling. The extension gate keeps the [Install]-less synthesized prune .service
-	// out (it is fired by its timer, never restarted directly).
+	// Quadlet handling. ShouldEnable keeps the install-only .service (an operator oneshot or the
+	// synthesized prune service) out — it is fired by its companion unit, never restarted directly.
 	if orphanChanged(changedSupport, c.Files) {
 		for _, f := range c.Files {
 			switch {
 			case f.IsUnit && priorUnits[f.Name] &&
 				!slices.Contains(p.RestartUnits, f.Name) && !slices.Contains(p.StartUnits, f.Name):
 				p.RestartUnits = append(p.RestartUnits, f.Name)
-			case f.IsSystemdUnit && fileset.IsSystemdUnit(f.Name) && priorSystemd[f.Name] &&
+			case fileset.ShouldEnable(f.Name, f.Content) && priorSystemd[f.Name] &&
 				!slices.Contains(p.RestartSystemdUnits, f.Name) && !slices.Contains(p.EnableUnits, f.Name):
 				p.RestartSystemdUnits = append(p.RestartSystemdUnits, f.Name)
 			}
@@ -200,9 +211,13 @@ func anyRef(refs []string, changed map[string]bool) bool {
 	return false
 }
 
+// removedAnyUnit reports whether any removed file is a unit — Quadlet, or a native systemd
+// unit including an install-only .service. Its removal must trigger a daemon-reload so systemd
+// drops the vanished unit. A removed enabled unit already forces the reload via DisableUnits;
+// this also covers a lone install-only .service, which is tracked only in Files (no disable).
 func removedAnyUnit(removed []string) bool {
 	for _, name := range removed {
-		if fileset.IsUnitFile(name) {
+		if fileset.IsUnitFile(name) || fileset.IsSystemdUnit(name) {
 			return true
 		}
 	}

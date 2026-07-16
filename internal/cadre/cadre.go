@@ -131,6 +131,9 @@ func (c Cadre) Validate() error {
 		}
 	}
 	have := map[string]bool{}
+	// generated maps each Quadlet-generated .service name back to its source unit, so a
+	// hand-written .service that would shadow one is caught below.
+	generated := map[string]string{}
 	for _, f := range c.Files {
 		if fileset.IsReserved(f.Name) {
 			return fmt.Errorf("file %s: reserved for the synthesized prune units (configure them via the manifest prune: block)", f.Name)
@@ -140,6 +143,26 @@ func (c Cadre) Validate() error {
 			return fmt.Errorf("file %s: name must not start with '-'", f.Name)
 		}
 		have[f.Name] = true
+		if f.IsUnit {
+			gen := fileset.UnitService(f.Name)
+			if fileset.IsReserved(gen) {
+				return fmt.Errorf("file %s: generates %s, reserved for the synthesized prune units", f.Name, gen)
+			}
+			generated[gen] = f.Name
+		}
+	}
+	// A cadre .service must not shadow the .service Quadlet generates from one of its units:
+	// the user unit dir outranks Quadlet's generator output in systemd's unit load path, so an
+	// operator web.service would silently mask the one generated from web.container. The
+	// generated map must be complete first — a suffixed name like db-pod.service sorts before
+	// its db.pod source.
+	for _, f := range c.Files {
+		if filepath.Ext(f.Name) != ".service" {
+			continue
+		}
+		if src, ok := generated[f.Name]; ok {
+			return fmt.Errorf("file %s: collides with the .service Quadlet generates from %s (rename it or configure that unit instead)", f.Name, src)
+		}
 	}
 	for _, f := range c.Files {
 		if !f.IsUnit && !f.IsSystemdUnit {

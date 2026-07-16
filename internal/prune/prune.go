@@ -12,9 +12,9 @@ import (
 
 // Files returns the synthesized GC units, nil when pruning is disabled.
 // Both carry IsSystemdUnit so they are routed to the user unit dir, but only
-// the timer gets a lifecycle: plan gates enable/restart/disable by extension,
-// so the [Install]-less oneshot service is written and daemon-reloaded, never
-// enabled (a changed ExecStart takes effect at the next timer fire).
+// the timer gets a lifecycle: plan gates enable/restart/disable via ShouldEnable,
+// and the oneshot service ships no [Install], so it is written and daemon-reloaded
+// but never enabled (a changed ExecStart takes effect at the next timer fire).
 func Files(p manifest.Prune) []cadre.File {
 	if !p.On() {
 		return nil

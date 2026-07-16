@@ -166,7 +166,7 @@ func Status(r node.Runner, name string) ([]UnitStatus, error) {
 		return nil
 	}
 	for _, u := range prior.Units {
-		if err := show(u, ops.UnitService(u)); err != nil {
+		if err := show(u, fileset.UnitService(u)); err != nil {
 			return nil, err
 		}
 	}
@@ -373,8 +373,10 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 		if stopFailed[name] {
 			continue // its stop failed above; keep the file so the next pass retries the stop
 		}
+		// Native systemd units (incl. any .service and the synthesized prune pair) live in the
+		// user unit dir; Quadlet units and support files in the Quadlet dir.
 		dir := qDir
-		if fileset.IsSystemdUnit(name) || fileset.IsReserved(name) {
+		if fileset.IsSystemdUnit(name) {
 			dir = uDir
 		}
 		if err := userWrite(r, o.User, uid, []string{"rm", "-f", filepath.Join(dir, name)}, nil); err != nil {
@@ -444,6 +446,9 @@ func Apply(r node.Runner, c cadre.Cadre) (plan.Plan, error) {
 		if h, ok := prior.Files[u]; ok {
 			next.Files[u] = h
 		}
+		// Only enabled units reach stopFailed (via Stop of a Quadlet unit or DisableNow of a
+		// native one), so an extension check re-files them correctly without the content that
+		// nextState uses: a failed .service disable is by definition an enabled one.
 		if fileset.IsSystemdUnit(u) {
 			next.SystemdUnits = append(next.SystemdUnits, u)
 		} else {
@@ -473,9 +478,10 @@ func nextState(c cadre.Cadre, uid int, secretHashes, secretValues map[string]str
 		switch {
 		case f.IsUnit:
 			s.Units = append(s.Units, f.Name)
-		case f.IsSystemdUnit && fileset.IsSystemdUnit(f.Name):
-			// The extension gate keeps the synthesized [Install]-less prune .service
-			// out of the disable/status/remove lists; it stays hash-tracked in Files.
+		case fileset.ShouldEnable(f.Name, f.Content):
+			// SystemdUnits is the enable/disable/status set. ShouldEnable keeps an
+			// install-only .service (an operator oneshot or the synthesized prune service)
+			// out — it stays hash-tracked in Files only, never enabled or disabled.
 			s.SystemdUnits = append(s.SystemdUnits, f.Name)
 		}
 	}

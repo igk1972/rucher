@@ -11,9 +11,9 @@ import (
 	"text/tabwriter"
 
 	"rucher/internal/cadre"
+	"rucher/internal/fileset"
 	"rucher/internal/node"
 	"rucher/internal/nodecfg"
-	"rucher/internal/ops"
 	"rucher/internal/plan"
 	"rucher/internal/provision"
 	"rucher/internal/prune"
@@ -295,7 +295,7 @@ func cmdLogs(name, unit string, out io.Writer) int {
 	}
 	uid := strings.TrimSpace(res.Stdout)
 	argv := []string{
-		"journalctl", "_SYSTEMD_USER_UNIT=" + ops.UnitService(unit), "_UID=" + uid,
+		"journalctl", "_SYSTEMD_USER_UNIT=" + fileset.UnitService(unit), "_UID=" + uid,
 		"-n", "200", "--no-pager",
 	}
 	res, err = r.Root(argv, nil)
