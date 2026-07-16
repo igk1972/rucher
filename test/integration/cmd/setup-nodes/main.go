@@ -109,7 +109,7 @@ func ensureNodesConfig() {
 		if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
 			fatal("mkdir %s: %v", filepath.Dir(f), err)
 		}
-		if err := os.WriteFile(f, []byte("hostname: "+n+"\n"), 0o644); err != nil {
+		if err := os.WriteFile(f, []byte("# lima essaim node "+n+"\n"), 0o644); err != nil {
 			fatal("write %s: %v", f, err)
 		}
 		logf("wrote %s", f)
