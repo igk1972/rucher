@@ -10,22 +10,6 @@ import (
 	"rucher/internal/node"
 )
 
-func TestUnitService(t *testing.T) {
-	cases := map[string]string{
-		"web.container": "web.service",
-		"app.kube":      "app.service", // .kube, like .container, maps to the bare stem
-		"data.volume":   "data-volume.service",
-		"net.network":   "net-network.service",
-		"app.pod":       "app-pod.service",
-		"web":           "web", // no extension: returned unchanged, must not panic
-	}
-	for in, want := range cases {
-		if got := UnitService(in); got != want {
-			t.Fatalf("UnitService(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestStartStopUseStartStopNotEnableDisable(t *testing.T) {
 	// systemd refuses to enable/disable generator-produced (Quadlet) units, so
 	// Start/Stop must issue plain start/stop; boot-persistence comes from the

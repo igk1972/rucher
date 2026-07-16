@@ -391,6 +391,184 @@ func TestApplyPruneDisableRemovesUnits(t *testing.T) {
 	}
 }
 
+func TestApplyInstallServiceRoutedAndEnabled(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+
+	worker := "[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=default.target\n"
+	c := cadre.Cadre{Name: "web"}
+	c.Files = []cadre.File{
+		{Name: "worker.service", Content: []byte(worker), Hash: fileset.Hash([]byte(worker)), IsSystemdUnit: true},
+	}
+
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
+	}}
+	if _, err := Apply(f, c); err != nil {
+		t.Fatal(err)
+	}
+
+	wantTee := "tee " + userUnitDir("web") + "/worker.service"
+	wantEnable := "systemctl --user enable --now worker.service"
+	var sawTee, sawEnable bool
+	for _, call := range f.Calls {
+		switch strings.Join(call.Argv, " ") {
+		case wantTee:
+			sawTee = true
+			if string(call.Stdin) != worker {
+				t.Fatalf("service body via stdin = %q, want %q", call.Stdin, worker)
+			}
+		case wantEnable:
+			sawEnable = true
+		}
+	}
+	if !sawTee {
+		t.Errorf("the .service must be written to the user unit dir (%s)", wantTee)
+	}
+	if !sawEnable {
+		t.Error("a .service with [Install] must be enabled with `systemctl --user enable --now`")
+	}
+
+	st, err := state.Load(statePath("web"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(st.SystemdUnits, "worker.service") {
+		t.Fatalf("state SystemdUnits = %v, want worker.service", st.SystemdUnits)
+	}
+}
+
+func TestApplyOneshotServiceInstalledNotEnabled(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+
+	service := "[Service]\nType=oneshot\nExecStart=/bin/true\n"
+	timer := "[Timer]\nOnCalendar=daily\n[Install]\nWantedBy=timers.target\n"
+	c := cadre.Cadre{Name: "web"}
+	c.Files = []cadre.File{
+		{Name: "job.service", Content: []byte(service), Hash: fileset.Hash([]byte(service)), IsSystemdUnit: true},
+		{Name: "job.timer", Content: []byte(timer), Hash: fileset.Hash([]byte(timer)), IsSystemdUnit: true},
+	}
+
+	f := &node.Fake{Responses: map[string]node.Result{
+		"root:id -u rucher-web": {Stdout: "1234", Code: 0},
+	}}
+	if _, err := Apply(f, c); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawServiceTee, sawTimerEnable, sawServiceEnable bool
+	for _, call := range f.Calls {
+		switch strings.Join(call.Argv, " ") {
+		case "tee " + userUnitDir("web") + "/job.service":
+			sawServiceTee = true
+		case "systemctl --user enable --now job.timer":
+			sawTimerEnable = true
+		case "systemctl --user enable --now job.service":
+			sawServiceEnable = true
+		}
+	}
+	if !sawServiceTee {
+		t.Error("the oneshot .service must be written to the user unit dir")
+	}
+	if !sawTimerEnable {
+		t.Error("the companion timer must be enabled")
+	}
+	if sawServiceEnable {
+		t.Error("an [Install]-less .service must never be enabled")
+	}
+
+	st, err := state.Load(statePath("web"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(st.SystemdUnits, "job.service") {
+		t.Fatalf("state SystemdUnits must not contain the oneshot service: %v", st.SystemdUnits)
+	}
+	if _, ok := st.Files["job.service"]; !ok {
+		t.Fatalf("state Files = %v, want job.service hash-tracked", st.Files)
+	}
+	if !slices.Contains(st.SystemdUnits, "job.timer") {
+		t.Fatalf("state SystemdUnits = %v, want job.timer", st.SystemdUnits)
+	}
+}
+
+func TestApplyDisablesAndRemovesEnabledServiceOnDrop(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+
+	off := false
+	worker := "[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=default.target\n"
+	c := cadre.Cadre{
+		Name:     "web",
+		Manifest: manifest.Manifest{Prune: manifest.Prune{Enabled: &off}},
+		Files:    []cadre.File{{Name: "worker.service", Content: []byte(worker), Hash: fileset.Hash([]byte(worker)), IsSystemdUnit: true}},
+	}
+	responses := map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234", Code: 0}}
+	if _, err := Apply(&node.Fake{Responses: responses}, c); err != nil {
+		t.Fatal(err)
+	}
+
+	// Re-apply the cadre with the service dropped.
+	empty := cadre.Cadre{Name: "web", Manifest: manifest.Manifest{Prune: manifest.Prune{Enabled: &off}}}
+	f := &node.Fake{Responses: responses}
+	if _, err := Apply(f, empty); err != nil {
+		t.Fatal(err)
+	}
+	var sawDisable, sawRm bool
+	for _, call := range f.Calls {
+		switch strings.Join(call.Argv, " ") {
+		case "systemctl --user disable --now worker.service":
+			sawDisable = true
+		case "rm -f " + userUnitDir("web") + "/worker.service":
+			sawRm = true
+		}
+	}
+	if !sawDisable {
+		t.Error("a removed enabled .service must be `disable --now`'d")
+	}
+	if !sawRm {
+		t.Error("a removed .service must be rm'd from the user unit dir")
+	}
+}
+
+func TestApplyRestartsChangedEnabledService(t *testing.T) {
+	t.Setenv("RUCHER_CADRES_DIR", t.TempDir())
+	t.Setenv("RUCHER_STATE_DIR", t.TempDir())
+
+	off := false
+	mk := func(body string) cadre.Cadre {
+		return cadre.Cadre{
+			Name:     "web",
+			Manifest: manifest.Manifest{Prune: manifest.Prune{Enabled: &off}},
+			Files:    []cadre.File{{Name: "worker.service", Content: []byte(body), Hash: fileset.Hash([]byte(body)), IsSystemdUnit: true}},
+		}
+	}
+	responses := map[string]node.Result{"root:id -u rucher-web": {Stdout: "1234", Code: 0}}
+	if _, err := Apply(&node.Fake{Responses: responses}, mk("[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=default.target\n")); err != nil {
+		t.Fatal(err)
+	}
+	f := &node.Fake{Responses: responses}
+	if _, err := Apply(f, mk("[Service]\nExecStart=/bin/false\n[Install]\nWantedBy=default.target\n")); err != nil {
+		t.Fatal(err)
+	}
+	var sawRestart, sawEnable bool
+	for _, call := range f.Calls {
+		switch strings.Join(call.Argv, " ") {
+		case "systemctl --user restart worker.service":
+			sawRestart = true
+		case "systemctl --user enable --now worker.service":
+			sawEnable = true
+		}
+	}
+	if !sawRestart {
+		t.Error("a changed enabled .service must be restarted")
+	}
+	if sawEnable {
+		t.Error("an already-enabled .service must not be re-enabled on change")
+	}
+}
+
 func TestNewGeneratesIdentityAndReturnsRecipient(t *testing.T) {
 	idp := provision.HomeDir("web") + "/.config/rucher/age/identity.txt"
 	recp := provision.HomeDir("web") + "/.config/rucher/age/recipient.txt"

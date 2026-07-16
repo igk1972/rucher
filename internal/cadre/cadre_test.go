@@ -292,3 +292,90 @@ func TestLoadIgnoresVolumeReference(t *testing.T) {
 		t.Fatalf("Volume references must not be validated: %v", err)
 	}
 }
+
+func TestLoadClassifiesServiceAsSystemdUnit(t *testing.T) {
+	dir := writeCadre(t, map[string]string{
+		"job.service": "[Service]\nType=oneshot\nExecStart=/bin/true\n",
+	})
+	c, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, f := range c.Files {
+		if f.Name == "job.service" {
+			found = true
+			if !f.IsSystemdUnit || f.IsUnit {
+				t.Fatalf("job.service classified wrong: IsSystemdUnit=%v IsUnit=%v", f.IsSystemdUnit, f.IsUnit)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("job.service missing from loaded files")
+	}
+}
+
+func TestLoadRejectsServiceCollidingWithQuadletService(t *testing.T) {
+	// web.container generates web.service; a hand-written web.service would shadow it.
+	dir := writeCadre(t, map[string]string{
+		"web.container": "[Container]\nImage=nginx\n",
+		"web.service":   "[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=default.target\n",
+	})
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected a collision error for web.service shadowing the generated web.service")
+	}
+}
+
+func TestLoadRejectsServiceCollidingWithSuffixedQuadletService(t *testing.T) {
+	// A .pod generates <stem>-pod.service; a matching hand-written .service collides too.
+	dir := writeCadre(t, map[string]string{
+		"db.pod":         "[Pod]\n",
+		"db-pod.service": "[Service]\nExecStart=/bin/true\n",
+	})
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected a collision error for db-pod.service shadowing the generated db-pod.service")
+	}
+}
+
+func TestLoadRejectsReservedPruneServiceName(t *testing.T) {
+	dir := writeCadre(t, map[string]string{
+		"rucher-prune.service": "[Service]\nType=oneshot\nExecStart=/bin/true\n",
+	})
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected error for a file colliding with the synthesized prune service")
+	}
+}
+
+func TestLoadAcceptsOneshotServiceWithTimer(t *testing.T) {
+	dir := writeCadre(t, map[string]string{
+		"job.service": "[Service]\nType=oneshot\nExecStart=/bin/true\n",
+		"job.timer":   "[Timer]\nOnCalendar=daily\n[Install]\nWantedBy=timers.target\n",
+	})
+	if _, err := Load(dir); err != nil {
+		t.Fatalf("a oneshot .service with a companion timer must load cleanly: %v", err)
+	}
+}
+
+func TestLoadAcceptsServiceAlongsideNonCollidingQuadletUnit(t *testing.T) {
+	// A .service coexisting with a Quadlet unit whose generated name differs must load
+	// cleanly — guards the collision check against a false positive (the container populates
+	// the generated-name map, unlike a lone .timer).
+	dir := writeCadre(t, map[string]string{
+		"web.container":  "[Container]\nImage=nginx\n",
+		"logger.service": "[Service]\nType=oneshot\nExecStart=/bin/true\n",
+	})
+	if _, err := Load(dir); err != nil {
+		t.Fatalf("a non-colliding .service must load cleanly: %v", err)
+	}
+}
+
+func TestLoadRejectsQuadletUnitGeneratingReservedName(t *testing.T) {
+	// rucher-prune.container generates rucher-prune.service, reserved for the synthesized
+	// prune units — it would shadow them, so it must be rejected.
+	dir := writeCadre(t, map[string]string{
+		"rucher-prune.container": "[Container]\nImage=nginx\n",
+	})
+	if _, err := Load(dir); err == nil {
+		t.Fatal("expected rejection: rucher-prune.container generates the reserved rucher-prune.service")
+	}
+}

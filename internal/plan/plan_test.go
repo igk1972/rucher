@@ -399,3 +399,182 @@ func TestStopUnitsWhenUnitRemoved(t *testing.T) {
 		t.Fatal("removing a unit file must trigger daemon-reload")
 	}
 }
+
+func writeNames(fs []cadre.File) []string {
+	names := make([]string, len(fs))
+	for i, f := range fs {
+		names[i] = f.Name
+	}
+	return names
+}
+
+func TestServiceWithInstallEnabledOnFreshInstall(t *testing.T) {
+	// A cadre-shipped .service carrying [Install] is enabled like an activator unit.
+	c := comp(map[string]string{
+		"worker.service": "[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=default.target\n",
+	})
+	p := Compute(c, nil, state.State{})
+	if !slices.Contains(p.EnableUnits, "worker.service") {
+		t.Fatalf("EnableUnits = %v, want worker.service", p.EnableUnits)
+	}
+	if len(p.RestartSystemdUnits) != 0 {
+		t.Fatalf("RestartSystemdUnits = %v, want none on fresh install", p.RestartSystemdUnits)
+	}
+	if !p.DaemonReload {
+		t.Fatal("a new .service must trigger daemon-reload")
+	}
+}
+
+func TestOneshotServiceNeverEnabled(t *testing.T) {
+	// An [Install]-less oneshot .service is written but never enabled; its companion
+	// .timer is the only unit enabled — mirrors the synthesized prune pair.
+	c := comp(map[string]string{
+		"job.service": "[Service]\nType=oneshot\nExecStart=/bin/true\n",
+		"job.timer":   "[Timer]\nOnCalendar=daily\n[Install]\nWantedBy=timers.target\n",
+	})
+	p := Compute(c, nil, state.State{})
+	if !slices.Equal(p.EnableUnits, []string{"job.timer"}) {
+		t.Fatalf("EnableUnits = %v, want only job.timer", p.EnableUnits)
+	}
+	if !slices.Contains(writeNames(p.WriteFiles), "job.service") {
+		t.Fatalf("WriteFiles = %v, want job.service written", writeNames(p.WriteFiles))
+	}
+	if slices.Contains(p.RestartSystemdUnits, "job.service") {
+		t.Fatalf("the oneshot service must never be restarted: %v", p.RestartSystemdUnits)
+	}
+	if !p.DaemonReload {
+		t.Fatal("new units must trigger daemon-reload")
+	}
+}
+
+func TestServiceWithInstallRestartOnChangeAndDisableOnRemoval(t *testing.T) {
+	worker := "[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=default.target\n"
+	c := comp(map[string]string{"worker.service": worker})
+	prior := state.State{
+		Files: map[string]string{
+			// worker.service present with a different body -> changed -> restart
+			"worker.service": fileset.Hash([]byte("[Service]\nExecStart=/bin/false\n[Install]\nWantedBy=default.target\n")),
+			// old.service (was enabled) no longer desired -> disable + remove
+			"old.service": fileset.Hash([]byte("[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=default.target\n")),
+		},
+		SystemdUnits: []string{"worker.service", "old.service"},
+		SecretHashes: map[string]string{},
+	}
+	p := Compute(c, nil, prior)
+	if !slices.Equal(p.RestartSystemdUnits, []string{"worker.service"}) {
+		t.Fatalf("RestartSystemdUnits = %v, want [worker.service]", p.RestartSystemdUnits)
+	}
+	if len(p.EnableUnits) != 0 {
+		t.Fatalf("EnableUnits = %v, want none (already present)", p.EnableUnits)
+	}
+	if !slices.Contains(p.DisableUnits, "old.service") {
+		t.Fatalf("DisableUnits = %v, want old.service", p.DisableUnits)
+	}
+	if !slices.Contains(p.RemoveFiles, "old.service") {
+		t.Fatalf("RemoveFiles = %v, want old.service", p.RemoveFiles)
+	}
+	if !p.DaemonReload {
+		t.Fatal("a changed/removed enabled .service must trigger daemon-reload")
+	}
+}
+
+func TestOneshotServiceChangeAvoidsRestart(t *testing.T) {
+	// A changed install-only .service is rewritten and reloaded, never restarted:
+	// not the service (ShouldEnable gates it out) and not the workloads.
+	container := "[Container]\nImage=nginx\n"
+	c := comp(map[string]string{
+		"job.service":   "[Service]\nType=oneshot\nExecStart=/bin/true --v2\n",
+		"web.container": container,
+	})
+	prior := state.State{
+		Files: map[string]string{
+			"job.service":   fileset.Hash([]byte("[Service]\nType=oneshot\nExecStart=/bin/true --v1\n")), // changed
+			"web.container": fileset.Hash([]byte(container)),
+		},
+		Units:        []string{"web.container"},
+		SecretHashes: map[string]string{},
+	}
+	p := Compute(c, nil, prior)
+	if !slices.Equal(writeNames(p.WriteFiles), []string{"job.service"}) {
+		t.Fatalf("WriteFiles = %v, want only job.service", writeNames(p.WriteFiles))
+	}
+	if len(p.RestartSystemdUnits) != 0 || len(p.RestartUnits) != 0 || len(p.EnableUnits) != 0 {
+		t.Fatalf("no restarts/enables wanted: systemd=%v units=%v enable=%v",
+			p.RestartSystemdUnits, p.RestartUnits, p.EnableUnits)
+	}
+	if !p.DaemonReload {
+		t.Fatal("a changed install-only .service must trigger daemon-reload")
+	}
+}
+
+func TestOneshotServiceRemovalTriggersReload(t *testing.T) {
+	// Removing a lone install-only .service (tracked only in Files, never enabled) must
+	// still daemon-reload so systemd drops it — and must not try to disable it.
+	c := comp(map[string]string{"job.timer": "[Timer]\nOnCalendar=daily\n[Install]\nWantedBy=timers.target\n"})
+	prior := state.State{
+		Files: map[string]string{
+			"job.timer":   c.Files[0].Hash,
+			"job.service": fileset.Hash([]byte("[Service]\nType=oneshot\nExecStart=/bin/true\n")),
+		},
+		SystemdUnits: []string{"job.timer"}, // the oneshot service was never in SystemdUnits
+		SecretHashes: map[string]string{},
+	}
+	p := Compute(c, nil, prior)
+	if !slices.Contains(p.RemoveFiles, "job.service") {
+		t.Fatalf("RemoveFiles = %v, want job.service", p.RemoveFiles)
+	}
+	if len(p.DisableUnits) != 0 {
+		t.Fatalf("DisableUnits = %v, want none (install-only service was never enabled)", p.DisableUnits)
+	}
+	if !p.DaemonReload {
+		t.Fatal("removing an install-only .service must trigger daemon-reload")
+	}
+}
+
+func TestServiceDroppingInstallIsDisabledInPlace(t *testing.T) {
+	// A previously-enabled .service edited to drop its [Install] section is disabled (its
+	// wants-symlink removed) but kept as an install-only file — not removed, not re-enabled.
+	oneshot := "[Service]\nType=oneshot\nExecStart=/bin/true\n" // no [Install]
+	c := comp(map[string]string{"worker.service": oneshot})
+	prior := state.State{
+		Files:        map[string]string{"worker.service": fileset.Hash([]byte("[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=default.target\n"))},
+		SystemdUnits: []string{"worker.service"},
+		SecretHashes: map[string]string{},
+	}
+	p := Compute(c, nil, prior)
+	if !slices.Equal(p.DisableUnits, []string{"worker.service"}) {
+		t.Fatalf("DisableUnits = %v, want [worker.service]", p.DisableUnits)
+	}
+	if slices.Contains(p.RemoveFiles, "worker.service") {
+		t.Fatalf("worker.service must be kept as an install-only file, not removed: %v", p.RemoveFiles)
+	}
+	if len(p.EnableUnits) != 0 || len(p.RestartSystemdUnits) != 0 {
+		t.Fatalf("must not re-enable/restart: enable=%v restart=%v", p.EnableUnits, p.RestartSystemdUnits)
+	}
+	if !slices.Contains(writeNames(p.WriteFiles), "worker.service") {
+		t.Fatalf("the new install-only content must be written: %v", writeNames(p.WriteFiles))
+	}
+}
+
+func TestEnabledServiceReplacedFromQuadletDirOnUpgrade(t *testing.T) {
+	// Upgrade path: a .service with [Install] was a support file under the old binary (in
+	// prior.Files, absent from prior.SystemdUnits) with unchanged content. It must be
+	// re-written to relocate it into the user unit dir, and reloaded, so `enable --now`
+	// resolves it instead of failing on a stale copy in the Quadlet dir.
+	worker := "[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=default.target\n"
+	c := comp(map[string]string{"worker.service": worker})
+	prior := state.State{
+		Files:        map[string]string{"worker.service": fileset.Hash([]byte(worker))}, // same hash; was tracked as support only
+		SecretHashes: map[string]string{},
+	}
+	p := Compute(c, nil, prior)
+	if !slices.Contains(p.EnableUnits, "worker.service") {
+		t.Fatalf("EnableUnits = %v, want worker.service", p.EnableUnits)
+	}
+	if !slices.Contains(writeNames(p.WriteFiles), "worker.service") {
+		t.Fatalf("worker.service must be re-written to relocate it to the user unit dir: %v", writeNames(p.WriteFiles))
+	}
+	if !p.DaemonReload {
+		t.Fatal("relocating and enabling the unit must trigger daemon-reload")
+	}
+}
