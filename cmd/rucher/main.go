@@ -10,10 +10,10 @@ import (
 	"strings"
 )
 
-func usage() string {
-	return `rucher <node|ops> ...
-
-node — on the Linux node (runuser/systemctl/podman):
+// nodeUsage and opsUsage are the two command-group blocks. usage() concatenates
+// them for top-level help; `rucher node -h` / `rucher ops -h` print just the block
+// for their side, so help is scoped to the level the operator asked about.
+const nodeUsage = `node — on the Linux node (runuser/systemctl/podman):
   node apply [--dir DIR]                        reconcile all cadres under --dir
   node cadre new <name>
   node cadre apply [--dir DIR] <name...>        reconcile the named cadre(s)
@@ -23,8 +23,9 @@ node — on the Linux node (runuser/systemctl/podman):
   node cadre recipient <name>
   node key init | show
   node agent run | install [--config PATH]
+`
 
-ops — from the operator machine:
+const opsUsage = `ops — from the operator machine:
   ops init [--dir DIR] <name>                  scaffold a cadre directory (manifest + example unit)
   ops validate [--dir DIR] [name...]           check cadre manifests + unit files (no node)
   ops plan [--dir DIR] [name...]
@@ -34,6 +35,16 @@ ops — from the operator machine:
   ops key seal <name> --to <recipient> [--to <recipient> ...]
   ops secrets encrypt [--to <rcpt>... | --cadre <name> --seal-to <node-rcpt>...] [--in F] [--out F]
 `
+
+func usage() string {
+	return "rucher <node|ops> ...\n\n" + nodeUsage + "\n" + opsUsage
+}
+
+// isHelpFlag reports whether arg is a help request: -h, --help, or the `help`
+// subcommand. Each command group answers a help request with its own usage and a
+// zero exit, so `rucher --help` (and the node/ops/cadre variants) read as success.
+func isHelpFlag(arg string) bool {
+	return arg == "-h" || arg == "--help" || arg == "help"
 }
 
 // parseDir pulls an optional `--dir <value>` out of args wherever it appears
@@ -115,6 +126,10 @@ func run(args []string, stdout io.Writer) int {
 		fmt.Fprint(stdout, usage())
 		return 2
 	}
+	if isHelpFlag(args[0]) {
+		fmt.Fprint(stdout, usage())
+		return 0
+	}
 	switch args[0] {
 	case "node":
 		return runNode(args[1:], stdout)
@@ -133,6 +148,10 @@ func runNode(args []string, stdout io.Writer) int {
 		fmt.Fprint(stdout, usage())
 		return 2
 	}
+	if isHelpFlag(args[0]) {
+		fmt.Fprint(stdout, nodeUsage)
+		return 0
+	}
 	switch args[0] {
 	case "apply":
 		// `node apply` reconciles the whole node (all cadres); a specific
@@ -150,6 +169,10 @@ func runNode(args []string, stdout io.Writer) int {
 	case "cadre":
 		return runNodeCadre(args[1:], stdout)
 	case "key":
+		if len(args) >= 2 && isHelpFlag(args[1]) {
+			fmt.Fprintln(stdout, "usage: node key init|show")
+			return 0
+		}
 		if len(args) != 2 {
 			fmt.Fprintln(stdout, "usage: node key init|show")
 			return 2
@@ -164,6 +187,10 @@ func runNode(args []string, stdout io.Writer) int {
 			return 2
 		}
 	case "agent":
+		if len(args) >= 2 && isHelpFlag(args[1]) {
+			fmt.Fprintln(stdout, "usage: node agent run|install [--config PATH]")
+			return 0
+		}
 		if len(args) < 2 {
 			fmt.Fprintln(stdout, "usage: node agent run|install [--config PATH]")
 			return 2
@@ -191,9 +218,14 @@ func runNode(args []string, stdout io.Writer) int {
 
 // runNodeCadre dispatches per-cadre operations (`node cadre <verb> ...`).
 func runNodeCadre(args []string, stdout io.Writer) int {
+	const u = "usage: node cadre <new|apply|status|logs|rm|recipient> ..."
 	if len(args) == 0 {
-		fmt.Fprintln(stdout, "usage: node cadre <new|apply|status|logs|rm|recipient> ...")
+		fmt.Fprintln(stdout, u)
 		return 2
+	}
+	if isHelpFlag(args[0]) {
+		fmt.Fprintln(stdout, u)
+		return 0
 	}
 	switch args[0] {
 	case "new":
@@ -255,6 +287,10 @@ func runOps(args []string, stdout io.Writer) int {
 		fmt.Fprint(stdout, usage())
 		return 2
 	}
+	if isHelpFlag(args[0]) {
+		fmt.Fprint(stdout, opsUsage)
+		return 0
+	}
 	switch args[0] {
 	case "init":
 		dir, names, err := parseDir(args[1:])
@@ -286,6 +322,10 @@ func runOps(args []string, stdout io.Writer) int {
 		}
 		return cmdPlan(dir, names, stdout)
 	case "key":
+		if len(args) >= 2 && isHelpFlag(args[1]) {
+			fmt.Fprintln(stdout, "usage: ops key seal <name> --to <recipient> [--to <recipient> ...]")
+			return 0
+		}
 		if len(args) < 2 || args[1] != "seal" {
 			fmt.Fprintln(stdout, "usage: ops key seal <name> --to <recipient> [--to <recipient> ...]")
 			return 2
@@ -304,8 +344,13 @@ func runOps(args []string, stdout io.Writer) int {
 // runOpsSecrets dispatches `ops secrets encrypt` — in-process SOPS+age
 // encryption of a plaintext YAML map read from stdin.
 func runOpsSecrets(args []string, stdout io.Writer) int {
+	const u = "usage: ops secrets encrypt --to <recipient>... | --cadre <name> --seal-to <node-recipient>..."
+	if len(args) > 0 && isHelpFlag(args[0]) {
+		fmt.Fprintln(stdout, u)
+		return 0
+	}
 	if len(args) == 0 || args[0] != "encrypt" {
-		fmt.Fprintln(stdout, "usage: ops secrets encrypt --to <recipient>... | --cadre <name> --seal-to <node-recipient>...")
+		fmt.Fprintln(stdout, u)
 		return 2
 	}
 	return cmdSecretsEncrypt(args[1:], os.Stdin, stdout)
@@ -314,14 +359,19 @@ func runOpsSecrets(args []string, stdout io.Writer) int {
 // runOpsNodes dispatches the ops nodes plane (`ops nodes [--dir DIR] <status|join>`).
 // --dir is accepted only before the subcommand, matching the other flag-first commands.
 func runOpsNodes(args []string, stdout io.Writer) int {
+	const u = "usage: ops nodes [--dir DIR] status|join|deploy ..."
 	nodesDir := "./nodes"
 	rest := args
 	if len(rest) >= 2 && rest[0] == "--dir" {
 		nodesDir, rest = rest[1], rest[2:]
 	}
 	if len(rest) == 0 {
-		fmt.Fprintln(stdout, "usage: ops nodes [--dir DIR] status|join ...")
+		fmt.Fprintln(stdout, u)
 		return 2
+	}
+	if isHelpFlag(rest[0]) {
+		fmt.Fprintln(stdout, u)
+		return 0
 	}
 	switch rest[0] {
 	case "status":
